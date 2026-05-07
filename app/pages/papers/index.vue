@@ -1,35 +1,38 @@
 <script setup lang="ts">
 import type {
-  CreateUserRequest,
-  UpdateUserRequest,
-  UserResponse,
-} from '~/types/user'
-import { USER_ROLE_OPTIONS } from '~/types/user'
-import type { PageResponse } from '~/types/shared'
+  CreatePaperRequest,
+  PaperResponse,
+  UpdatePaperRequest,
+} from '~/types/paper'
+import type { KeyValueDto, PageResponse } from '~/types/shared'
 
-const usersApi = useUsers()
+const papersApi = usePapers()
+const paperTypesApi = usePaperTypes()
 
 const page = ref(0)
 const size = ref(20)
 const nameFilter = ref('')
 const debouncedFilter = ref('')
-const activeFilter = ref<string | null>(null)
+const typeFilter = ref<number | null>(null)
 
-const data = ref<PageResponse<UserResponse> | null>(null)
+const data = ref<PageResponse<PaperResponse> | null>(null)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
+const types = ref<KeyValueDto[]>([])
+
 const showForm = ref(false)
-const editing = ref<UserResponse | null>(null)
+const editing = ref<PaperResponse | null>(null)
 const saving = ref(false)
 
-const statusOptions = [
-  { value: 'true', label: 'Ativos' },
-  { value: 'false', label: 'Inativos' },
-]
+const typeSelectOptions = computed(() =>
+  types.value.map((type) => ({ value: type.id, label: type.value })),
+)
 
-const roleLabel = (role: string) =>
-  USER_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+})
 
 let filterTimer: ReturnType<typeof setTimeout> | null = null
 watch(nameFilter, (value) => {
@@ -40,29 +43,39 @@ watch(nameFilter, (value) => {
   }, 350)
 })
 
-watch(activeFilter, () => {
+watch(typeFilter, () => {
   page.value = 0
 })
 
-const fetchUsers = async () => {
+const fetchPapers = async () => {
   loading.value = true
   errorMessage.value = null
   try {
-    data.value = await usersApi.list({
+    data.value = await papersApi.list({
       page: page.value,
       size: size.value,
       name: debouncedFilter.value || undefined,
-      active: activeFilter.value === null ? undefined : activeFilter.value === 'true',
+      typeId: typeFilter.value ?? undefined,
     })
   } catch (err) {
-    errorMessage.value = 'Não foi possível carregar a lista de usuários.'
+    errorMessage.value = 'Não foi possível carregar a lista de papéis.'
     console.error(err)
   } finally {
     loading.value = false
   }
 }
 
-watch([page, size, debouncedFilter, activeFilter], fetchUsers, { immediate: true })
+const fetchTypes = async () => {
+  try {
+    types.value = await paperTypesApi.list()
+  } catch (err) {
+    // Endpoint pode ainda não existir no backend; apenas registra e segue.
+    console.warn('Falha ao carregar tipos de papel:', err)
+  }
+}
+
+watch([page, size, debouncedFilter, typeFilter], fetchPapers, { immediate: true })
+onMounted(fetchTypes)
 
 const totalPages = computed(() => data.value?.totalPages ?? 0)
 
@@ -76,8 +89,8 @@ const openCreate = () => {
   showForm.value = true
 }
 
-const openEdit = (user: UserResponse) => {
-  editing.value = user
+const openEdit = (paper: PaperResponse) => {
+  editing.value = paper
   showForm.value = true
 }
 
@@ -86,47 +99,50 @@ const closeForm = () => {
   editing.value = null
 }
 
-const handleSubmit = async (payload: CreateUserRequest | UpdateUserRequest) => {
+const handleSubmit = async (payload: CreatePaperRequest | UpdatePaperRequest) => {
   saving.value = true
   errorMessage.value = null
   try {
     if (editing.value?.id) {
-      await usersApi.update(editing.value.id, payload as UpdateUserRequest)
+      await papersApi.update(editing.value.id, payload as UpdatePaperRequest)
     } else {
-      await usersApi.create(payload as CreateUserRequest)
+      await papersApi.create(payload as CreatePaperRequest)
     }
     closeForm()
-    await fetchUsers()
+    await fetchPapers()
   } catch (err) {
-    errorMessage.value = 'Falha ao salvar usuário.'
+    errorMessage.value = 'Falha ao salvar papel.'
     console.error(err)
   } finally {
     saving.value = false
   }
 }
 
-const handleDelete = async (user: UserResponse) => {
-  if (!confirm(`Excluir o usuário "${user.username}"?`)) return
+const handleDelete = async (paper: PaperResponse) => {
+  if (!confirm(`Excluir o papel "${paper.sku?.name}"?`)) return
   try {
-    await usersApi.remove(user.id)
-    await fetchUsers()
+    await papersApi.remove(paper.id)
+    await fetchPapers()
   } catch (err) {
-    errorMessage.value = 'Falha ao excluir usuário.'
+    errorMessage.value = 'Falha ao excluir papel.'
     console.error(err)
   }
 }
+
+const formatPrice = (value: number | null | undefined): string =>
+  value === null || value === undefined ? '—' : currencyFormatter.format(value)
 </script>
 
 <template>
   <section class="flex flex-col gap-4">
     <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold text-slate-800">Usuários</h1>
-        <p class="text-sm text-slate-500">Gerencie acessos do sistema.</p>
+        <h1 class="text-2xl font-semibold text-slate-800">Papéis / Insumos</h1>
+        <p class="text-sm text-slate-500">Catálogo de papéis utilizados na produção.</p>
       </div>
       <BaseButton @click="openCreate">
         <Icon name="lucide:plus" class="size-4" />
-        Novo usuário
+        Novo papel
       </BaseButton>
     </header>
 
@@ -145,9 +161,9 @@ const handleDelete = async (user: UserResponse) => {
           />
         </div>
         <BaseSelect
-          v-model="activeFilter"
-          :options="statusOptions"
-          placeholder="Todos os status"
+          v-model="typeFilter"
+          :options="typeSelectOptions"
+          placeholder="Todos os tipos"
         />
         <div class="flex items-center justify-end text-xs text-slate-500">
           <span v-if="data">{{ data.totalElements }} registro(s)</span>
@@ -165,57 +181,48 @@ const handleDelete = async (user: UserResponse) => {
           <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
             <tr>
               <th class="px-4 py-3">ID</th>
-              <th class="px-4 py-3">Nome</th>
-              <th class="px-4 py-3">Usuário</th>
-              <th class="px-4 py-3">Perfil</th>
-              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">SKU</th>
+              <th class="px-4 py-3">Tipo</th>
+              <th class="px-4 py-3">Formato (mm)</th>
+              <th class="px-4 py-3">Gramatura</th>
+              <th class="px-4 py-3">Preço/kg</th>
               <th class="px-4 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
             <tr v-if="loading">
-              <td colspan="6" class="px-4 py-10 text-center text-slate-500">
+              <td colspan="7" class="px-4 py-10 text-center text-slate-500">
                 <Icon name="lucide:loader-2" class="mr-2 inline size-4 animate-spin" />
                 Carregando...
               </td>
             </tr>
             <tr v-else-if="!data || data.content.length === 0">
-              <td colspan="6" class="px-4 py-10 text-center text-slate-400">
-                Nenhum usuário encontrado.
+              <td colspan="7" class="px-4 py-10 text-center text-slate-400">
+                Nenhum papel encontrado.
               </td>
             </tr>
-            <tr v-for="user in data?.content ?? []" v-else :key="user.id" class="hover:bg-slate-50">
-              <td class="px-4 py-3 text-slate-500">{{ user.id }}</td>
-              <td class="px-4 py-3 font-medium text-slate-800">{{ user.person?.name }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ user.username }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ roleLabel(user.role) }}</td>
-              <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="user.active
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-slate-100 text-slate-500'"
-                >
-                  <span
-                    class="size-1.5 rounded-full"
-                    :class="user.active ? 'bg-emerald-500' : 'bg-slate-400'"
-                  />
-                  {{ user.active ? 'Ativo' : 'Inativo' }}
-                </span>
+            <tr v-for="paper in data?.content ?? []" v-else :key="paper.id" class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-500">{{ paper.id }}</td>
+              <td class="px-4 py-3 font-medium text-slate-800">{{ paper.sku?.name }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ paper.type?.name }}</td>
+              <td class="px-4 py-3 text-slate-600">
+                {{ paper.formatWidth }} × {{ paper.formatHeight }}
               </td>
+              <td class="px-4 py-3 text-slate-600">{{ paper.grammageG }} g/m²</td>
+              <td class="px-4 py-3 text-slate-600">{{ formatPrice(paper.pricePerKg) }}</td>
               <td class="px-4 py-3">
                 <div class="flex justify-end gap-1">
                   <button
                     class="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600"
                     title="Editar"
-                    @click="openEdit(user)"
+                    @click="openEdit(paper)"
                   >
                     <Icon name="lucide:pencil" class="size-4" />
                   </button>
                   <button
                     class="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
                     title="Excluir"
-                    @click="handleDelete(user)"
+                    @click="handleDelete(paper)"
                   >
                     <Icon name="lucide:trash-2" class="size-4" />
                   </button>
@@ -230,9 +237,7 @@ const handleDelete = async (user: UserResponse) => {
         v-if="data && totalPages > 1"
         class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm"
       >
-        <div class="text-slate-500">
-          Página {{ page + 1 }} de {{ totalPages }}
-        </div>
+        <div class="text-slate-500">Página {{ page + 1 }} de {{ totalPages }}</div>
         <div class="flex items-center gap-1">
           <button class="btn-secondary" :disabled="page === 0" @click="goToPage(page - 1)">
             <Icon name="lucide:chevron-left" class="size-4" />
@@ -251,10 +256,10 @@ const handleDelete = async (user: UserResponse) => {
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
       @click.self="closeForm"
     >
-      <div class="card max-h-[90vh] w-full max-w-3xl overflow-y-auto">
+      <div class="card max-h-[90vh] w-full max-w-4xl overflow-y-auto">
         <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
           <h2 class="text-base font-semibold text-slate-800">
-            {{ editing ? 'Editar usuário' : 'Novo usuário' }}
+            {{ editing ? 'Editar papel' : 'Novo papel' }}
           </h2>
           <button
             class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -264,9 +269,10 @@ const handleDelete = async (user: UserResponse) => {
           </button>
         </div>
         <div class="p-5">
-          <UserForm
+          <PaperForm
             :initial-value="editing"
             :loading="saving"
+            :type-options="types"
             @submit="handleSubmit"
             @cancel="closeForm"
           />

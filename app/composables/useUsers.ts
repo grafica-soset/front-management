@@ -4,23 +4,26 @@ import type {
   UserListQuery,
   UserResponse,
 } from '~/types/user'
-import type { PageResponse } from '~/types/page'
+import type { KeyValueDto, PageResponse } from '~/types/shared'
 
 /**
- * Composable que centraliza as chamadas HTTP para o módulo de usuários.
- * Sempre passa pelo proxy do Nuxt (/api/users), nunca pelo backend direto.
+ * Repositório do módulo de usuários. Sempre passa pelo proxy /api/users.
  */
 export const useUsers = () => {
   const list = (query: UserListQuery = {}) => {
-    const { page = 0, size = 20, nameFilter } = query
+    const { page = 0, size = 20, name, active } = query
     return $fetch<PageResponse<UserResponse>>('/api/users/page', {
       query: {
         page,
         size,
-        ...(nameFilter ? { nameFilter } : {}),
+        ...(name ? { name } : {}),
+        ...(active !== undefined ? { active } : {}),
       },
     })
   }
+
+  const listKeyValue = () =>
+    $fetch<KeyValueDto[]>('/api/users')
 
   const getById = (id: number) =>
     $fetch<UserResponse>(`/api/users/${id}`)
@@ -42,5 +45,5 @@ export const useUsers = () => {
       method: 'DELETE',
     })
 
-  return { list, getById, create, update, remove }
+  return { list, listKeyValue, getById, create, update, remove }
 }

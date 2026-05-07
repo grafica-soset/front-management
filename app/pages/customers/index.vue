@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import type {
-  CreateUserRequest,
-  UpdateUserRequest,
-  UserResponse,
-} from '~/types/user'
-import { USER_ROLE_OPTIONS } from '~/types/user'
+  CreateCustomerRequest,
+  CustomerResponse,
+  UpdateCustomerRequest,
+} from '~/types/customer'
 import type { PageResponse } from '~/types/shared'
 
-const usersApi = useUsers()
+const customersApi = useCustomers()
 
 const page = ref(0)
 const size = ref(20)
@@ -15,12 +14,12 @@ const nameFilter = ref('')
 const debouncedFilter = ref('')
 const activeFilter = ref<string | null>(null)
 
-const data = ref<PageResponse<UserResponse> | null>(null)
+const data = ref<PageResponse<CustomerResponse> | null>(null)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
 const showForm = ref(false)
-const editing = ref<UserResponse | null>(null)
+const editing = ref<CustomerResponse | null>(null)
 const saving = ref(false)
 
 const statusOptions = [
@@ -28,8 +27,10 @@ const statusOptions = [
   { value: 'false', label: 'Inativos' },
 ]
 
-const roleLabel = (role: string) =>
-  USER_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+})
 
 let filterTimer: ReturnType<typeof setTimeout> | null = null
 watch(nameFilter, (value) => {
@@ -44,25 +45,25 @@ watch(activeFilter, () => {
   page.value = 0
 })
 
-const fetchUsers = async () => {
+const fetchCustomers = async () => {
   loading.value = true
   errorMessage.value = null
   try {
-    data.value = await usersApi.list({
+    data.value = await customersApi.list({
       page: page.value,
       size: size.value,
       name: debouncedFilter.value || undefined,
       active: activeFilter.value === null ? undefined : activeFilter.value === 'true',
     })
   } catch (err) {
-    errorMessage.value = 'Não foi possível carregar a lista de usuários.'
+    errorMessage.value = 'Não foi possível carregar a lista de clientes.'
     console.error(err)
   } finally {
     loading.value = false
   }
 }
 
-watch([page, size, debouncedFilter, activeFilter], fetchUsers, { immediate: true })
+watch([page, size, debouncedFilter, activeFilter], fetchCustomers, { immediate: true })
 
 const totalPages = computed(() => data.value?.totalPages ?? 0)
 
@@ -76,8 +77,8 @@ const openCreate = () => {
   showForm.value = true
 }
 
-const openEdit = (user: UserResponse) => {
-  editing.value = user
+const openEdit = (customer: CustomerResponse) => {
+  editing.value = customer
   showForm.value = true
 }
 
@@ -86,47 +87,50 @@ const closeForm = () => {
   editing.value = null
 }
 
-const handleSubmit = async (payload: CreateUserRequest | UpdateUserRequest) => {
+const handleSubmit = async (payload: CreateCustomerRequest | UpdateCustomerRequest) => {
   saving.value = true
   errorMessage.value = null
   try {
     if (editing.value?.id) {
-      await usersApi.update(editing.value.id, payload as UpdateUserRequest)
+      await customersApi.update(editing.value.id, payload as UpdateCustomerRequest)
     } else {
-      await usersApi.create(payload as CreateUserRequest)
+      await customersApi.create(payload as CreateCustomerRequest)
     }
     closeForm()
-    await fetchUsers()
+    await fetchCustomers()
   } catch (err) {
-    errorMessage.value = 'Falha ao salvar usuário.'
+    errorMessage.value = 'Falha ao salvar cliente.'
     console.error(err)
   } finally {
     saving.value = false
   }
 }
 
-const handleDelete = async (user: UserResponse) => {
-  if (!confirm(`Excluir o usuário "${user.username}"?`)) return
+const handleDelete = async (customer: CustomerResponse) => {
+  if (!confirm(`Excluir o cliente "${customer.person.name}"?`)) return
   try {
-    await usersApi.remove(user.id)
-    await fetchUsers()
+    await customersApi.remove(customer.id)
+    await fetchCustomers()
   } catch (err) {
-    errorMessage.value = 'Falha ao excluir usuário.'
+    errorMessage.value = 'Falha ao excluir cliente.'
     console.error(err)
   }
 }
+
+const displayName = (customer: CustomerResponse) =>
+  customer.person?.corporateName || customer.person?.name
 </script>
 
 <template>
   <section class="flex flex-col gap-4">
     <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold text-slate-800">Usuários</h1>
-        <p class="text-sm text-slate-500">Gerencie acessos do sistema.</p>
+        <h1 class="text-2xl font-semibold text-slate-800">Clientes</h1>
+        <p class="text-sm text-slate-500">Cadastro de clientes e dados fiscais.</p>
       </div>
       <BaseButton @click="openCreate">
         <Icon name="lucide:plus" class="size-4" />
-        Novo usuário
+        Novo cliente
       </BaseButton>
     </header>
 
@@ -165,9 +169,9 @@ const handleDelete = async (user: UserResponse) => {
           <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
             <tr>
               <th class="px-4 py-3">ID</th>
-              <th class="px-4 py-3">Nome</th>
-              <th class="px-4 py-3">Usuário</th>
-              <th class="px-4 py-3">Perfil</th>
+              <th class="px-4 py-3">Nome / Razão Social</th>
+              <th class="px-4 py-3">Documento</th>
+              <th class="px-4 py-3">Limite de crédito</th>
               <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3 text-right">Ações</th>
             </tr>
@@ -181,26 +185,26 @@ const handleDelete = async (user: UserResponse) => {
             </tr>
             <tr v-else-if="!data || data.content.length === 0">
               <td colspan="6" class="px-4 py-10 text-center text-slate-400">
-                Nenhum usuário encontrado.
+                Nenhum cliente encontrado.
               </td>
             </tr>
-            <tr v-for="user in data?.content ?? []" v-else :key="user.id" class="hover:bg-slate-50">
-              <td class="px-4 py-3 text-slate-500">{{ user.id }}</td>
-              <td class="px-4 py-3 font-medium text-slate-800">{{ user.person?.name }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ user.username }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ roleLabel(user.role) }}</td>
+            <tr v-for="customer in data?.content ?? []" v-else :key="customer.id" class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-500">{{ customer.id }}</td>
+              <td class="px-4 py-3 font-medium text-slate-800">{{ displayName(customer) }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ customer.person?.document || '—' }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ currencyFormatter.format(customer.creditLimit ?? 0) }}</td>
               <td class="px-4 py-3">
                 <span
                   class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="user.active
+                  :class="customer.active
                     ? 'bg-emerald-50 text-emerald-700'
                     : 'bg-slate-100 text-slate-500'"
                 >
                   <span
                     class="size-1.5 rounded-full"
-                    :class="user.active ? 'bg-emerald-500' : 'bg-slate-400'"
+                    :class="customer.active ? 'bg-emerald-500' : 'bg-slate-400'"
                   />
-                  {{ user.active ? 'Ativo' : 'Inativo' }}
+                  {{ customer.active ? 'Ativo' : 'Inativo' }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -208,14 +212,14 @@ const handleDelete = async (user: UserResponse) => {
                   <button
                     class="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600"
                     title="Editar"
-                    @click="openEdit(user)"
+                    @click="openEdit(customer)"
                   >
                     <Icon name="lucide:pencil" class="size-4" />
                   </button>
                   <button
                     class="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
                     title="Excluir"
-                    @click="handleDelete(user)"
+                    @click="handleDelete(customer)"
                   >
                     <Icon name="lucide:trash-2" class="size-4" />
                   </button>
@@ -230,9 +234,7 @@ const handleDelete = async (user: UserResponse) => {
         v-if="data && totalPages > 1"
         class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm"
       >
-        <div class="text-slate-500">
-          Página {{ page + 1 }} de {{ totalPages }}
-        </div>
+        <div class="text-slate-500">Página {{ page + 1 }} de {{ totalPages }}</div>
         <div class="flex items-center gap-1">
           <button class="btn-secondary" :disabled="page === 0" @click="goToPage(page - 1)">
             <Icon name="lucide:chevron-left" class="size-4" />
@@ -254,7 +256,7 @@ const handleDelete = async (user: UserResponse) => {
       <div class="card max-h-[90vh] w-full max-w-3xl overflow-y-auto">
         <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
           <h2 class="text-base font-semibold text-slate-800">
-            {{ editing ? 'Editar usuário' : 'Novo usuário' }}
+            {{ editing ? 'Editar cliente' : 'Novo cliente' }}
           </h2>
           <button
             class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -264,7 +266,7 @@ const handleDelete = async (user: UserResponse) => {
           </button>
         </div>
         <div class="p-5">
-          <UserForm
+          <CustomerForm
             :initial-value="editing"
             :loading="saving"
             @submit="handleSubmit"

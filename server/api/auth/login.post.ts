@@ -27,9 +27,14 @@ export default defineEventHandler(async (event) => {
     user: {
       id: 1,
       username: body.username,
+      role: 'ADMIN',
+      active: true,
       person: {
         id: 1,
         name: body.username,
+        document: '',
+        isFinalConsumer: false,
+        icmsTaxpayerIndicator: '9',
       },
     },
   }

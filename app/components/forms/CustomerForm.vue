@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { z } from 'zod'
-import type { CreateUserRequest, UpdateUserRequest, UserResponse, UserRole } from '~/types/user'
-import { USER_ROLE_OPTIONS } from '~/types/user'
+import type {
+  CreateCustomerRequest,
+  CustomerResponse,
+  UpdateCustomerRequest,
+} from '~/types/customer'
 import type { PersonDto } from '~/types/shared'
 
 interface Props {
-  initialValue?: UserResponse | null
+  initialValue?: CustomerResponse | null
   loading?: boolean
 }
 
@@ -15,17 +18,15 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  submit: [payload: CreateUserRequest | UpdateUserRequest]
+  submit: [payload: CreateCustomerRequest | UpdateCustomerRequest]
   cancel: []
 }>()
 
 const isEdit = computed(() => Boolean(props.initialValue?.id))
 
 interface FormState {
-  username: string
-  password: string
-  role: UserRole
   active: boolean
+  creditLimit: number
   person: PersonDto
 }
 
@@ -42,10 +43,8 @@ const buildEmptyPerson = (): PersonDto => ({
 })
 
 const buildInitialState = (): FormState => ({
-  username: props.initialValue?.username ?? '',
-  password: '',
-  role: props.initialValue?.role ?? 'OPERATOR',
   active: props.initialValue?.active ?? true,
+  creditLimit: props.initialValue?.creditLimit ?? 0,
   person: { ...buildEmptyPerson(), ...(props.initialValue?.person ?? {}) },
 })
 
@@ -60,32 +59,20 @@ watch(
   },
 )
 
-const personSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  document: z.string().min(3, 'Documento obrigatório'),
-  email: z.string().email('E-mail inválido').or(z.literal('')).optional().nullable(),
-  icmsTaxpayerIndicator: z.enum(['1', '2', '9']),
-  isFinalConsumer: z.boolean(),
-})
-
-const baseSchema = z.object({
-  username: z.string().min(3, 'Usuário deve ter ao menos 3 caracteres'),
-  role: z.enum(['ADMIN', 'MANAGER', 'OPERATOR']),
+const schema = z.object({
+  creditLimit: z.number({ message: 'Informe um valor numérico' }).min(0, 'Limite não pode ser negativo'),
   active: z.boolean(),
-  person: personSchema.passthrough(),
-})
-
-const createSchema = baseSchema.extend({
-  password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
-})
-
-const updateSchema = baseSchema.extend({
-  password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').or(z.literal('')),
+  person: z.object({
+    name: z.string().min(2, 'Nome obrigatório'),
+    document: z.string().min(3, 'Documento obrigatório'),
+    email: z.string().email('E-mail inválido').or(z.literal('')).optional().nullable(),
+    icmsTaxpayerIndicator: z.enum(['1', '2', '9']),
+    isFinalConsumer: z.boolean(),
+  }).passthrough(),
 })
 
 const validate = (): boolean => {
   Object.keys(errors).forEach((key) => delete errors[key])
-  const schema = isEdit.value ? updateSchema : createSchema
   const result = schema.safeParse(form)
   if (result.success) return true
   for (const issue of result.error.issues) {
@@ -95,7 +82,7 @@ const validate = (): boolean => {
   return false
 }
 
-const buildPayload = (): CreateUserRequest | UpdateUserRequest => {
+const buildPayload = (): CreateCustomerRequest | UpdateCustomerRequest => {
   const personPayload: PersonDto = {
     ...form.person,
     email: form.person.email || null,
@@ -106,22 +93,9 @@ const buildPayload = (): CreateUserRequest | UpdateUserRequest => {
     ...(props.initialValue?.person?.id ? { id: props.initialValue.person.id } : {}),
   }
 
-  if (isEdit.value) {
-    const payload: UpdateUserRequest = {
-      username: form.username,
-      role: form.role,
-      active: form.active,
-      person: personPayload,
-    }
-    if (form.password) payload.password = form.password
-    return payload
-  }
-
   return {
-    username: form.username,
-    password: form.password,
-    role: form.role,
     active: form.active,
+    creditLimit: Number(form.creditLimit),
     person: personPayload,
   }
 }
@@ -136,27 +110,12 @@ const handleSubmit = () => {
   <BaseForm @submit="handleSubmit">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
       <BaseInput
-        v-model="form.username"
-        label="Usuário"
-        placeholder="login do usuário"
+        v-model.number="form.creditLimit"
+        type="number"
+        label="Limite de crédito (R$)"
+        placeholder="0,00"
         required
-        autocomplete="username"
-        :error="errors.username"
-      />
-      <BaseInput
-        v-model="form.password"
-        type="password"
-        :label="isEdit ? 'Nova senha (opcional)' : 'Senha'"
-        :required="!isEdit"
-        autocomplete="new-password"
-        :error="errors.password"
-      />
-      <BaseSelect
-        v-model="form.role"
-        label="Perfil"
-        :options="USER_ROLE_OPTIONS"
-        required
-        :error="errors.role"
+        :error="errors.creditLimit"
       />
       <label class="flex items-end gap-2 text-sm text-slate-700">
         <input
@@ -164,7 +123,7 @@ const handleSubmit = () => {
           type="checkbox"
           class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
         />
-        Usuário ativo
+        Cliente ativo
       </label>
     </div>
 
