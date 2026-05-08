@@ -40,6 +40,7 @@ const nav: NavItem[] = [
       { label: 'Usuários', to: '/users', icon: 'lucide:users' },
       { label: 'Clientes', to: '/customers', icon: 'lucide:building-2' },
       { label: 'Papéis / Insumos', to: '/papers', icon: 'lucide:layers' },
+      { label: 'Tipos de papel', to: '/paper-types', icon: 'lucide:tags' },
     ],
   },
 ]

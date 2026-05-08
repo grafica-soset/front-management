@@ -21,6 +21,12 @@ const cards = [
     to: '/papers',
     icon: 'lucide:layers',
   },
+  {
+    title: 'Tipos de papel',
+    description: 'Categorias usadas na composição dos SKUs de papel.',
+    to: '/paper-types',
+    icon: 'lucide:tags',
+  },
 ]
 </script>
 

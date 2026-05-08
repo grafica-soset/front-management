@@ -171,6 +171,31 @@ export interface PaperTypeDto {
   description?: string | null
 }
 
+/**
+ * Resposta completa do recurso de tipo de papel.
+ * Equivalente ao DTO inline `PaperTypeDto`, mas exposto separadamente para
+ * o módulo dedicado (lista, criação e edição via `/paper-types`).
+ */
+export interface PaperTypeResponse {
+  id: number
+  name: string
+  description?: string | null
+}
+
+export interface CreatePaperTypeRequest {
+  name: string
+  description?: string | null
+}
+
+export interface UpdatePaperTypeRequest {
+  name: string
+  description?: string | null
+}
+
+export interface PaperTypeListQuery extends BasePagedQuery {
+  name?: string
+}
+
 export interface PaperResponse {
   id: number
   sku: PaperSkuDto
