@@ -258,3 +258,96 @@ export interface PaperListQuery extends BasePagedQuery {
   name?: string
   typeId?: number
 }
+
+// ---------------------------------------------------------------------------
+// Máquinas
+// ---------------------------------------------------------------------------
+
+/**
+ * Especificações técnicas de uma máquina gráfica.
+ *
+ * - Velocidades em folhas por hora.
+ * - Tempos em minutos.
+ * - `cruisingSheets`: folhas necessárias para a máquina atingir o regime
+ *   estável de produção (depois das folhas de makeready).
+ * - `makereadyWasteSheets`: folhas de desperdício consumidas no makeready.
+ * - `platesPerColor` / `photolithsPerColor`: quantidade de chapas/fotolitos
+ *   necessários por cor.
+ */
+export interface MachineTechnicalSpecsDto {
+  maxColors: number
+  minSpeed: number
+  maxSpeed: number
+  cruisingSheets: number
+  setupTimeMinutes: number
+  cleaningTimeMinutes: number
+  makereadyWasteSheets: number
+  requiresPlate: boolean
+  requiresPhotolith: boolean
+  platesPerColor: number
+  photolithsPerColor: number
+}
+
+/**
+ * Limites dimensionais aceitos pela máquina.
+ *
+ * - Folha (mín./máx.) e área máxima imprimível em milímetros.
+ * - `gripperMarginMm`: margem das garras (não imprimível).
+ * - Faixa de gramatura suportada em g/m².
+ */
+export interface MachineDimensionsDto {
+  minSheetWidthMm: number
+  maxSheetWidthMm: number
+  minSheetHeightMm: number
+  maxSheetHeightMm: number
+  maxPrintableWidthMm: number
+  maxPrintableHeightMm: number
+  gripperMarginMm: number
+  minGrammageG: number
+  maxGrammageG: number
+}
+
+export interface MachineResponse {
+  id: number
+  name: string
+  manufacturer?: string | null
+  model?: string | null
+  serialNumber?: string | null
+  hourlyRate: number
+  powerConsumptionKwh: number
+  operatorCount: number
+  active: boolean
+  technicalSpecs: MachineTechnicalSpecsDto
+  dimensions: MachineDimensionsDto
+}
+
+export interface CreateMachineRequest {
+  name: string
+  manufacturer?: string | null
+  model?: string | null
+  serialNumber?: string | null
+  hourlyRate: number
+  powerConsumptionKwh: number
+  operatorCount: number
+  active: boolean
+  technicalSpecs: MachineTechnicalSpecsDto
+  dimensions: MachineDimensionsDto
+}
+
+export interface UpdateMachineRequest {
+  name: string
+  manufacturer?: string | null
+  model?: string | null
+  serialNumber?: string | null
+  hourlyRate: number
+  powerConsumptionKwh: number
+  operatorCount: number
+  active: boolean
+  technicalSpecs: MachineTechnicalSpecsDto
+  dimensions: MachineDimensionsDto
+}
+
+export interface MachineListQuery extends BasePagedQuery {
+  name?: string
+  active?: boolean
+}

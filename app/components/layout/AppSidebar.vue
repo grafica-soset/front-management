@@ -39,6 +39,7 @@ const nav: NavItem[] = [
     children: [
       { label: 'Usuários', to: '/users', icon: 'lucide:users' },
       { label: 'Clientes', to: '/customers', icon: 'lucide:building-2' },
+      { label: 'Máquinas', to: '/machines', icon: 'lucide:printer' },
       { label: 'Papéis / Insumos', to: '/papers', icon: 'lucide:layers' },
       { label: 'Tipos de papel', to: '/paper-types', icon: 'lucide:tags' },
     ],

@@ -16,6 +16,12 @@ const cards = [
     icon: 'lucide:building-2',
   },
   {
+    title: 'Máquinas',
+    description: 'Equipamentos de produção e suas especificações técnicas.',
+    to: '/machines',
+    icon: 'lucide:printer',
+  },
+  {
     title: 'Papéis / Insumos',
     description: 'Catálogo de papéis utilizados na produção.',
     to: '/papers',
