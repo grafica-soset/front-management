@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { z } from 'zod'
-import type { CreateUserRequest, UpdateUserRequest, UserResponse, UserRole } from '~/types/user'
-import { USER_ROLE_OPTIONS } from '~/types/user'
-import type { PersonDto } from '~/types/shared'
+import type { CreateUserRequest, UpdateUserRequest, UserResponse } from '~/types/user'
 
 interface Props {
+  /** Quando passado, o formulário entra em modo edição. */
   initialValue?: UserResponse | null
   loading?: boolean
 }
@@ -24,29 +23,25 @@ const isEdit = computed(() => Boolean(props.initialValue?.id))
 interface FormState {
   username: string
   password: string
-  role: UserRole
   active: boolean
-  person: PersonDto
+  person: {
+    name: string
+    email: string
+    phone: string
+    document: string
+  }
 }
-
-const buildEmptyPerson = (): PersonDto => ({
-  name: '',
-  corporateName: '',
-  document: '',
-  email: '',
-  stateRegistration: '',
-  municipalRegistration: '',
-  suframaRegistration: '',
-  isFinalConsumer: false,
-  icmsTaxpayerIndicator: '9',
-})
 
 const buildInitialState = (): FormState => ({
   username: props.initialValue?.username ?? '',
   password: '',
-  role: props.initialValue?.role ?? 'OPERATOR',
   active: props.initialValue?.active ?? true,
-  person: { ...buildEmptyPerson(), ...(props.initialValue?.person ?? {}) },
+  person: {
+    name: props.initialValue?.person?.name ?? '',
+    email: props.initialValue?.person?.email ?? '',
+    phone: props.initialValue?.person?.phone ?? '',
+    document: props.initialValue?.person?.document ?? '',
+  },
 })
 
 const form = reactive<FormState>(buildInitialState())
@@ -60,19 +55,16 @@ watch(
   },
 )
 
-const personSchema = z.object({
-  name: z.string().min(2, 'Nome obrigatório'),
-  document: z.string().min(3, 'Documento obrigatório'),
-  email: z.string().email('E-mail inválido').or(z.literal('')).optional().nullable(),
-  icmsTaxpayerIndicator: z.enum(['1', '2', '9']),
-  isFinalConsumer: z.boolean(),
-})
-
+// Schema base para criação; em edição a senha é opcional.
 const baseSchema = z.object({
   username: z.string().min(3, 'Usuário deve ter ao menos 3 caracteres'),
-  role: z.enum(['ADMIN', 'MANAGER', 'OPERATOR']),
   active: z.boolean(),
-  person: personSchema.passthrough(),
+  person: z.object({
+    name: z.string().min(2, 'Nome obrigatório'),
+    email: z.string().email('E-mail inválido').or(z.literal('')),
+    phone: z.string().optional(),
+    document: z.string().optional(),
+  }),
 })
 
 const createSchema = baseSchema.extend({
@@ -88,6 +80,7 @@ const validate = (): boolean => {
   const schema = isEdit.value ? updateSchema : createSchema
   const result = schema.safeParse(form)
   if (result.success) return true
+
   for (const issue of result.error.issues) {
     const path = issue.path.join('.')
     if (!errors[path]) errors[path] = issue.message
@@ -96,20 +89,17 @@ const validate = (): boolean => {
 }
 
 const buildPayload = (): CreateUserRequest | UpdateUserRequest => {
-  const personPayload: PersonDto = {
-    ...form.person,
-    email: form.person.email || null,
-    corporateName: form.person.corporateName || null,
-    stateRegistration: form.person.stateRegistration || null,
-    municipalRegistration: form.person.municipalRegistration || null,
-    suframaRegistration: form.person.suframaRegistration || null,
+  const personPayload = {
     ...(props.initialValue?.person?.id ? { id: props.initialValue.person.id } : {}),
+    name: form.person.name,
+    email: form.person.email || null,
+    phone: form.person.phone || null,
+    document: form.person.document || null,
   }
 
   if (isEdit.value) {
     const payload: UpdateUserRequest = {
       username: form.username,
-      role: form.role,
       active: form.active,
       person: personPayload,
     }
@@ -120,7 +110,6 @@ const buildPayload = (): CreateUserRequest | UpdateUserRequest => {
   return {
     username: form.username,
     password: form.password,
-    role: form.role,
     active: form.active,
     person: personPayload,
   }
@@ -136,12 +125,38 @@ const handleSubmit = () => {
   <BaseForm @submit="handleSubmit">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
       <BaseInput
+        v-model="form.person.name"
+        label="Nome"
+        placeholder="Nome completo"
+        required
+        :error="errors['person.name']"
+      />
+      <BaseInput
         v-model="form.username"
         label="Usuário"
         placeholder="login do usuário"
         required
         autocomplete="username"
         :error="errors.username"
+      />
+      <BaseInput
+        v-model="form.person.email"
+        type="email"
+        label="E-mail"
+        placeholder="email@exemplo.com"
+        :error="errors['person.email']"
+      />
+      <BaseInput
+        v-model="form.person.phone"
+        label="Telefone"
+        placeholder="(00) 00000-0000"
+        :error="errors['person.phone']"
+      />
+      <BaseInput
+        v-model="form.person.document"
+        label="Documento"
+        placeholder="CPF/CNPJ"
+        :error="errors['person.document']"
       />
       <BaseInput
         v-model="form.password"
@@ -151,24 +166,16 @@ const handleSubmit = () => {
         autocomplete="new-password"
         :error="errors.password"
       />
-      <BaseSelect
-        v-model="form.role"
-        label="Perfil"
-        :options="USER_ROLE_OPTIONS"
-        required
-        :error="errors.role"
-      />
-      <label class="flex items-end gap-2 text-sm text-slate-700">
-        <input
-          v-model="form.active"
-          type="checkbox"
-          class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-        />
-        Usuário ativo
-      </label>
     </div>
 
-    <PersonFieldset v-model="form.person" :errors="errors" />
+    <label class="flex items-center gap-2 text-sm text-slate-700">
+      <input
+        v-model="form.active"
+        type="checkbox"
+        class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+      />
+      Usuário ativo
+    </label>
 
     <div class="flex justify-end gap-2 pt-2">
       <BaseButton variant="secondary" type="button" @click="emit('cancel')">

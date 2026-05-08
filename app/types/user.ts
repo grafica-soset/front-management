@@ -1,21 +1,18 @@
-import type { BasePagedQuery, PersonDto } from './shared'
-
 /**
- * DTOs alinhados com UserController.kt e UserDtos.kt.
+ * DTOs alinhados com UserController.kt (backend Kotlin/Quarkus).
  */
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'OPERATOR'
-
-export const USER_ROLE_OPTIONS: Array<{ value: UserRole, label: string }> = [
-  { value: 'ADMIN', label: 'Administrador' },
-  { value: 'MANAGER', label: 'Gerente' },
-  { value: 'OPERATOR', label: 'Operador' },
-]
+export interface PersonDto {
+  id?: number
+  name: string
+  email?: string | null
+  phone?: string | null
+  document?: string | null
+}
 
 export interface UserResponse {
   id: number
   username: string
-  role: UserRole
   active: boolean
   person: PersonDto
   createdAt?: string
@@ -25,20 +22,19 @@ export interface UserResponse {
 export interface CreateUserRequest {
   username: string
   password: string
-  role: UserRole
-  active: boolean
+  active?: boolean
   person: PersonDto
 }
 
 export interface UpdateUserRequest {
   username?: string
   password?: string
-  role?: UserRole
   active?: boolean
   person?: PersonDto
 }
 
-export interface UserListQuery extends BasePagedQuery {
-  name?: string
-  active?: boolean
+export interface UserListQuery {
+  page?: number
+  size?: number
+  nameFilter?: string
 }

@@ -26,6 +26,8 @@ const toggleGroup = (label: string) => {
   expandedGroups[label] = !expandedGroups[label]
 }
 
+// Apenas as rotas já implementadas estão habilitadas; novas serão adicionadas
+// conforme cada módulo for entregue (Clientes, Ordens, Orçamentos, etc.).
 const menu: MenuItem[] = [
   { label: 'Dashboard', icon: 'lucide:layout-dashboard', to: '/' },
   {
@@ -33,8 +35,6 @@ const menu: MenuItem[] = [
     icon: 'lucide:folder-cog',
     children: [
       { label: 'Usuários', to: '/users', icon: 'lucide:users' },
-      { label: 'Clientes', to: '/customers', icon: 'lucide:contact' },
-      { label: 'Papéis', to: '/papers', icon: 'lucide:scroll-text' },
     ],
   },
 ]

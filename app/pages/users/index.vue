@@ -4,8 +4,7 @@ import type {
   UpdateUserRequest,
   UserResponse,
 } from '~/types/user'
-import { USER_ROLE_OPTIONS } from '~/types/user'
-import type { PageResponse } from '~/types/shared'
+import type { PageResponse } from '~/types/page'
 
 const usersApi = useUsers()
 
@@ -13,7 +12,6 @@ const page = ref(0)
 const size = ref(20)
 const nameFilter = ref('')
 const debouncedFilter = ref('')
-const activeFilter = ref<string | null>(null)
 
 const data = ref<PageResponse<UserResponse> | null>(null)
 const loading = ref(false)
@@ -22,14 +20,6 @@ const errorMessage = ref<string | null>(null)
 const showForm = ref(false)
 const editing = ref<UserResponse | null>(null)
 const saving = ref(false)
-
-const statusOptions = [
-  { value: 'true', label: 'Ativos' },
-  { value: 'false', label: 'Inativos' },
-]
-
-const roleLabel = (role: string) =>
-  USER_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
 
 let filterTimer: ReturnType<typeof setTimeout> | null = null
 watch(nameFilter, (value) => {
@@ -40,10 +30,6 @@ watch(nameFilter, (value) => {
   }, 350)
 })
 
-watch(activeFilter, () => {
-  page.value = 0
-})
-
 const fetchUsers = async () => {
   loading.value = true
   errorMessage.value = null
@@ -51,8 +37,7 @@ const fetchUsers = async () => {
     data.value = await usersApi.list({
       page: page.value,
       size: size.value,
-      name: debouncedFilter.value || undefined,
-      active: activeFilter.value === null ? undefined : activeFilter.value === 'true',
+      nameFilter: debouncedFilter.value || undefined,
     })
   } catch (err) {
     errorMessage.value = 'Não foi possível carregar a lista de usuários.'
@@ -62,7 +47,7 @@ const fetchUsers = async () => {
   }
 }
 
-watch([page, size, debouncedFilter, activeFilter], fetchUsers, { immediate: true })
+watch([page, size, debouncedFilter], fetchUsers, { immediate: true })
 
 const totalPages = computed(() => data.value?.totalPages ?? 0)
 
@@ -131,8 +116,8 @@ const handleDelete = async (user: UserResponse) => {
     </header>
 
     <div class="card p-4">
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div class="relative">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="relative w-full sm:max-w-xs">
           <Icon
             name="lucide:search"
             class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
@@ -144,13 +129,10 @@ const handleDelete = async (user: UserResponse) => {
             class="input-base pl-9"
           />
         </div>
-        <BaseSelect
-          v-model="activeFilter"
-          :options="statusOptions"
-          placeholder="Todos os status"
-        />
-        <div class="flex items-center justify-end text-xs text-slate-500">
-          <span v-if="data">{{ data.totalElements }} registro(s)</span>
+        <div class="text-xs text-slate-500">
+          <span v-if="data">
+            {{ data.totalElements }} registro(s)
+          </span>
         </div>
       </div>
     </div>
@@ -164,31 +146,29 @@ const handleDelete = async (user: UserResponse) => {
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
             <tr>
-              <th class="px-4 py-3">ID</th>
               <th class="px-4 py-3">Nome</th>
               <th class="px-4 py-3">Usuário</th>
-              <th class="px-4 py-3">Perfil</th>
+              <th class="px-4 py-3">E-mail</th>
               <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
             <tr v-if="loading">
-              <td colspan="6" class="px-4 py-10 text-center text-slate-500">
+              <td colspan="5" class="px-4 py-10 text-center text-slate-500">
                 <Icon name="lucide:loader-2" class="mr-2 inline size-4 animate-spin" />
                 Carregando...
               </td>
             </tr>
             <tr v-else-if="!data || data.content.length === 0">
-              <td colspan="6" class="px-4 py-10 text-center text-slate-400">
+              <td colspan="5" class="px-4 py-10 text-center text-slate-400">
                 Nenhum usuário encontrado.
               </td>
             </tr>
             <tr v-for="user in data?.content ?? []" v-else :key="user.id" class="hover:bg-slate-50">
-              <td class="px-4 py-3 text-slate-500">{{ user.id }}</td>
               <td class="px-4 py-3 font-medium text-slate-800">{{ user.person?.name }}</td>
               <td class="px-4 py-3 text-slate-600">{{ user.username }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ roleLabel(user.role) }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ user.person?.email ?? '—' }}</td>
               <td class="px-4 py-3">
                 <span
                   class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -234,11 +214,19 @@ const handleDelete = async (user: UserResponse) => {
           Página {{ page + 1 }} de {{ totalPages }}
         </div>
         <div class="flex items-center gap-1">
-          <button class="btn-secondary" :disabled="page === 0" @click="goToPage(page - 1)">
+          <button
+            class="btn-secondary"
+            :disabled="page === 0"
+            @click="goToPage(page - 1)"
+          >
             <Icon name="lucide:chevron-left" class="size-4" />
             Anterior
           </button>
-          <button class="btn-secondary" :disabled="page + 1 >= totalPages" @click="goToPage(page + 1)">
+          <button
+            class="btn-secondary"
+            :disabled="page + 1 >= totalPages"
+            @click="goToPage(page + 1)"
+          >
             Próximo
             <Icon name="lucide:chevron-right" class="size-4" />
           </button>
@@ -246,13 +234,14 @@ const handleDelete = async (user: UserResponse) => {
       </div>
     </div>
 
+    <!-- Modal simples de formulário -->
     <div
       v-if="showForm"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
       @click.self="closeForm"
     >
-      <div class="card max-h-[90vh] w-full max-w-3xl overflow-y-auto">
-        <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+      <div class="card w-full max-w-2xl">
+        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <h2 class="text-base font-semibold text-slate-800">
             {{ editing ? 'Editar usuário' : 'Novo usuário' }}
           </h2>
