@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import {
   type CreatePaperRequest,
+  type KeyValueDto,
   type PaperResponse,
   type UnitOfMeasure,
   type UpdatePaperRequest,
@@ -25,10 +26,23 @@ const emit = defineEmits<{
 
 const isEdit = computed(() => Boolean(props.initialValue?.id))
 
+/**
+ * O usuário escolhe entre reaproveitar um tipo já cadastrado (`existing`)
+ * ou criar um novo tipo no momento (`new`). O modo controla quais campos
+ * aparecem no formulário e quais campos vão no payload.
+ */
+type TypeMode = 'existing' | 'new'
+
+const TYPE_MODE_OPTIONS = [
+  { value: 'existing' as const, label: 'Selecionar existente' },
+  { value: 'new' as const, label: 'Cadastrar novo' },
+]
+
 interface FormState {
   skuCode: string
   skuName: string
   unitOfMeasure: UnitOfMeasure
+  typeMode: TypeMode
   typeId: number | null
   typeName: string
   typeDescription: string
@@ -47,6 +61,9 @@ const buildInitialState = (): FormState => {
     skuCode: initial?.sku?.code ?? '',
     skuName: initial?.sku?.name ?? '',
     unitOfMeasure: initial?.sku?.unitOfMeasure ?? 'SHEET',
+    // Em edição, o papel sempre tem um tipo; já em criação assumimos que o
+    // usuário vai querer reaproveitar a lista existente por padrão.
+    typeMode: 'existing',
     typeId: initial?.type?.id ?? null,
     typeName: initial?.type?.name ?? '',
     typeDescription: initial?.type?.description ?? '',
@@ -71,10 +88,80 @@ watch(
   },
 )
 
-const schema = z.object({
+// ---------------------------------------------------------------------------
+// Lista de tipos existentes (alimenta o select quando typeMode === 'existing').
+// ---------------------------------------------------------------------------
+
+const paperTypesApi = usePaperTypes()
+const paperTypes = ref<KeyValueDto[]>([])
+const loadingTypes = ref(false)
+const typesError = ref<string | null>(null)
+
+const paperTypeOptions = computed(() =>
+  paperTypes.value.map((type) => ({ value: type.id, label: type.value })),
+)
+
+const loadPaperTypes = async () => {
+  loadingTypes.value = true
+  typesError.value = null
+  try {
+    paperTypes.value = await paperTypesApi.getAll()
+  } catch (err) {
+    logApiError('Falha ao carregar tipos de papel', err)
+    typesError.value = extractApiErrorMessage(
+      err,
+      'Não foi possível carregar a lista de tipos.',
+    )
+  } finally {
+    loadingTypes.value = false
+  }
+}
+
+onMounted(loadPaperTypes)
+
+/**
+ * Sincroniza `typeName` quando o usuário escolhe um tipo no select.
+ * Mantemos o nome no estado para que o payload do PUT (que exige `typeId`
+ * e `typeName`) possa ser montado sem nova consulta.
+ */
+watch(
+  () => form.typeId,
+  (id) => {
+    if (form.typeMode !== 'existing') return
+    const match = paperTypes.value.find((type) => type.id === id)
+    form.typeName = match?.value ?? ''
+  },
+)
+
+/**
+ * Quando o usuário troca o modo, limpamos os campos do modo oposto para
+ * evitar enviar valores desatualizados. Em edição, ao voltar para
+ * "existente" tentamos restaurar o tipo original do papel.
+ */
+watch(
+  () => form.typeMode,
+  (mode, prev) => {
+    if (mode === prev) return
+    if (mode === 'new') {
+      form.typeId = null
+      form.typeName = ''
+      form.typeDescription = ''
+    } else {
+      const initialTypeId = props.initialValue?.type?.id ?? null
+      form.typeId = initialTypeId
+      form.typeName = props.initialValue?.type?.name ?? ''
+      form.typeDescription = props.initialValue?.type?.description ?? ''
+    }
+  },
+)
+
+// ---------------------------------------------------------------------------
+// Validação
+// ---------------------------------------------------------------------------
+
+const baseSchema = z.object({
   skuName: z.string().min(2, 'Nome do SKU obrigatório'),
   unitOfMeasure: z.enum(['SHEET', 'KG', 'UN', 'LITERS', 'METER', 'BOX', 'PACKAGE']),
-  typeName: z.string().min(2, 'Nome do tipo obrigatório'),
   formatWidth: z.number().positive('Largura deve ser maior que zero'),
   formatHeight: z.number().positive('Altura deve ser maior que zero'),
   thicknessUm: z.number().positive('Espessura deve ser maior que zero'),
@@ -84,8 +171,19 @@ const schema = z.object({
   isEnvelope: z.boolean(),
 })
 
+const existingSchema = baseSchema.extend({
+  typeMode: z.literal('existing'),
+  typeId: z.number({ message: 'Selecione um tipo' }).int().positive('Selecione um tipo'),
+})
+
+const newSchema = baseSchema.extend({
+  typeMode: z.literal('new'),
+  typeName: z.string().min(2, 'Nome do tipo obrigatório'),
+})
+
 const validate = (): boolean => {
   Object.keys(errors).forEach((key) => delete errors[key])
+  const schema = form.typeMode === 'existing' ? existingSchema : newSchema
   const result = schema.safeParse(form)
   if (result.success) return true
   for (const issue of result.error.issues) {
@@ -95,16 +193,19 @@ const validate = (): boolean => {
   return false
 }
 
+// ---------------------------------------------------------------------------
+// Payload
+// ---------------------------------------------------------------------------
+
 const buildPayload = (): CreatePaperRequest | UpdatePaperRequest => {
   const numericPrice = (value: number | null) =>
     value === null || value === undefined ? null : Number(value)
 
+  const skuCode = form.skuCode.trim()
   const base = {
-    skuCode: form.skuCode.trim() || null,
+    skuCode: skuCode || null,
     skuName: form.skuName.trim(),
     unitOfMeasure: form.unitOfMeasure,
-    typeName: form.typeName.trim(),
-    typeDescription: form.typeDescription.trim() || null,
     isEnvelope: form.isEnvelope,
     formatWidth: Number(form.formatWidth),
     formatHeight: Number(form.formatHeight),
@@ -114,16 +215,32 @@ const buildPayload = (): CreatePaperRequest | UpdatePaperRequest => {
     pricePerSheet: numericPrice(form.pricePerSheet),
   }
 
-  // PUT exige skuCode + typeId + typeName preenchidos.
-  if (isEdit.value && form.typeId !== null && base.skuCode) {
-    return {
+  // Reaproveitando um tipo existente: enviamos `typeId` (e `typeName` como
+  // referência, exigido pelo PUT). Não mandamos `typeDescription` para não
+  // sobrescrever o registro original.
+  if (form.typeMode === 'existing' && form.typeId !== null) {
+    const payload = {
       ...base,
-      skuCode: base.skuCode,
       typeId: form.typeId,
-    } as UpdatePaperRequest
+      typeName: form.typeName.trim(),
+    }
+    if (isEdit.value && skuCode) {
+      return { ...payload, skuCode } as UpdatePaperRequest
+    }
+    return payload as CreatePaperRequest
   }
 
-  return base satisfies CreatePaperRequest
+  // Cadastrando um tipo novo: enviamos `typeName` + `typeDescription`.
+  // O backend cria o tipo e associa ao papel.
+  const payload = {
+    ...base,
+    typeName: form.typeName.trim(),
+    typeDescription: form.typeDescription.trim() || null,
+  }
+  if (isEdit.value && skuCode && form.typeId !== null) {
+    return { ...payload, skuCode, typeId: form.typeId } as UpdatePaperRequest
+  }
+  return payload as CreatePaperRequest
 }
 
 const handleSubmit = () => {
@@ -161,9 +278,44 @@ const handleSubmit = () => {
       </div>
     </fieldset>
 
-    <fieldset class="rounded-lg border border-slate-200 p-4">
+    <fieldset class="flex flex-col gap-4 rounded-lg border border-slate-200 p-4">
       <legend class="px-1 text-sm font-semibold text-slate-700">Tipo de papel</legend>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+      <BaseToggleGroup
+        v-model="form.typeMode"
+        label="Como você quer informar o tipo?"
+        :options="TYPE_MODE_OPTIONS"
+      />
+
+      <!-- Reaproveitar tipo existente -->
+      <div v-if="form.typeMode === 'existing'" class="flex flex-col gap-2">
+        <BaseSelect
+          v-model="form.typeId"
+          label="Tipo cadastrado"
+          :options="paperTypeOptions"
+          :placeholder="loadingTypes ? 'Carregando tipos...' : 'Selecione um tipo'"
+          :disabled="loadingTypes"
+          required
+          :error="errors.typeId"
+          :hint="
+            !loadingTypes && paperTypes.length === 0
+              ? 'Nenhum tipo cadastrado. Troque para “Cadastrar novo” ou cadastre em Cadastros → Tipos de papel.'
+              : ''
+          "
+        />
+        <p v-if="typesError" class="text-xs text-red-600">{{ typesError }}</p>
+        <button
+          type="button"
+          class="self-start text-xs font-medium text-brand-600 hover:underline disabled:opacity-50"
+          :disabled="loadingTypes"
+          @click="loadPaperTypes"
+        >
+          <Icon name="lucide:refresh-cw" class="inline size-3" /> Atualizar lista
+        </button>
+      </div>
+
+      <!-- Cadastrar tipo novo no momento -->
+      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BaseInput
           v-model="form.typeName"
           label="Nome do tipo"
@@ -177,6 +329,9 @@ const handleSubmit = () => {
           placeholder="Ex.: Papel sulfite branco"
           :error="errors.typeDescription"
         />
+        <p class="text-xs text-slate-500 md:col-span-2">
+          O tipo será cadastrado junto com o papel.
+        </p>
       </div>
     </fieldset>
 
