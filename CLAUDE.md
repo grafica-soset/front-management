@@ -13,13 +13,12 @@ Este documento contém as diretrizes, padrões e arquitetura para o desenvolvime
 * **CSS:** Tailwind CSS para estilização utilitária e responsividade.
 * **Gerenciamento de Estado:** Pinia.
 * **Persistência de Dados:** pinia-plugin-persistedstate.
-* **Validação de Formulários:** Vee-Validate + Zod/Yup (recomendado para os componentes de formulário).
 * **Ícones:** Nuxt Icon ou Lucide Vue.
 
 ## 3. Padrões de Código e Nomenclatura
 * **Idioma:** Código (variáveis, funções, classes) em inglês. Comentários e documentação em português.
 * **Componentes:** PascalCase (ex: `BaseInput.vue`, `ClientForm.vue`).
-* **Composables/Stores:** camelCase (ex: `useAuthStore.ts`, `useOrder.ts`).
+* **Composables/Stores:** camelCase (ex: `useSessionStore.ts`, `useOrder.ts`).
 * **Páginas:** kebab-case (ex: `ordens-servico/index.vue`).
 * **Tipagem:** Preferencialmente Interfaces sobre Types. Não usar `any`.
 
@@ -34,14 +33,9 @@ Este documento contém as diretrizes, padrões e arquitetura para o desenvolvime
 * Todos os formulários devem ser componentes independentes.
 * Não injetar lógica de API diretamente dentro dos campos.
 * O formulário deve receber os dados iniciais via props e emitir os dados validados via `@submit` ou `@save`.
+* Para edição de dados abrir sempre um modal com o formulario
+* Para cadastro, podemos utilizar uma página com o forumário, ex: URL /customers/new
 
-**Estrutura sugerida:**
-```vue
-<BaseForm @submit="handleSave">
-  <BaseInput v-model="form.name" label="Nome do Cliente" :error="errors.name" />
-  <!-- ...outros campos... -->
-</BaseForm>
-```
 
 ## 5. Gerenciamento de Estado (Pinia)
 * **Store de Cliente/Sessão:** Criar uma store `useAuthStore` ou `useSessionStore`.
