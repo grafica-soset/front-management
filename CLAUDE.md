@@ -1,7 +1,7 @@
 Este documento contém as diretrizes, padrões e arquitetura para o desenvolvimento do sistema Soset, um sistema administrativo voltado para a indústria gráfica.
 
 ## 1. Visão Geral do Projeto
-* **Nome:** Soset
+* **Nome:** GraphicOS
 * **Domínio:** Administrativo para Indústria Gráfica (Gestão de ordens de serviço, clientes, orçamentos, produção).
 * **Framework:** Nuxt 4 (Estrutura de diretórios app/).
 * **Linguagem:** TypeScript (Modo Estrito).
@@ -20,7 +20,7 @@ Este documento contém as diretrizes, padrões e arquitetura para o desenvolvime
 * **Componentes:** PascalCase (ex: `BaseInput.vue`, `ClientForm.vue`).
 * **Composables/Stores:** camelCase (ex: `useSessionStore.ts`, `useOrder.ts`).
 * **Páginas:** kebab-case (ex: `ordens-servico/index.vue`).
-* **Tipagem:** Preferencialmente Interfaces sobre Types. Não usar `any`.
+* **Tipagem:** Preferencialmente Interfaces sobre Types. Não usar `any`. Usar um arquivo por Tipo.
 
 ## 4. Arquitetura de Componentes e UI
 
