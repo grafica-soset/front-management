@@ -1,53 +1,57 @@
-import type {
-  CreatePaperRequest,
-  KeyValueDto,
-  PageResponse,
-  PaperListQuery,
-  PaperResponse,
-  UpdatePaperRequest,
-} from '~/types'
-
 /**
- * Repositório do módulo de papéis/insumos. Passa pelo proxy `/api/papers/*`.
+ * Composable do catálogo global de papéis (/papers).
+ *
+ * Nota: o header `X-Customer-Id` é injetado automaticamente pelo `useApi`
+ * quando há empresa ativa — por isso as dimensões já vêm na unidade certa.
  */
-export const usePapers = () => {
-  const getAll = (filters: { name?: string, typeId?: number } = {}) =>
-    $fetch<KeyValueDto[]>('/api/papers', {
-      query: {
-        ...(filters.name ? { name: filters.name } : {}),
-        ...(filters.typeId !== undefined ? { typeId: filters.typeId } : {}),
-      },
-    })
+import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
+import type { CreatePaperResponse } from '@/types/CustomerPaper'
+import { usePapersStore } from '@/stores/papers'
+import { useAuthStore } from '@/stores/auth'
 
-  const getPage = (query: PaperListQuery = {}) => {
-    const { page = 0, size = 20, name, typeId } = query
-    return $fetch<PageResponse<PaperResponse>>('/api/papers/page', {
-      query: {
-        page,
-        size,
-        ...(name ? { name } : {}),
-        ...(typeId !== undefined ? { typeId } : {}),
-      },
-    })
+interface ListPapersOptions {
+  paperTypeId?: number
+}
+
+export function usePapers() {
+  const api = useApi()
+  const store = usePapersStore()
+  const auth = useAuthStore()
+
+  async function listPapers(options: ListPapersOptions = {}): Promise<Paper[]> {
+    const query: Record<string, string | number> = {}
+    if (options.paperTypeId) query.paperTypeId = options.paperTypeId
+    const papers = await api<Paper[]>('/papers', { query })
+    store.setPapers(papers)
+    return papers
   }
 
-  const getById = (id: number) =>
-    $fetch<PaperResponse>(`/api/papers/${id}`)
+  /**
+   * POST /papers — quando o caller é CUSTOMER (sem ADMIN), `customerId` é
+   * preenchido automaticamente a partir da empresa ativa. Devolve também o
+   * `customerPaper` resultante do auto-link.
+   */
+  async function createPaper(payload: CreatePaperRequest): Promise<CreatePaperResponse> {
+    const body: CreatePaperRequest = { ...payload }
+    if (auth.hasCustomer && !auth.isAdmin && !body.customerId && auth.activeCompanyId) {
+      body.customerId = auth.activeCompanyId
+    }
+    const response = await api<CreatePaperResponse>('/papers', { method: 'POST', body })
+    store.upsertPaper(response.paper)
+    if (response.customerPaper) store.upsertCustomerPaper(response.customerPaper)
+    return response
+  }
 
-  const create = (payload: CreatePaperRequest) =>
-    $fetch<PaperResponse>('/api/papers', {
-      method: 'POST',
-      body: payload,
-    })
+  async function updatePaper(id: number, payload: UpdatePaperRequest): Promise<Paper> {
+    const updated = await api<Paper>(`/papers/${id}`, { method: 'PUT', body: payload })
+    store.upsertPaper(updated)
+    return updated
+  }
 
-  const update = (id: number, payload: UpdatePaperRequest) =>
-    $fetch<PaperResponse>(`/api/papers/${id}`, {
-      method: 'PUT',
-      body: payload,
-    })
+  async function deletePaper(id: number): Promise<void> {
+    await api(`/papers/${id}`, { method: 'DELETE' })
+    store.removePaper(id)
+  }
 
-  const remove = (id: number) =>
-    $fetch<void>(`/api/papers/${id}`, { method: 'DELETE' })
-
-  return { getAll, getPage, getById, create, update, remove }
+  return { listPapers, createPaper, updatePaper, deletePaper }
 }

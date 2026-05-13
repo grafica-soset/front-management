@@ -1,58 +1,40 @@
+/**
+ * Composable de tipos de papel — encapsula CRUD de /paper-types e mantém
+ * o cache no Pinia (usePapersStore).
+ */
 import type {
   CreatePaperTypeRequest,
-  KeyValueDto,
-  PageResponse,
-  PaperTypeListQuery,
-  PaperTypeResponse,
+  PaperType,
   UpdatePaperTypeRequest,
-} from '~/types'
+} from '@/types/PaperType'
+import { usePapersStore } from '@/stores/papers'
 
-/**
- * Repositório do módulo de tipos de papel. Passa pelo proxy
- * `/api/paper-types/*`, que repassa para o backend Quarkus.
- */
-export const usePaperTypes = () => {
-  /** GET /paper-types — KeyValueDto[]. Útil para alimentar selects. */
-  const getAll = (filters: { name?: string } = {}) =>
-    $fetch<KeyValueDto[]>('/api/paper-types', {
-      query: {
-        ...(filters.name ? { name: filters.name } : {}),
-      },
-    })
+export function usePaperTypes() {
+  const api = useApi()
+  const store = usePapersStore()
 
-  /** GET /paper-types/page — PageResponse<PaperTypeResponse>. */
-  const getPage = (query: PaperTypeListQuery = {}) => {
-    const { page = 0, size = 20, name } = query
-    return $fetch<PageResponse<PaperTypeResponse>>('/api/paper-types/page', {
-      query: {
-        page,
-        size,
-        ...(name ? { name } : {}),
-      },
-    })
+  async function listPaperTypes(): Promise<PaperType[]> {
+    const types = await api<PaperType[]>('/paper-types')
+    store.setPaperTypes(types)
+    return types
   }
 
-  /** GET /paper-types/{id}. */
-  const getById = (id: number) =>
-    $fetch<PaperTypeResponse>(`/api/paper-types/${id}`)
+  async function createPaperType(payload: CreatePaperTypeRequest): Promise<PaperType> {
+    const created = await api<PaperType>('/paper-types', { method: 'POST', body: payload })
+    store.upsertPaperType(created)
+    return created
+  }
 
-  /** POST /paper-types. */
-  const create = (payload: CreatePaperTypeRequest) =>
-    $fetch<PaperTypeResponse>('/api/paper-types', {
-      method: 'POST',
-      body: payload,
-    })
+  async function updatePaperType(id: number, payload: UpdatePaperTypeRequest): Promise<PaperType> {
+    const updated = await api<PaperType>(`/paper-types/${id}`, { method: 'PUT', body: payload })
+    store.upsertPaperType(updated)
+    return updated
+  }
 
-  /** PUT /paper-types/{id}. */
-  const update = (id: number, payload: UpdatePaperTypeRequest) =>
-    $fetch<PaperTypeResponse>(`/api/paper-types/${id}`, {
-      method: 'PUT',
-      body: payload,
-    })
+  async function deletePaperType(id: number): Promise<void> {
+    await api(`/paper-types/${id}`, { method: 'DELETE' })
+    store.removePaperType(id)
+  }
 
-  /** DELETE /paper-types/{id}. Backend responde 204 No Content. */
-  const remove = (id: number) =>
-    $fetch<void>(`/api/paper-types/${id}`, { method: 'DELETE' })
-
-  return { getAll, getPage, getById, create, update, remove }
+  return { listPaperTypes, createPaperType, updatePaperType, deletePaperType }
 }

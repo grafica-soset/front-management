@@ -1,111 +1,136 @@
 <script setup lang="ts">
+/**
+ * Formulário reutilizável para criar/editar Tipo de Papel.
+ *
+ * Sem chamadas de API — a página chama o composable e dispara `@submit`.
+ * Campo `active` só aparece em edição (POST não aceita esse campo).
+ */
+import { reactive, ref, watch } from 'vue'
 import { z } from 'zod'
-import type {
-  CreatePaperTypeRequest,
-  PaperTypeResponse,
-  UpdatePaperTypeRequest,
-} from '~/types'
+import type { PaperType } from '@/types/PaperType'
 
-interface Props {
-  initialValue?: PaperTypeResponse | null
+const props = defineProps<{
+  /** Quando informado, o form atua em modo "edição" e exibe o toggle `active`. */
+  initial?: PaperType | null
   loading?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  initialValue: null,
-  loading: false,
-})
-
-const emit = defineEmits<{
-  submit: [payload: CreatePaperTypeRequest | UpdatePaperTypeRequest]
-  cancel: []
+  serverError?: string | null
 }>()
 
-const isEdit = computed(() => Boolean(props.initialValue?.id))
+const emit = defineEmits<{
+  (e: 'submit', payload: { name: string; description: string | null; active?: boolean }): void
+  (e: 'cancel'): void
+}>()
 
-interface FormState {
-  name: string
-  description: string
-}
+const isEditing = !!props.initial
 
-const buildInitialState = (): FormState => ({
-  name: props.initialValue?.name ?? '',
-  description: props.initialValue?.description ?? '',
+const form = reactive({
+  name: props.initial?.name ?? '',
+  description: props.initial?.description ?? '',
+  active: props.initial?.active ?? true,
 })
 
-const form = reactive<FormState>(buildInitialState())
-const errors = reactive<Record<string, string>>({})
-
 watch(
-  () => props.initialValue,
-  () => {
-    Object.assign(form, buildInitialState())
-    Object.keys(errors).forEach((key) => delete errors[key])
+  () => props.initial,
+  (next) => {
+    form.name = next?.name ?? ''
+    form.description = next?.description ?? ''
+    form.active = next?.active ?? true
   },
 )
 
+const errors = ref<Partial<Record<keyof typeof form, string>>>({})
+
 const schema = z.object({
-  name: z.string().min(2, 'Nome do tipo obrigatório'),
-  description: z.string().max(500, 'Descrição muito longa').or(z.literal('')),
-})
-
-const validate = (): boolean => {
-  Object.keys(errors).forEach((key) => delete errors[key])
-  const result = schema.safeParse(form)
-  if (result.success) return true
-  for (const issue of result.error.issues) {
-    const path = issue.path.join('.')
-    if (!errors[path]) errors[path] = issue.message
-  }
-  return false
-}
-
-const buildPayload = (): CreatePaperTypeRequest | UpdatePaperTypeRequest => ({
-  name: form.name.trim(),
-  description: form.description.trim() || null,
+  name: z.string().min(1, 'Informe o nome do tipo.').max(100, 'Máximo de 100 caracteres.'),
+  description: z.string().max(255, 'Máximo de 255 caracteres.').optional(),
+  active: z.boolean(),
 })
 
 const handleSubmit = () => {
-  if (!validate()) return
-  emit('submit', buildPayload())
+  errors.value = {}
+  const result = schema.safeParse(form)
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof typeof form
+      if (key && !errors.value[key]) errors.value[key] = issue.message
+    }
+    return
+  }
+  const data = result.data
+  emit('submit', {
+    name: data.name,
+    description: data.description?.trim() ? data.description : null,
+    ...(isEditing ? { active: data.active } : {}),
+  })
 }
 </script>
 
 <template>
-  <BaseForm @submit="handleSubmit">
-    <fieldset class="rounded-lg border border-slate-200 p-4">
-      <legend class="px-1 text-sm font-semibold text-slate-700">Identificação</legend>
-      <div class="grid grid-cols-1 gap-4">
-        <BaseInput
-          v-model="form.name"
-          label="Nome"
-          placeholder="Ex.: Papel Sulfite A4"
-          required
-          :error="errors.name"
-        />
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Descrição</span>
-          <textarea
-            v-model="form.description"
-            rows="3"
-            placeholder="Ex.: Papel branco padrão para impressões gerais, 75g/m²"
-            class="input-base resize-y"
-            :class="errors.description && 'border-red-400 focus:border-red-500 focus:ring-red-500/30'"
-          />
-          <span v-if="errors.description" class="text-xs text-red-600">
-            {{ errors.description }}
-          </span>
-        </label>
-      </div>
-    </fieldset>
-
-    <div class="flex justify-end gap-2 pt-2">
-      <BaseButton variant="secondary" type="button" @click="emit('cancel')">
-        Cancelar
-      </BaseButton>
-      <BaseButton variant="primary" type="submit" :loading="loading">
-        {{ isEdit ? 'Atualizar' : 'Criar' }}
-      </BaseButton>
+  <form @submit.prevent="handleSubmit" class="space-y-5">
+    <div>
+      <label for="paper-type-name" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Nome <span class="text-rose-500">*</span>
+      </label>
+      <input
+        id="paper-type-name"
+        v-model="form.name"
+        type="text"
+        placeholder="Sulfite"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.name }"
+      />
+      <p v-if="errors.name" class="mt-1 text-xs text-rose-600">{{ errors.name }}</p>
     </div>
-  </BaseForm>
+
+    <div>
+      <label for="paper-type-description" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Descrição
+      </label>
+      <textarea
+        id="paper-type-description"
+        v-model="form.description"
+        rows="2"
+        placeholder="Papel branco padrão A4 para impressão laser"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.description }"
+      />
+      <p v-if="errors.description" class="mt-1 text-xs text-rose-600">{{ errors.description }}</p>
+    </div>
+
+    <div v-if="isEditing" class="flex items-center gap-3">
+      <input
+        id="paper-type-active"
+        v-model="form.active"
+        type="checkbox"
+        class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-slate-700 dark:border-slate-600"
+      />
+      <label for="paper-type-active" class="text-sm font-medium text-slate-700 dark:text-slate-200">
+        Tipo ativo
+      </label>
+    </div>
+
+    <div
+      v-if="serverError"
+      class="rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300"
+    >
+      {{ serverError }}
+    </div>
+
+    <div class="flex justify-end gap-3 pt-2">
+      <button
+        type="button"
+        @click="emit('cancel')"
+        class="text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 focus:ring-4 focus:ring-slate-200 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        :disabled="loading"
+        class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed font-medium rounded-lg text-sm px-5 py-2.5 shadow-md shadow-indigo-500/20"
+      >
+        {{ loading ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Cadastrar tipo' }}
+      </button>
+    </div>
+  </form>
 </template>

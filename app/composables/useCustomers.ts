@@ -1,53 +1,69 @@
-import type {
-  CreateCustomerRequest,
-  CustomerListQuery,
-  CustomerResponse,
-  KeyValueDto,
-  PageResponse,
-  UpdateCustomerRequest,
-} from '~/types'
-
 /**
- * Repositório do módulo de clientes. Passa pelo proxy `/api/customers/*`.
+ * Composable de empresas (tenants) — encapsula GET /customers,
+ * GET /customers/{id}/properties e PUT /customers/{id}/settings.
+ *
+ * Cuida da sincronização com a store de auth (lista de empresas, empresa ativa
+ * e unidade de medida ativa).
  */
-export const useCustomers = () => {
-  const getAll = (filters: { name?: string, active?: boolean } = {}) =>
-    $fetch<KeyValueDto[]>('/api/customers', {
-      query: {
-        ...(filters.name ? { name: filters.name } : {}),
-        ...(filters.active !== undefined ? { active: filters.active } : {}),
-      },
-    })
+import type { CustomerKeyValue } from '@/types/CustomerKeyValue'
+import type { CustomerProperties } from '@/types/CustomerProperties'
+import type { CustomerSettings, UpdateCustomerSettingsRequest } from '@/types/CustomerSettings'
+import { useAuthStore } from '@/stores/auth'
 
-  const getPage = (query: CustomerListQuery = {}) => {
-    const { page = 0, size = 20, name, active } = query
-    return $fetch<PageResponse<CustomerResponse>>('/api/customers/page', {
-      query: {
-        page,
-        size,
-        ...(name ? { name } : {}),
-        ...(active !== undefined ? { active } : {}),
-      },
-    })
+export function useCustomers() {
+  const api = useApi()
+  const auth = useAuthStore()
+
+  /**
+   * GET /customers — lista todas as empresas que o usuário pode acessar.
+   * Atualiza a store; se houver apenas uma, ela vira a ativa automaticamente.
+   */
+  async function listCustomers(): Promise<CustomerKeyValue[]> {
+    const companies = await api<CustomerKeyValue[]>('/customers')
+    auth.setCompanies(companies)
+    return companies
   }
 
-  const getById = (id: number) =>
-    $fetch<CustomerResponse>(`/api/customers/${id}`)
+  /** GET /customers/{id}/properties — devolve dados e settings da empresa. */
+  async function getCustomerProperties(customerId: number): Promise<CustomerProperties> {
+    return await api<CustomerProperties>(`/customers/${customerId}/properties`)
+  }
 
-  const create = (payload: CreateCustomerRequest) =>
-    $fetch<CustomerResponse>('/api/customers', {
-      method: 'POST',
-      body: payload,
-    })
-
-  const update = (id: number, payload: UpdateCustomerRequest) =>
-    $fetch<CustomerResponse>(`/api/customers/${id}`, {
+  /**
+   * PUT /customers/{id}/settings — persiste a unidade de medida da empresa.
+   *
+   * Quando a empresa alterada é a ativa, sincroniza activeMeasurementUnit
+   * para que o useUnitConverter passe a usar a nova unidade imediatamente.
+   */
+  async function updateCustomerSettings(
+    customerId: number,
+    payload: UpdateCustomerSettingsRequest,
+  ): Promise<CustomerSettings> {
+    const settings = await api<CustomerSettings>(`/customers/${customerId}/settings`, {
       method: 'PUT',
       body: payload,
     })
+    if (auth.activeCompanyId === customerId) {
+      auth.setActiveMeasurementUnit(settings.measurementUnit)
+    }
+    return settings
+  }
 
-  const remove = (id: number) =>
-    $fetch<void>(`/api/customers/${id}`, { method: 'DELETE' })
+  /**
+   * Carrega as configurações da empresa ativa e popula activeMeasurementUnit
+   * na store. Chamar após login e em troca de empresa.
+   */
+  async function syncActiveCompanySettings(): Promise<CustomerProperties | null> {
+    if (!auth.activeCompanyId) return null
+    const properties = await getCustomerProperties(auth.activeCompanyId)
+    auth.setActiveMeasurementUnit(properties.settings.measurementUnit)
+    return properties
+  }
 
-  return { getAll, getPage, getById, create, update, remove }
+  return {
+    listCustomers,
+    getCustomerProperties,
+    updateCustomerSettings,
+    syncActiveCompanySettings,
+  }
 }

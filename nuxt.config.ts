@@ -1,46 +1,37 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import { fileURLToPath } from 'node:url'
 
+// URL do backend GraphicOS — usada para proxiar /api/** via Nitro, evitando CORS
+// entre o dev server (localhost:3000) e a API (localhost:5000).
 const apiBaseUrl = process.env.NUXT_API_BASE_URL || 'http://localhost:5000'
-const componentsDir = fileURLToPath(new URL('./app/components', import.meta.url))
 
 export default defineNuxtConfig({
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
+  future: {
+    compatibilityVersion: 4,
+  },
   modules: [
     '@nuxtjs/tailwindcss',
     '@pinia/nuxt',
     'pinia-plugin-persistedstate/nuxt',
-    '@nuxt/icon',
-  ],
-  css: ['~/assets/css/tailwind.css'],
-  // Registra os componentes sem prefixar pelo nome da subpasta
-  // (ex.: app/components/forms/UserForm.vue -> <UserForm />).
-  // Em Nuxt 4 com `srcDir = app/` o resolver `~/components` não captura
-  // confiavelmente as subpastas — usamos caminho absoluto por isso.
-  components: [
-    { path: componentsDir, pathPrefix: false },
   ],
   runtimeConfig: {
-    apiBaseUrl,
-    public: {},
-  },
-  app: {
-    head: {
-      title: 'Soset',
-      meta: [
-        { charset: 'utf-8' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      ],
+    public: {
+      // Mantido público caso algum trecho precise da URL absoluta da API.
+      apiBaseUrl,
     },
   },
-  imports: {
-    dirs: ['stores'],
-  },
-  pinia: {
-    storesDirs: ['./app/stores/**'],
+  // Proxy reverso: o front bate em /api/** (mesma origem) e o Nitro
+  // encaminha para o backend real. Resolve CORS sem alterar o backend.
+  routeRules: {
+    '/api/**': { proxy: `${apiBaseUrl}/**` },
   },
   piniaPluginPersistedstate: {
     storage: 'cookies',
+    cookieOptions: {
+      sameSite: 'lax',
+      secure: false,
+      path: '/',
+    },
   },
 })
