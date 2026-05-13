@@ -22,6 +22,12 @@ export function useApi() {
       if (auth.token && !headers.has('Authorization')) {
         headers.set('Authorization', `Bearer ${auth.token}`)
       }
+      // Define o tenant ativo para a camada OUT (ex.: /papers usa este header
+      // para resolver a unidade de medida nas dimensões). Apenas quando há
+      // empresa ativa selecionada — o chamador pode sobrescrever explicitamente.
+      if (auth.activeCompanyId && !headers.has('X-Customer-Id')) {
+        headers.set('X-Customer-Id', String(auth.activeCompanyId))
+      }
       options.headers = headers
     },
 

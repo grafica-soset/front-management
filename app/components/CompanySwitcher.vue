@@ -10,8 +10,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomers } from '@/composables/useCustomers'
+import { usePapersStore } from '@/stores/papers'
 
 const auth = useAuthStore()
+const papersStore = usePapersStore()
 const { listCustomers, syncActiveCompanySettings } = useCustomers()
 
 const isOpen = ref(false)
@@ -65,6 +67,8 @@ const selectCompany = async (id: number) => {
   loading.value = true
   error.value = null
   try {
+    // Limpa caches específicos do tenant antes de trocar (papers, vínculos).
+    papersStore.clear()
     auth.setActiveCompany(id)
     await syncActiveCompanySettings()
     isOpen.value = false

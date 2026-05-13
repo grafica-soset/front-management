@@ -28,6 +28,16 @@ export default function useMenu() {
         { name: 'Fornecedores', href: '#' }
       ]
     },
+    {
+      name: 'Papéis',
+      icon: 'papers',
+      expanded: false,
+      children: [
+        { name: 'Catálogo', href: '/papeis/catalogo' },
+        { name: 'Meus papéis', href: '/papeis/meus-papeis' },
+        { name: 'Tipos de papel', href: '/admin/papeis/tipos' },
+      ],
+    },
     { name: 'Usuários', href: '#', icon: 'users' },
     {
       name: 'Configurações',
