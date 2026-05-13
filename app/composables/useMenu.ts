@@ -29,7 +29,14 @@ export default function useMenu() {
       ]
     },
     { name: 'Usuários', href: '#', icon: 'users' },
-    { name: 'Configurações', href: '#', icon: 'settings' },
+    {
+      name: 'Configurações',
+      icon: 'settings',
+      expanded: false,
+      children: [
+        { name: 'Empresa', href: '/settings/company' },
+      ],
+    },
   ])
 
   const toggleSubMenu = (item: MenuItem) => {
