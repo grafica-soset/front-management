@@ -1,3 +1,9 @@
+<script setup lang="ts">
+definePageMeta({
+  middleware: 'auth',
+})
+</script>
+
 <template>
   <div class="space-y-4">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">

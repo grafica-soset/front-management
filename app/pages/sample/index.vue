@@ -4,6 +4,10 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import Modal from '@/components/ui/Modal.vue'
 import ProductForm from '@/components/forms/ProductForm.vue'
 
+definePageMeta({
+  middleware: 'auth',
+})
+
 const breadcrumbItems = [
   { name: 'Cadastros' },
   { name: 'Produtos' }

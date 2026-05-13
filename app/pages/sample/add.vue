@@ -3,6 +3,10 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import ProductForm from '@/components/forms/ProductForm.vue'
 import { useRouter } from 'vue-router'
 
+definePageMeta({
+  middleware: 'auth',
+})
+
 const router = useRouter()
 
 const breadcrumbItems = [

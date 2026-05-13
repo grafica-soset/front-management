@@ -1,11 +1,31 @@
 <script setup lang="ts">
 import useMenu from '@/composables/useMenu'
+import { useAuthStore } from '@/stores/auth'
+import { useAuth } from '@/composables/useAuth'
 
 const isSidebarOpen = ref(false)
 const isUserMenuOpen = ref(false)
 
 // Puxa as definições do composable
 const { navigation, toggleSubMenu } = useMenu()
+
+// Sessão do usuário autenticado (nome no topbar + logout).
+const auth = useAuthStore()
+const { logout } = useAuth()
+
+const userName = computed(() => auth.user?.name ?? 'Usuário')
+const userInitials = computed(() => {
+  const parts = (auth.user?.name ?? '').trim().split(/\s+/)
+  if (parts.length === 0 || !parts[0]) return 'U'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+})
+
+const handleLogout = async () => {
+  logout()
+  isUserMenuOpen.value = false
+  await navigateTo('/auth/login')
+}
 
 // Fecha a sidebar em telas menores ao mudar de rota
 const route = useRoute()
@@ -49,16 +69,16 @@ onUnmounted(() => {
             <span class="sr-only">Abrir menu lateral</span>
           </button>
           <NuxtLink to="/" class="flex items-center justify-between mr-4">
-            <span class="self-center text-xl font-bold whitespace-nowrap text-white">Admin App</span>
+            <span class="self-center text-xl font-bold whitespace-nowrap text-white">GraphicOS</span>
           </NuxtLink>
         </div>
 
         <!-- Menu do Usuário -->
         <div class="flex items-center lg:order-2 user-menu-container">
           <div class="relative">
-            <button @click="toggleUserMenu" type="button" class="flex mx-3 text-sm bg-indigo-800 rounded-full md:mr-0 focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-600 ring-2 ring-indigo-400">
+            <button @click="toggleUserMenu" type="button" class="flex items-center justify-center mx-3 w-8 h-8 text-sm font-semibold text-white bg-indigo-800 rounded-full md:mr-0 focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-600 ring-2 ring-indigo-400">
               <span class="sr-only">Abrir menu do usuário</span>
-              <img class="w-8 h-8 rounded-full" src="https://ui-avatars.com/api/?name=Admin+User&background=6366f1&color=fff" alt="Foto do usuário">
+              {{ userInitials }}
             </button>
 
             <!-- Dropdown -->
@@ -72,8 +92,8 @@ onUnmounted(() => {
             >
               <div v-show="isUserMenuOpen" class="absolute right-0 mt-2 z-50 w-56 text-base list-none bg-white rounded divide-y divide-slate-100 shadow-xl dark:bg-slate-800 dark:divide-slate-700 ring-1 ring-slate-900/5">
                 <div class="py-3 px-4 bg-slate-50 dark:bg-slate-800/50 rounded-t">
-                  <span class="block text-sm font-semibold text-slate-900 dark:text-white">Admin User</span>
-                  <span class="block text-sm font-light text-slate-500 truncate dark:text-slate-400">admin@exemplo.com</span>
+                  <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ userName }}</span>
+                  <span class="block text-xs font-light text-slate-500 truncate dark:text-slate-400">ID #{{ auth.user?.personId ?? '—' }}</span>
                 </div>
                 <ul class="py-1 font-medium text-slate-700 dark:text-slate-300">
                   <li>
@@ -85,7 +105,7 @@ onUnmounted(() => {
                 </ul>
                 <ul class="py-1 font-medium text-slate-700 dark:text-slate-300">
                   <li>
-                    <a href="#" class="block py-2 px-4 text-sm hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-700 dark:hover:text-red-400 transition-colors">Sair</a>
+                    <button @click="handleLogout" type="button" class="block w-full text-left py-2 px-4 text-sm hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-700 dark:hover:text-red-400 transition-colors">Sair</button>
                   </li>
                 </ul>
               </div>
