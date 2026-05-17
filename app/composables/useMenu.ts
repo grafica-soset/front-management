@@ -38,7 +38,7 @@ export default function useMenu() {
         { name: 'Tipos de papel', href: '/admin/papeis/tipos' },
       ],
     },
-    { name: 'Usuários', href: '#', icon: 'users' },
+    { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {
       name: 'Configurações',
       icon: 'settings',
