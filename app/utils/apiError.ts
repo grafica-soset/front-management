@@ -15,6 +15,10 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   UsernameAlreadyInUseException: 'Este nome de usuário já está em uso.',
   SystemAlreadyInitializedException: 'O sistema já foi inicializado.',
   CustomerAlreadyExistsForPersonException: 'Esta pessoa jurídica já está vinculada a uma empresa.',
+  CustomerContextRequiredException: 'Selecione uma empresa antes de prosseguir.',
+  NotCustomerAdminException: 'Você precisa ser administrador da empresa para executar esta ação.',
+  CustomerUserNotFoundException: 'Usuário não encontrado nesta empresa.',
+  CredentialNotFoundException: 'Este usuário não possui credencial de senha cadastrada.',
 }
 
 export function extractApiError(err: unknown, fallback = 'Não foi possível concluir a operação.'): string {
