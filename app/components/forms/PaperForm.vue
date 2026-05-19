@@ -75,6 +75,7 @@ const form = reactive({
   thicknessMicrometers: seed?.thicknessMicrometers ?? 0,
   weightPerM2Grams: seed?.weightPerM2Grams ?? 0,
   isEnvelope: seed?.isEnvelope ?? false,
+  hasTwoSides: seed?.hasTwoSides ?? false,
   active: seed?.active ?? true,
 })
 
@@ -118,6 +119,7 @@ watch(
     form.thicknessMicrometers = next.thicknessMicrometers
     form.weightPerM2Grams = next.weightPerM2Grams
     form.isEnvelope = next.isEnvelope
+    form.hasTwoSides = next.hasTwoSides
     form.active = next.active
   },
 )
@@ -136,6 +138,7 @@ watch(
     form.thicknessMicrometers = next.thicknessMicrometers
     form.weightPerM2Grams = next.weightPerM2Grams
     form.isEnvelope = next.isEnvelope
+    form.hasTwoSides = next.hasTwoSides
     form.active = true
   },
 )
@@ -153,6 +156,7 @@ const schema = z.object({
   thicknessMicrometers: z.number().int().min(1, 'Espessura inválida.'),
   weightPerM2Grams: z.number().int().min(1, 'Gramatura inválida.'),
   isEnvelope: z.boolean(),
+  hasTwoSides: z.boolean(),
   active: z.boolean(),
 })
 
@@ -183,6 +187,7 @@ const handleSubmit = () => {
     thicknessMicrometers: data.thicknessMicrometers,
     weightPerM2Grams: data.weightPerM2Grams,
     isEnvelope: data.isEnvelope,
+    hasTwoSides: data.hasTwoSides,
   }
 
   if (isEditing.value) {
@@ -290,8 +295,8 @@ const handleSubmit = () => {
       <p v-if="errors.code" class="mt-1 text-xs text-rose-600">{{ errors.code }}</p>
     </div>
 
-    <!-- Gramatura / espessura -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Gramatura / espessura / lado -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
         <label for="paper-weight" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
           Gramatura <span class="text-rose-500">*</span>
@@ -327,6 +332,23 @@ const handleSubmit = () => {
           <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">µm</span>
         </div>
         <p v-if="errors.thicknessMicrometers" class="mt-1 text-xs text-rose-600">{{ errors.thicknessMicrometers }}</p>
+      </div>
+      <div>
+        <label for="paper-sides" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+          Lado <span class="text-rose-500">*</span>
+        </label>
+        <select
+          id="paper-sides"
+          :value="form.hasTwoSides ? 2 : 1"
+          @change="form.hasTwoSides = ($event.target as HTMLSelectElement).value === '2'"
+          class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        >
+          <option :value="1">1 lado</option>
+          <option :value="2">2 lados</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Use 2 quando as superfícies têm texturas diferentes.
+        </p>
       </div>
     </div>
 
