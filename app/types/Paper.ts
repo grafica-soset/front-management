@@ -15,6 +15,7 @@ export interface Paper {
   thicknessMicrometers: number
   weightPerM2Grams: number
   isEnvelope: boolean
+  hasTwoSides: boolean
   active: boolean
 }
 
@@ -32,6 +33,7 @@ export interface CreatePaperRequest {
   thicknessMicrometers: number
   weightPerM2Grams: number
   isEnvelope: boolean
+  hasTwoSides: boolean
 }
 
 /** Payload de PUT /papers/{id}. */
@@ -47,5 +49,6 @@ export interface UpdatePaperRequest {
   thicknessMicrometers: number
   weightPerM2Grams: number
   isEnvelope: boolean
+  hasTwoSides: boolean
   active: boolean
 }
