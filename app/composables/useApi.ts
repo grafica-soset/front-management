@@ -10,13 +10,18 @@ import { useAuthStore } from '@/stores/auth'
 
 export function useApi() {
   const auth = useAuthStore()
+  const router = useRouter()
 
   return $fetch.create({
     // Sempre via /api: o Nitro (routeRules em nuxt.config) faz o proxy reverso
     // para NUXT_API_BASE_URL. Mantém o navegador na mesma origem e evita CORS.
     baseURL: '/api',
 
-    onRequest({ options }) {
+    onRequest({ request, options }) {
+      // Log da URL chamada no backend (método + baseURL + path + query).
+      const query = options.query && Object.keys(options.query).length ? options.query : undefined
+      console.log(`[useApi] ${options.method?.toUpperCase() ?? 'GET'} ${options.baseURL ?? ''}${request}`, query ?? '')
+
       const headers = new Headers(options.headers as HeadersInit | undefined)
       if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
       if (auth.token && !headers.has('Authorization')) {
@@ -32,9 +37,16 @@ export function useApi() {
     },
 
     onResponseError({ response }) {
-      // 401 com sessão ativa → token expirou ou foi revogado: limpa store.
-      if (response.status === 401 && auth.isAuthenticated) {
+      // 401 → token expirou/foi revogado: força logoff e manda para o login
+      // preservando a rota atual para retorno após autenticar.
+      if (response.status === 401) {
         auth.clear()
+        const current = router.currentRoute.value.fullPath
+        if (current.startsWith('/auth/login')) {
+          navigateTo('/auth/login')
+        } else {
+          navigateTo({ path: '/auth/login', query: { redirect: current } })
+        }
       }
     },
   })
