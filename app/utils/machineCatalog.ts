@@ -117,7 +117,7 @@ export function isCustomBlock(type: MachineType): boolean {
 
 // ---------- Descritores de campos dos blocos planos ----------
 
-export type FieldKind = 'int' | 'decimal' | 'boolean' | 'text'
+export type FieldKind = 'int' | 'decimal' | 'boolean' | 'text' | 'select'
 
 export interface FieldDescriptor {
   /** Caminho (dot-path) dentro do bloco específico, ex.: "setupTimes.setupMinutes". */
@@ -130,6 +130,8 @@ export interface FieldDescriptor {
   maxLength?: number
   suffix?: string
   help?: string
+  /** Opções para campos do tipo `select` (valor numérico). */
+  options?: { value: number; label: string }[]
   /** Quando definido, o valor deve ser ≥ ao valor neste outro caminho. */
   gteField?: string
   /** Label do campo referenciado em `gteField`, para a mensagem de erro. */
@@ -142,7 +144,17 @@ const MODEL: FieldDescriptor = { key: 'model', label: 'Modelo', kind: 'text', ma
 /** Descritores por tipo. DIGITAL fica de fora (componente dedicado). */
 export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = {
   OFFSET: [
-    { key: 'numberOfColors', label: 'Nº de cores (castelos)', kind: 'int', min: 1, max: 16 },
+    {
+      key: 'numberOfColors',
+      label: 'Nº de cores (castelos)',
+      kind: 'select',
+      options: [
+        { value: 1, label: '1' },
+        { value: 2, label: '2' },
+        { value: 3, label: '3' },
+        { value: 4, label: '4' },
+      ],
+    },
     { key: 'supportsNumbering', label: 'Suporta numeração?', kind: 'boolean' },
     { key: 'setupTimes.setupMinutes', label: 'Setup (min)', kind: 'int', min: 0 },
     { key: 'setupTimes.feedSwapMinutes', label: 'Troca de pilha (min)', kind: 'int', min: 0 },
@@ -287,6 +299,7 @@ export function defaultSpecificBlock(type: MachineType): Record<string, unknown>
     let value: unknown
     if (d.kind === 'boolean') value = false
     else if (d.kind === 'text') value = ''
+    else if (d.kind === 'select') value = d.options?.[0]?.value ?? 0
     else value = d.min ?? 0
     setByPath(block, d.key, value)
   }
@@ -307,7 +320,7 @@ export function validateDescriptors(
       else if (d.maxLength && text.length > d.maxLength) errors[d.key] = `Máximo de ${d.maxLength} caracteres.`
       continue
     }
-    if (d.kind === 'boolean') continue
+    if (d.kind === 'boolean' || d.kind === 'select') continue
     const num = typeof value === 'number' ? value : Number(value)
     if (!Number.isFinite(num)) {
       errors[d.key] = 'Valor inválido.'

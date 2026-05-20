@@ -45,6 +45,9 @@ const onNumber = (d: FieldDescriptor, event: Event) => {
 const onText = (key: string, event: Event) => {
   setByPath(props.block, key, (event.target as HTMLInputElement).value)
 }
+const onSelect = (key: string, event: Event) => {
+  setByPath(props.block, key, Number((event.target as HTMLSelectElement).value))
+}
 const onBool = (key: string, event: Event) => {
   setByPath(props.block, key, (event.target as HTMLInputElement).checked)
 }
@@ -91,6 +94,20 @@ const inputClass = (key: string) => [
           @input="onText(d.key, $event)"
           :class="inputClass(d.key)"
         />
+        <p v-if="d.help" class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ d.help }}</p>
+        <p v-if="errors[d.key]" class="mt-1 text-xs text-rose-600">{{ errors[d.key] }}</p>
+      </template>
+
+      <!-- Seleção (valor numérico) -->
+      <template v-else-if="d.kind === 'select'">
+        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">{{ d.label }}</label>
+        <select
+          :value="numberValue(d)"
+          @change="onSelect(d.key, $event)"
+          :class="inputClass(d.key)"
+        >
+          <option v-for="opt in d.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
         <p v-if="d.help" class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ d.help }}</p>
         <p v-if="errors[d.key]" class="mt-1 text-xs text-rose-600">{{ errors[d.key] }}</p>
       </template>
