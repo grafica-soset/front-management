@@ -38,6 +38,17 @@ export default function useMenu() {
         { name: 'Tipos de papel', href: '/admin/papeis/tipos' },
       ],
     },
+    {
+      name: 'Máquinas',
+      icon: 'machines',
+      expanded: false,
+      children: [
+        { name: 'Impressão', href: '/maquinas/impressao' },
+        { name: 'Corte', href: '/maquinas/corte' },
+        { name: 'Acabamento', href: '/maquinas/acabamento' },
+        { name: 'Pré-impressão', href: '/maquinas/pre-impressao' },
+      ],
+    },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {
       name: 'Configurações',
