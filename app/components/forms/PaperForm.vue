@@ -1,19 +1,17 @@
 <script setup lang="ts">
 /**
- * Formulário unificado para criar/editar Papel.
+ * Formulário unificado para criar/editar uma Dimensão (SKU) de um Agrupamento
+ * de medidas.
  *
  * Inteligências:
- *  - Dimensões: o input mostra o sufixo da unidade da empresa ativa
- *    (mm/cm/m) e o componente converte para milímetros antes de emitir.
- *  - Tipo de papel: se a lista veio vazia ou o usuário não encontrou o tipo
- *    desejado, emite `request-new-paper-type` para a página abrir o modal de
- *    cadastro de tipo e, ao terminar, voltar para este form com o novo id
- *    pré-selecionado.
- *  - Preço por folha: calculado automaticamente pelo backend a partir das
- *    dimensões, gramatura e preço/kg. O input fica readonly e mostra um
- *    preview em tempo real para feedback imediato ao usuário.
- *  - Feedback CUSTOMER: badge informando que ao salvar o papel será ativado
- *    automaticamente para a empresa atual (auto-link da API).
+ *  - Agrupamento: gramatura, espessura e face são herdadas do agrupamento e
+ *    exibidas SOMENTE LEITURA. Quando `lockedPaperType` é informado, o
+ *    agrupamento fica fixo; caso contrário há um seletor com ação de cadastro.
+ *  - Dimensões: o input mostra o sufixo da unidade da empresa ativa (mm/cm/m) e
+ *    o componente converte para milímetros antes de emitir.
+ *  - Preço por folha: calculado pelo backend a partir das dimensões, da
+ *    gramatura do agrupamento e do preço/kg. O input fica readonly e mostra um
+ *    preview em tempo real.
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { z } from 'zod'
@@ -25,15 +23,13 @@ import { useAuthStore } from '@/stores/auth'
 const props = defineProps<{
   /** Quando informado, o form opera em modo edição. */
   initial?: Paper | null
-  /**
-   * Quando informado (e `initial` está nulo), o form opera em modo criação
-   * mas pré-preenche os campos a partir de um papel existente. Usado pela
-   * ação "Duplicar". Os campos de identificação (code/longName/shortName)
-   * recebem sufixo "(cópia)" para evitar colisão de unique constraints.
-   */
+  /** Pré-preenche os campos a partir de um papel existente (ação "Duplicar"). */
   duplicateFrom?: Paper | null
+  /** Agrupamentos disponíveis para o seletor (ignorado quando `lockedPaperType`). */
   paperTypes: PaperType[]
-  /** ID que deve ser pré-selecionado no select (ex.: novo tipo recém-criado). */
+  /** Agrupamento fixo (tela de detalhe). Esconde o seletor. */
+  lockedPaperType?: PaperType | null
+  /** ID pré-selecionado no seletor (ex.: agrupamento recém-criado). */
   preselectPaperTypeId?: number | null
   loading?: boolean
   serverError?: string | null
@@ -50,58 +46,57 @@ const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 
 const isEditing = computed(() => !!props.initial)
 const isDuplicating = computed(() => !props.initial && !!props.duplicateFrom)
+const isFamilyLocked = computed(() => !!props.lockedPaperType)
 const showCustomerAutoLinkHint = computed(
   () => !isEditing.value && auth.hasCustomer && !auth.isAdmin && !!auth.activeCompanyId,
 )
 
-/** Sufixo aplicado aos campos de identificação ao duplicar para evitar conflito. */
 const withCopySuffix = (value: string) => (value ? `${value} (cópia)` : '')
 
-/** Fonte de dados iniciais: prioriza edição; em duplicação, usa o papel-base. */
 const seed = props.initial ?? props.duplicateFrom ?? null
-
-/** Converte mm → unidade atual para popular o input quando há seed. */
 const initialWidth = seed ? fromMillimeters(seed.width.millimeters) ?? 0 : 0
 const initialHeight = seed ? fromMillimeters(seed.height.millimeters) ?? 0 : 0
 
 const form = reactive({
-  paperTypeId: seed?.paperType.id ?? props.preselectPaperTypeId ?? 0,
+  paperTypeId: props.lockedPaperType?.id ?? seed?.paperType.id ?? props.preselectPaperTypeId ?? 0,
   code: isDuplicating.value ? withCopySuffix(seed?.code ?? '') : seed?.code ?? '',
   longName: isDuplicating.value ? withCopySuffix(seed?.longName ?? '') : seed?.longName ?? '',
-  shortName: isDuplicating.value ? withCopySuffix(seed?.shortName ?? '') : seed?.shortName ?? '',
   pricePerKg: seed?.pricePerKg ?? 0,
   width: initialWidth,
   height: initialHeight,
-  thicknessMicrometers: seed?.thicknessMicrometers ?? 0,
-  weightPerM2Grams: seed?.weightPerM2Grams ?? 0,
   isEnvelope: seed?.isEnvelope ?? false,
-  hasTwoSides: seed?.hasTwoSides ?? false,
   active: seed?.active ?? true,
 })
 
+/** Agrupamento atualmente selecionado — fonte da gramatura/espessura/face exibidas. */
+const selectedFamily = computed<PaperType | null>(
+  () => props.lockedPaperType ?? props.paperTypes.find((t) => t.id === form.paperTypeId) ?? null,
+)
+
 /**
- * Preview do preço por folha calculado no frontend (espelha a fórmula do
- * backend). O valor enviado é sempre recalculado pelo servidor — aqui é só
- * feedback visual durante a edição.
- *
- *   areaM² × (g/m² / 1000) × R$/kg = R$/folha
+ * Preview do preço por folha (espelha a fórmula do backend; valor final é
+ * recalculado no servidor): áreaM² × (g/m² / 1000) × R$/kg.
  */
 const pricePerSheetPreview = computed(() => {
   const widthMm = toMillimeters(form.width) ?? 0
   const heightMm = toMillimeters(form.height) ?? 0
-  const widthMeters = widthMm / 1000
-  const heightMeters = heightMm / 1000
-  const areaM2 = widthMeters * heightMeters
-  const grammageKg = form.weightPerM2Grams / 1000
+  const areaM2 = (widthMm / 1000) * (heightMm / 1000)
+  const grammageKg = (selectedFamily.value?.weightPerM2Grams ?? 0) / 1000
   const simulated = areaM2 * grammageKg * form.pricePerKg
   return Number.isFinite(simulated) && simulated > 0 ? simulated : 0
 })
 
-// Sincroniza quando a página informa um tipo recém-criado.
 watch(
   () => props.preselectPaperTypeId,
   (next) => {
-    if (next && !isEditing.value) form.paperTypeId = next
+    if (next && !isEditing.value && !isFamilyLocked.value) form.paperTypeId = next
+  },
+)
+
+watch(
+  () => props.lockedPaperType,
+  (next) => {
+    if (next) form.paperTypeId = next.id
   },
 )
 
@@ -112,14 +107,10 @@ watch(
     form.paperTypeId = next.paperType.id
     form.code = next.code
     form.longName = next.longName
-    form.shortName = next.shortName
-    form.pricePerKg = next.pricePerKg
+    form.pricePerKg = next.pricePerKg ?? 0
     form.width = fromMillimeters(next.width.millimeters) ?? 0
     form.height = fromMillimeters(next.height.millimeters) ?? 0
-    form.thicknessMicrometers = next.thicknessMicrometers
-    form.weightPerM2Grams = next.weightPerM2Grams
     form.isEnvelope = next.isEnvelope
-    form.hasTwoSides = next.hasTwoSides
     form.active = next.active
   },
 )
@@ -128,17 +119,13 @@ watch(
   () => props.duplicateFrom,
   (next) => {
     if (!next || props.initial) return
-    form.paperTypeId = next.paperType.id
+    form.paperTypeId = props.lockedPaperType?.id ?? next.paperType.id
     form.code = withCopySuffix(next.code)
     form.longName = withCopySuffix(next.longName)
-    form.shortName = withCopySuffix(next.shortName)
-    form.pricePerKg = next.pricePerKg
+    form.pricePerKg = next.pricePerKg ?? 0
     form.width = fromMillimeters(next.width.millimeters) ?? 0
     form.height = fromMillimeters(next.height.millimeters) ?? 0
-    form.thicknessMicrometers = next.thicknessMicrometers
-    form.weightPerM2Grams = next.weightPerM2Grams
     form.isEnvelope = next.isEnvelope
-    form.hasTwoSides = next.hasTwoSides
     form.active = true
   },
 )
@@ -146,17 +133,13 @@ watch(
 const errors = ref<Partial<Record<keyof typeof form, string>>>({})
 
 const schema = z.object({
-  paperTypeId: z.number().int().positive('Selecione um tipo de papel.'),
+  paperTypeId: z.number().int().positive('Selecione um agrupamento de medidas.'),
   code: z.string().min(1, 'Informe o código.').max(50),
-  longName: z.string().min(1, 'Informe o nome longo.'),
-  shortName: z.string().min(1, 'Informe o nome curto.'),
+  longName: z.string().min(1, 'Informe o nome completo.').max(255),
   pricePerKg: z.number().min(0, 'Preço por quilo inválido.'),
   width: z.number().positive('Largura deve ser maior que zero.'),
   height: z.number().positive('Altura deve ser maior que zero.'),
-  thicknessMicrometers: z.number().int().min(1, 'Espessura inválida.'),
-  weightPerM2Grams: z.number().int().min(1, 'Gramatura inválida.'),
   isEnvelope: z.boolean(),
-  hasTwoSides: z.boolean(),
   active: z.boolean(),
 })
 
@@ -178,16 +161,10 @@ const handleSubmit = () => {
     paperTypeId: data.paperTypeId,
     code: data.code,
     longName: data.longName,
-    shortName: data.shortName,
     pricePerKg: data.pricePerKg,
-    // Valor de referência; o backend recalcula e sobrescreve.
-    pricePerSheet: pricePerSheetPreview.value,
     widthMm,
     heightMm,
-    thicknessMicrometers: data.thicknessMicrometers,
-    weightPerM2Grams: data.weightPerM2Grams,
     isEnvelope: data.isEnvelope,
-    hasTwoSides: data.hasTwoSides,
   }
 
   if (isEditing.value) {
@@ -206,7 +183,7 @@ const handleSubmit = () => {
       v-if="isDuplicating"
       class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-200"
     >
-      Duplicando um papel existente. Ajuste o código e os nomes antes de salvar — eles precisam ser únicos.
+      Duplicando um papel existente. Ajuste o código e o nome antes de salvar — eles precisam ser únicos.
     </div>
 
     <div
@@ -216,10 +193,10 @@ const handleSubmit = () => {
       Ao salvar, este papel será automaticamente ativado para a sua empresa.
     </div>
 
-    <!-- Tipo + ação inline -->
-    <div>
+    <!-- Agrupamento de medidas: seletor (modo catálogo) ou fixo (modo detalhe) -->
+    <div v-if="!isFamilyLocked">
       <label for="paper-type" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-        Tipo de papel <span class="text-rose-500">*</span>
+        Agrupamento de medidas <span class="text-rose-500">*</span>
       </label>
       <div class="flex gap-2">
         <select
@@ -229,130 +206,72 @@ const handleSubmit = () => {
           :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.paperTypeId }"
         >
           <option :value="0" disabled>Selecione...</option>
-          <option v-for="type in paperTypes" :key="type.id" :value="type.id">
-            {{ type.name }}
-          </option>
+          <option v-for="type in paperTypes" :key="type.id" :value="type.id">{{ type.name }}</option>
         </select>
         <button
           type="button"
           @click="emit('request-new-paper-type')"
           class="flex-shrink-0 px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-800 dark:hover:bg-indigo-900/50"
-          title="Cadastrar novo tipo de papel"
+          title="Cadastrar novo agrupamento de medidas"
         >
-          + Novo tipo
+          + Novo agrupamento
         </button>
       </div>
       <p v-if="errors.paperTypeId" class="mt-1 text-xs text-rose-600">{{ errors.paperTypeId }}</p>
       <p v-else-if="paperTypes.length === 0" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Nenhum tipo cadastrado. Clique em "Novo tipo" para criar o primeiro.
+        Nenhum agrupamento cadastrado. Clique em "Novo agrupamento" para criar o primeiro.
       </p>
     </div>
 
-    <!-- Nomes e código -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="md:col-span-2">
-        <label for="paper-long-name" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Nome longo <span class="text-rose-500">*</span>
-        </label>
-        <input
-          id="paper-long-name"
-          v-model="form.longName"
-          type="text"
-          placeholder="Sulfite 90 g/m² A4 Premium"
-          class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-          :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.longName }"
-        />
-        <p v-if="errors.longName" class="mt-1 text-xs text-rose-600">{{ errors.longName }}</p>
-      </div>
-      <div>
-        <label for="paper-short-name" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Nome curto <span class="text-rose-500">*</span>
-        </label>
-        <input
-          id="paper-short-name"
-          v-model="form.shortName"
-          type="text"
-          placeholder="A4 90g"
-          class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-          :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.shortName }"
-        />
-        <p v-if="errors.shortName" class="mt-1 text-xs text-rose-600">{{ errors.shortName }}</p>
+    <!-- Atributos herdados do agrupamento (somente leitura) -->
+    <div
+      v-if="selectedFamily"
+      class="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 dark:bg-slate-900/40 dark:border-slate-700"
+    >
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Agrupamento de medidas</p>
+      <p class="text-sm font-medium text-slate-900 dark:text-white">{{ selectedFamily.name }}</p>
+      <div class="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+        <span>Gramatura: <strong>{{ selectedFamily.weightPerM2Grams }} g/m²</strong></span>
+        <span>Espessura: <strong>{{ selectedFamily.thicknessMicrometers }} µm</strong></span>
+        <span>Face: <strong>{{ selectedFamily.hasTwoSides ? '2 faces' : '1 face' }}</strong></span>
       </div>
     </div>
 
+    <!-- Nome completo -->
+    <div>
+      <label for="paper-long-name" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Nome completo <span class="text-rose-500">*</span>
+      </label>
+      <input
+        id="paper-long-name"
+        v-model="form.longName"
+        type="text"
+        maxlength="255"
+        placeholder="Couché Brilho 150g — 660 x 960 mm"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.longName }"
+      />
+      <p v-if="errors.longName" class="mt-1 text-xs text-rose-600">{{ errors.longName }}</p>
+    </div>
+
+    <!-- Código / SKU -->
     <div>
       <label for="paper-code" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-        Código <span class="text-rose-500">*</span>
+        Código / SKU <span class="text-rose-500">*</span>
       </label>
       <input
         id="paper-code"
         v-model="form.code"
         type="text"
-        placeholder="SULFITE-A4-90"
+        maxlength="50"
+        placeholder="COUCHE-150-66X96"
         class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
         :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.code }"
       />
       <p v-if="errors.code" class="mt-1 text-xs text-rose-600">{{ errors.code }}</p>
     </div>
 
-    <!-- Gramatura / espessura / lado -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label for="paper-weight" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Gramatura <span class="text-rose-500">*</span>
-        </label>
-        <div class="relative">
-          <input
-            id="paper-weight"
-            v-model.number="form.weightPerM2Grams"
-            type="number"
-            min="1"
-            step="1"
-            class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 pr-14 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-            :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.weightPerM2Grams }"
-          />
-          <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
-        </div>
-        <p v-if="errors.weightPerM2Grams" class="mt-1 text-xs text-rose-600">{{ errors.weightPerM2Grams }}</p>
-      </div>
-      <div>
-        <label for="paper-thickness" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Espessura <span class="text-rose-500">*</span>
-        </label>
-        <div class="relative">
-          <input
-            id="paper-thickness"
-            v-model.number="form.thicknessMicrometers"
-            type="number"
-            min="1"
-            step="1"
-            class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 pr-12 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-            :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.thicknessMicrometers }"
-          />
-          <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">µm</span>
-        </div>
-        <p v-if="errors.thicknessMicrometers" class="mt-1 text-xs text-rose-600">{{ errors.thicknessMicrometers }}</p>
-      </div>
-      <div>
-        <label for="paper-sides" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Lado <span class="text-rose-500">*</span>
-        </label>
-        <select
-          id="paper-sides"
-          :value="form.hasTwoSides ? 2 : 1"
-          @change="form.hasTwoSides = ($event.target as HTMLSelectElement).value === '2'"
-          class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-        >
-          <option :value="1">1 lado</option>
-          <option :value="2">2 lados</option>
-        </select>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Use 2 quando as superfícies têm texturas diferentes.
-        </p>
-      </div>
-    </div>
-
-    <!-- Dimensões (com sufixo dinâmico) -->
+    <!-- Dimensões -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label for="paper-width" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
@@ -430,7 +349,7 @@ const handleSubmit = () => {
           />
         </div>
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Preview calculado a partir da área, gramatura e preço/kg. O valor final é confirmado pelo servidor ao salvar.
+          Calculado a partir da área, da gramatura do agrupamento e do preço/kg. O valor final é confirmado pelo servidor ao salvar.
         </p>
       </div>
     </div>

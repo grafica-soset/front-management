@@ -33,9 +33,9 @@ export default function useMenu() {
       icon: 'papers',
       expanded: false,
       children: [
+        { name: 'Cadastro de Papéis', href: '/papeis' },
         { name: 'Catálogo', href: '/papeis/catalogo' },
         { name: 'Meus papéis', href: '/papeis/meus-papeis' },
-        { name: 'Tipos de papel', href: '/admin/papeis/tipos' },
       ],
     },
     {

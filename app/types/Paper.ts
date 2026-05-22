@@ -1,21 +1,26 @@
 import type { PaperType } from './PaperType'
 import type { FormattedDimension } from './FormattedDimension'
 
-/** Papel global, conforme retornado em GET /papers. */
+/**
+ * Papel = SKU (variação de tamanho) dentro de um Agrupamento de medidas (`paperType`).
+ *
+ * Gramatura, espessura e face NÃO vivem aqui — são herdadas do agrupamento e devem
+ * ser lidas de `paperType.weightPerM2Grams` / `paperType.thicknessMicrometers` /
+ * `paperType.hasTwoSides` (somente leitura).
+ *
+ * `pricePerKg` e `pricePerSheet` vêm `null` quando não há contexto de empresa
+ * (catálogo global / ADMIN sem customerId).
+ */
 export interface Paper {
   id: number
   paperType: PaperType
   code: string
   longName: string
-  shortName: string
-  pricePerKg: number
-  pricePerSheet: number
+  pricePerKg: number | null
+  pricePerSheet: number | null
   width: FormattedDimension
   height: FormattedDimension
-  thicknessMicrometers: number
-  weightPerM2Grams: number
   isEnvelope: boolean
-  hasTwoSides: boolean
   active: boolean
 }
 
@@ -25,30 +30,21 @@ export interface CreatePaperRequest {
   paperTypeId: number
   code: string
   longName: string
-  shortName: string
   pricePerKg: number
-  pricePerSheet: number
   widthMm: number
   heightMm: number
-  thicknessMicrometers: number
-  weightPerM2Grams: number
   isEnvelope: boolean
-  hasTwoSides: boolean
 }
 
 /** Payload de PUT /papers/{id}. */
 export interface UpdatePaperRequest {
+  customerId?: number
   paperTypeId: number
   code: string
   longName: string
-  shortName: string
   pricePerKg: number
-  pricePerSheet: number
   widthMm: number
   heightMm: number
-  thicknessMicrometers: number
-  weightPerM2Grams: number
   isEnvelope: boolean
-  hasTwoSides: boolean
   active: boolean
 }

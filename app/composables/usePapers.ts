@@ -43,7 +43,11 @@ export function usePapers() {
   }
 
   async function updatePaper(id: number, payload: UpdatePaperRequest): Promise<Paper> {
-    const updated = await api<Paper>(`/papers/${id}`, { method: 'PUT', body: payload })
+    const body: UpdatePaperRequest = { ...payload }
+    if (auth.hasCustomer && !auth.isAdmin && !body.customerId && auth.activeCompanyId) {
+      body.customerId = auth.activeCompanyId
+    }
+    const updated = await api<Paper>(`/papers/${id}`, { method: 'PUT', body })
     store.upsertPaper(updated)
     return updated
   }

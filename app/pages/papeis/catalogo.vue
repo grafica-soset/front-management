@@ -107,7 +107,6 @@ const filteredPapers = computed<Paper[]>(() => {
   if (!term) return papers.value
   return papers.value.filter((p) =>
     p.longName.toLowerCase().includes(term)
-    || p.shortName.toLowerCase().includes(term)
     || p.code.toLowerCase().includes(term),
   )
 })
@@ -126,7 +125,7 @@ const handleToggle = async (paper: Paper) => {
   togglingIds.value = new Set([...togglingIds.value, paper.id])
   try {
     await toggleCustomerPaper(paper.id, next)
-    toast.success(next ? `Papel "${paper.shortName}" ativado para a empresa.` : `Papel "${paper.shortName}" desativado.`)
+    toast.success(next ? `Papel "${paper.longName}" ativado para a empresa.` : `Papel "${paper.longName}" desativado.`)
   } catch (err) {
     toast.error(extractApiError(err, 'Falha ao alternar o papel.'))
   } finally {
@@ -203,13 +202,25 @@ const closePaperTypeModal = () => {
   isPaperTypeModalOpen.value = false
 }
 
-const handlePaperTypeSubmit = async (payload: { name: string; description: string | null }) => {
+const handlePaperTypeSubmit = async (payload: {
+  name: string
+  description: string | null
+  weightPerM2Grams: number
+  thicknessMicrometers: number
+  hasTwoSides: boolean
+}) => {
   paperTypeFormLoading.value = true
   paperTypeFormError.value = null
   try {
-    const created = await createPaperType({ name: payload.name, description: payload.description })
+    const created = await createPaperType({
+      name: payload.name,
+      description: payload.description,
+      weightPerM2Grams: payload.weightPerM2Grams,
+      thicknessMicrometers: payload.thicknessMicrometers,
+      hasTwoSides: payload.hasTwoSides,
+    })
     newPaperTypeId.value = created.id
-    toast.success('Tipo cadastrado e selecionado no formulário.')
+    toast.success('Agrupamento de medidas cadastrado e selecionado no formulário.')
     closePaperTypeModal()
   } catch (err) {
     paperTypeFormError.value = extractApiError(err, 'Não foi possível salvar o tipo.')
@@ -249,7 +260,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
           <input
             v-model="search"
             type="search"
-            placeholder="Nome, nome curto ou código..."
+            placeholder="Nome ou código..."
             class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-2.5 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
           />
         </div>
@@ -294,8 +305,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
             <tr v-for="paper in filteredPapers" :key="paper.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
               <td class="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{{ paper.code }}</td>
               <td class="px-5 py-3">
-                <div class="font-medium text-slate-900 dark:text-white">{{ paper.shortName }}</div>
-                <div class="text-xs text-slate-500 dark:text-slate-400">{{ paper.longName }}</div>
+                <div class="font-medium text-slate-900 dark:text-white">{{ paper.longName }}</div>
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
                 {{ findPaperType(paper.paperType.id)?.name ?? paper.paperType.name }}
@@ -303,8 +313,8 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
               <td class="px-5 py-3 whitespace-nowrap">
                 {{ format(paper.width.millimeters) }} × {{ format(paper.height.millimeters) }}
               </td>
-              <td class="px-5 py-3 whitespace-nowrap">{{ paper.weightPerM2Grams }} g/m²</td>
-              <td class="px-5 py-3 whitespace-nowrap">R$ {{ paper.pricePerSheet.toFixed(4) }}</td>
+              <td class="px-5 py-3 whitespace-nowrap">{{ paper.paperType.weightPerM2Grams }} g/m²</td>
+              <td class="px-5 py-3 whitespace-nowrap">{{ paper.pricePerSheet != null ? `R$ ${paper.pricePerSheet.toFixed(4)}` : '—' }}</td>
               <td v-if="canToggle" class="px-5 py-3 text-center">
                 <button
                   type="button"
@@ -368,7 +378,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
     <!-- Modal: novo tipo inline (sobre o modal de papel) -->
     <Modal
       :is-open="isPaperTypeModalOpen"
-      title="Novo tipo de papel"
+      title="Novo agrupamento de medidas"
       @close="closePaperTypeModal"
     >
       <PaperTypeForm
