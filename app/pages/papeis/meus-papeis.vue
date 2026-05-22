@@ -61,7 +61,7 @@ const handleDeactivate = async (entry: CustomerPaperEntry) => {
     entries.value = entries.value.map((e) =>
       e.paper.id === entry.paper.id ? { ...e, customerPaper: { ...e.customerPaper, active: false } } : e,
     )
-    toast.success(`Papel "${entry.paper.shortName}" desativado.`)
+    toast.success(`Papel "${entry.paper.longName}" desativado.`)
   } catch (err) {
     toast.error(extractApiError(err, 'Falha ao desativar.'))
   } finally {
@@ -122,8 +122,7 @@ const handleDeactivate = async (entry: CustomerPaperEntry) => {
             <p class="text-xs uppercase tracking-wide font-semibold text-indigo-600 dark:text-indigo-400">
               {{ entry.paper.paperType.name }}
             </p>
-            <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ entry.paper.shortName }}</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ entry.paper.longName }}</p>
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ entry.paper.longName }}</h3>
           </div>
           <span class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ entry.paper.code }}</span>
         </header>
@@ -137,7 +136,7 @@ const handleDeactivate = async (entry: CustomerPaperEntry) => {
           </div>
           <div>
             <dt class="text-xs text-slate-500 dark:text-slate-400">Gramatura</dt>
-            <dd class="font-medium text-slate-900 dark:text-slate-100">{{ entry.paper.weightPerM2Grams }} g/m²</dd>
+            <dd class="font-medium text-slate-900 dark:text-slate-100">{{ entry.paper.paperType.weightPerM2Grams }} g/m²</dd>
           </div>
           <div>
             <dt class="text-xs text-slate-500 dark:text-slate-400">Preço/folha</dt>

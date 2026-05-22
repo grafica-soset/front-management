@@ -1,8 +1,18 @@
-/** Tipo de papel (Sulfite, Couché, Cartão, etc.). */
+/**
+ * Agrupamento de medidas (PaperType na API). É o agrupador principal do
+ * módulo — análogo a um produto de estoque com vários SKUs (os papéis).
+ *
+ * Define os atributos compartilhados por todos os seus papéis:
+ * gramatura (weightPerM2Grams), espessura (thicknessMicrometers) e
+ * face (hasTwoSides).
+ */
 export interface PaperType {
   id: number
   name: string
   description: string | null
+  weightPerM2Grams: number
+  thicknessMicrometers: number
+  hasTwoSides: boolean
   active: boolean
 }
 
@@ -10,11 +20,17 @@ export interface PaperType {
 export interface CreatePaperTypeRequest {
   name: string
   description?: string | null
+  weightPerM2Grams: number
+  thicknessMicrometers: number
+  hasTwoSides: boolean
 }
 
 /** Payload de PUT /paper-types/{id}. */
 export interface UpdatePaperTypeRequest {
   name: string
   description?: string | null
+  weightPerM2Grams: number
+  thicknessMicrometers: number
+  hasTwoSides: boolean
   active: boolean
 }
