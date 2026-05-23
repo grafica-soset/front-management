@@ -24,7 +24,7 @@ const userInitials = computed(() => {
 })
 
 const handleLogout = async () => {
-  logout()
+  await logout()
   isUserMenuOpen.value = false
   await navigateTo('/auth/login')
 }

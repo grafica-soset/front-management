@@ -17,6 +17,8 @@ interface SessionUser {
 
 interface AuthState {
   token: string | null
+  /** Refresh token opaco — trocado por um novo par em POST /auth/refresh. */
+  refreshToken: string | null
   user: SessionUser | null
   /** Empresas (tenants) que o usuário pode acessar — vindas de GET /customers. */
   companies: CustomerKeyValue[]
@@ -29,6 +31,7 @@ interface AuthState {
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     token: null,
+    refreshToken: null,
     user: null,
     companies: [],
     activeCompanyId: null,
@@ -49,6 +52,7 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     setSession(payload: LoginResponse) {
       this.token = payload.token
+      this.refreshToken = payload.refreshToken
       this.user = {
         personId: payload.personId,
         name: payload.name,
@@ -90,6 +94,7 @@ export const useAuthStore = defineStore('auth', {
 
     clear() {
       this.token = null
+      this.refreshToken = null
       this.user = null
       this.companies = []
       this.activeCompanyId = null
