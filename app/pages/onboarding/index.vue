@@ -33,9 +33,9 @@ const handleSubmit = async (payload: CreateCustomerRequest) => {
   }
 }
 
-const handleCancel = () => {
+const handleCancel = async () => {
   // Sem empresa não há para onde ir — interpreta cancelamento como sair.
-  logout()
+  await logout()
   return navigateTo('/auth/login')
 }
 </script>

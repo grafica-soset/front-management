@@ -51,14 +51,50 @@ export function useAuth() {
     return response
   }
 
-  /** Limpa a sessão local. Não há endpoint server-side de logout (JWT stateless). */
-  function logout() {
+  /**
+   * POST /auth/refresh — troca o refresh token atual por um novo par e
+   * atualiza a sessão. Útil para revalidar manualmente; o useApi já faz o
+   * refresh transparente ao receber 401 em endpoints protegidos.
+   */
+  async function refresh(): Promise<LoginResponse | null> {
+    if (!auth.refreshToken) return null
+    try {
+      const response = await api<LoginResponse>('/auth/refresh', {
+        method: 'POST',
+        body: { refreshToken: auth.refreshToken },
+      })
+      auth.setSession(response)
+      return response
+    } catch (_err) {
+      auth.clear()
+      return null
+    }
+  }
+
+  /**
+   * Revoga o refresh token no servidor (POST /auth/logout, idempotente) e
+   * limpa a sessão local. A chamada de rede não bloqueia o logout: mesmo que
+   * falhe, a sessão local é sempre descartada.
+   */
+  async function logout() {
+    const refreshToken = auth.refreshToken
+    if (refreshToken) {
+      try {
+        await api('/auth/logout', {
+          method: 'POST',
+          body: { refreshToken },
+        })
+      } catch (_err) {
+        // Logout é idempotente no servidor; ignoramos falhas de rede.
+      }
+    }
     auth.clear()
   }
 
   return {
     registerUser,
     login,
+    refresh,
     logout,
   }
 }
