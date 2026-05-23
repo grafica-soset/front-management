@@ -138,7 +138,7 @@ const schema = z.object({
   longName: z.string().min(1, 'Informe o nome completo.').max(255),
   pricePerKg: z.number().min(0, 'Preço por quilo inválido.'),
   width: z.number().positive('Largura deve ser maior que zero.'),
-  height: z.number().positive('Altura deve ser maior que zero.'),
+  height: z.number().positive('Comprimento deve ser maior que zero.'),
   isEnvelope: z.boolean(),
   active: z.boolean(),
 })
@@ -293,7 +293,7 @@ const handleSubmit = () => {
       </div>
       <div>
         <label for="paper-height" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Altura <span class="text-rose-500">*</span>
+          Comprimento <span class="text-rose-500">*</span>
         </label>
         <div class="relative">
           <input
