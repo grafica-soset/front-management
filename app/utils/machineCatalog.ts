@@ -5,12 +5,11 @@
  *
  * Aqui ficam: o mapa categoria → (slug, endpoint, tipos), os rótulos PT-BR dos
  * tipos, e os descritores de campos dos blocos específicos "planos" — usados
- * pelo renderer genérico SpecificFields. DIGITAL é o único bloco não-plano
- * (costModel polimórfico + lista de consumíveis) e tem componente dedicado.
+ * pelo renderer genérico SpecificFields. FOLDING é o único bloco não-plano
+ * (lista de unidades de dobra) e tem componente dedicado.
  */
 import type {
-  DigitalBlock,
-  DigitalConsumable,
+  FoldingBlock,
   MachineCategory,
   MachineSpecificBlocks,
   MachineType,
@@ -39,14 +38,21 @@ export const MACHINE_CATEGORIES: CategoryMeta[] = [
     slug: 'corte',
     label: 'Corte',
     base: '/cutting-machines',
-    types: ['GUILLOTINE', 'DIE_CUTTING', 'PERFORATING'],
+    types: ['GUILLOTINE'],
+  },
+  {
+    category: 'DIE_CUTTING_CENTER',
+    slug: 'corte-e-vinco',
+    label: 'Corte e Vinco',
+    base: '/die-cutting-machines',
+    types: ['DIE_CUTTING'],
   },
   {
     category: 'FINISHING',
     slug: 'acabamento',
     label: 'Acabamento',
     base: '/finishing-machines',
-    types: ['FOLDING', 'STITCHING', 'HOLE_PUNCHING', 'LAMINATING'],
+    types: ['FOLDING', 'STITCHING', 'HOLE_PUNCHING', 'LAMINATING', 'PERFORATING'],
   },
   {
     category: 'PREPRESS',
@@ -58,8 +64,8 @@ export const MACHINE_CATEGORIES: CategoryMeta[] = [
 ]
 
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
-  OFFSET: 'Impressão Offset',
-  DIGITAL: 'Impressão Digital',
+  OFFSET: 'Impressora Offset',
+  DIGITAL: 'Impressora Digital',
   SCREEN_PRINTING: 'Serigrafia',
   GUILLOTINE: 'Guilhotina',
   DIE_CUTTING: 'Corte e Vinco',
@@ -68,8 +74,8 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   STITCHING: 'Grampeadeira',
   HOLE_PUNCHING: 'Furadeira',
   LAMINATING: 'Plastificadora / Laminadora',
-  IMAGESETTER: 'Gravadora de Filmes',
-  CTP: 'Gravadora de Chapas (CTP)',
+  IMAGESETTER: 'Gravadora de Filme',
+  CTP: 'CTP (Computer-to-Plate)',
   PLATE_COPIER: 'Prensa de Cópia de Chapas',
 }
 
@@ -110,9 +116,25 @@ export function machineTypeCategory(type: MachineType): MachineCategory {
   return TYPE_CATEGORY[type]
 }
 
-/** DIGITAL é o único bloco com componente dedicado (não dirigido por descritores). */
+/** FOLDING é o único bloco com componente dedicado (lista de unidades de dobra). */
 export function isCustomBlock(type: MachineType): boolean {
-  return type === 'DIGITAL'
+  return type === 'FOLDING'
+}
+
+// ---------- Alimentação (paperFeeder) por tipo ----------
+
+/** Tipos que sempre alimentam por pilha (enviam paperFeeder). */
+const ALWAYS_FEEDER: MachineType[] = ['OFFSET', 'DIGITAL', 'GUILLOTINE', 'FOLDING', 'PERFORATING']
+
+/**
+ * Indica se a máquina usa alimentação por pilha (e portanto envia `paperFeeder`).
+ * Corte e Vinco e Grampeadeira dependem de `automaticFeeding`; serigrafia,
+ * furadeira, plastificadora e pré-impressão nunca usam.
+ */
+export function machineUsesFeeder(type: MachineType, block: Record<string, unknown>): boolean {
+  if (ALWAYS_FEEDER.includes(type)) return true
+  if (type === 'DIE_CUTTING' || type === 'STITCHING') return block?.['automaticFeeding'] === true
+  return false
 }
 
 // ---------- Descritores de campos dos blocos planos ----------
@@ -141,45 +163,48 @@ export interface FieldDescriptor {
 const MANUFACTURER: FieldDescriptor = { key: 'manufacturer', label: 'Fabricante', kind: 'text', maxLength: 100 }
 const MODEL: FieldDescriptor = { key: 'model', label: 'Modelo', kind: 'text', maxLength: 150 }
 
-/** Descritores por tipo. DIGITAL fica de fora (componente dedicado). */
+/** Opções numéricas 1..n para selects (ex.: cores, picotes, cabeçotes). */
+const rangeOptions = (from: number, to: number): { value: number; label: string }[] =>
+  Array.from({ length: to - from + 1 }, (_, i) => ({ value: from + i, label: String(from + i) }))
+
+/** Descritores por tipo. FOLDING fica de fora (componente dedicado). */
 export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = {
   OFFSET: [
-    {
-      key: 'numberOfColors',
-      label: 'Nº de cores (castelos)',
-      kind: 'select',
-      options: [
-        { value: 1, label: '1' },
-        { value: 2, label: '2' },
-        { value: 3, label: '3' },
-        { value: 4, label: '4' },
-      ],
-    },
+    { key: 'numberOfColors', label: 'Nº de cores (castelos)', kind: 'select', options: rangeOptions(1, 10) },
     { key: 'supportsNumbering', label: 'Suporta numeração?', kind: 'boolean' },
-    { key: 'setupTimes.setupMinutes', label: 'Setup (min)', kind: 'int', min: 0 },
-    { key: 'setupTimes.feedSwapMinutes', label: 'Troca de pilha (min)', kind: 'int', min: 0 },
-    { key: 'setupTimes.cleanupMinutes', label: 'Lavagem (min)', kind: 'int', min: 0 },
-    { key: 'speedProfile.minSpeedSheetsPerHour', label: 'Vmín (folhas/h)', kind: 'int', min: 1 },
+    { key: 'setupTimes.setupMinutes', label: 'Setup (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'setupTimes.feedSwapMinutes', label: 'Troca de pilha (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'setupTimes.cleanupMinutes', label: 'Lavagem (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'speedProfile.minSpeedSheetsPerHour', label: 'Vmín (folhas/h)', kind: 'int', min: 1, suffix: 'folhas/h' },
     {
       key: 'speedProfile.maxSpeedSheetsPerHour',
       label: 'Vmáx (folhas/h)',
       kind: 'int',
       min: 1,
+      suffix: 'folhas/h',
       gteField: 'speedProfile.minSpeedSheetsPerHour',
       gteLabel: 'Vmín',
     },
     { key: 'speedProfile.cruiseSpeedSheets', label: 'Folhas de rampa', kind: 'int', min: 1 },
   ],
+  DIGITAL: [
+    { key: 'pricePerMonoClick', label: 'Preço/clique mono (100% cobertura)', kind: 'decimal', min: 0, step: 0.0001, suffix: 'R$' },
+    { key: 'pricePerColorClick', label: 'Preço/clique cor (100% cobertura)', kind: 'decimal', min: 0, step: 0.0001, suffix: 'R$' },
+    { key: 'standardWeightGsm', label: 'Gramatura padrão', kind: 'int', min: 1, suffix: 'g/m²' },
+    { key: 'sheetsPerMinuteAt100Coverage', label: 'Folhas/min (100% cobertura)', kind: 'int', min: 1, suffix: 'folhas/min' },
+  ],
   SCREEN_PRINTING: [
     { key: 'maxPrintAreaWidthMm', label: 'Área máx — largura', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxPrintAreaHeightMm', label: 'Área máx — altura', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'maxPrintAreaLengthMm', label: 'Área máx — comprimento', kind: 'int', min: 1, suffix: 'mm' },
     { key: 'simultaneousColors', label: 'Cores simultâneas (telas)', kind: 'int', min: 1 },
-    { key: 'baseSetupMinutes', label: 'Setup base de tela (min)', kind: 'int', min: 0 },
+    { key: 'baseSetupMinutes', label: 'Setup base de tela (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'sheetsPerHour', label: 'Folhas/hora (operador)', kind: 'int', min: 1, suffix: 'folhas/h' },
   ],
   GUILLOTINE: [
     { key: 'cuttingWidthMm', label: 'Largura de corte / lâmina', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'clampForceKgf', label: 'Força do prensador', kind: 'decimal', min: 0.01, step: 0.01, suffix: 'kgf' },
-    { key: 'secondsPerCut', label: 'Tempo médio por corte', kind: 'decimal', min: 0.001, step: 0.001, suffix: 's' },
+    { key: 'bladeSetupMinutes', label: 'Setup por faca (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min', help: 'Repetido a cada faca informada no orçamento.' },
+    { key: 'feedSetupMinutes', label: 'Setup de alimentação (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min', help: 'Por pilha de altura máxima.' },
+    { key: 'measureSetupMinutes', label: 'Setup de medidas (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min', help: 'Por sequência de corte (fixo por evento).' },
     { key: 'numberOfPrograms', label: 'Programas de corte (0 = manual)', kind: 'int', min: 0 },
     { key: 'hasSafetyCurtain', label: 'Cortina de segurança?', kind: 'boolean' },
   ],
@@ -187,26 +212,40 @@ export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = 
     MANUFACTURER,
     MODEL,
     { key: 'maxSheetWidthMm', label: 'Largura máx', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxSheetHeightMm', label: 'Altura máx', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'maxSheetLengthMm', label: 'Comprimento máx', kind: 'int', min: 1, suffix: 'mm' },
     { key: 'automaticFeeding', label: 'Alimentação automática?', kind: 'boolean' },
+    { key: 'squareSetupMinutes', label: 'Setup de esquadro (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'bladeSetupMinutes', label: 'Setup da faca (min/lâmina)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min', help: 'Por lâmina informada no orçamento.' },
+    { key: 'feedSheetsPerHour', label: 'Cadência automática (folhas/h)', kind: 'int', min: 0, suffix: 'folhas/h' },
+    { key: 'manualSheetsPerHour', label: 'Cadência manual (folhas/h)', kind: 'int', min: 0, suffix: 'folhas/h' },
   ],
   PERFORATING: [
     MANUFACTURER,
     MODEL,
     { key: 'maxCuttingWidthMm', label: 'Largura máx de corte/serrilha', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'sheetsPerCycle', label: 'Folhas por ciclo', kind: 'int', min: 1 },
-    { key: 'referencePaperWeightGsm', label: 'Gramatura de referência', kind: 'int', min: 1, suffix: 'g/m²' },
-  ],
-  FOLDING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxFoldsPerSheet', label: 'Dobras por folha', kind: 'int', min: 1 },
-    { key: 'sheetsPerHour', label: 'Folhas/hora', kind: 'int', min: 1 },
+    { key: 'minWeightGsm', label: 'Gramatura mín.', kind: 'int', min: 1, suffix: 'g/m²' },
+    {
+      key: 'maxWeightGsm',
+      label: 'Gramatura máx.',
+      kind: 'int',
+      min: 1,
+      suffix: 'g/m²',
+      gteField: 'minWeightGsm',
+      gteLabel: 'gramatura mín.',
+    },
+    { key: 'maxPerforationsPerCycle', label: 'Picotes por vez', kind: 'select', options: rangeOptions(1, 10) },
+    { key: 'allowsSegmentedPerforation', label: 'Permite picote segmentado?', kind: 'boolean' },
+    { key: 'bladeSetupMinutes', label: 'Setup por lâmina/picote (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'constantSpeedSheetHeightCmPerHour', label: 'Velocidade constante', kind: 'decimal', min: 0, step: 0.01, suffix: 'cm/h', help: 'Altura de papéis por hora.' },
   ],
   STITCHING: [
     MANUFACTURER,
     MODEL,
-    { key: 'staplesPerMinute', label: 'Grampos por minuto', kind: 'int', min: 1 },
+    { key: 'automaticFeeding', label: 'Alimentação automática?', kind: 'boolean' },
+    { key: 'handlingAreaWidthMm', label: 'Área de manuseio (largura)', kind: 'int', min: 1, suffix: 'mm', help: 'Define quantos blocos cabem juntos.' },
+    { key: 'staplesSetupMinutes', label: 'Setup dos grampos (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'feedMinutesPerBlockAtMaxWidth', label: 'Alimentação por bloco (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min', help: 'Tempo na largura máxima.' },
+    { key: 'numberOfHeads', label: 'Cabeçotes', kind: 'select', options: rangeOptions(1, 4) },
     { key: 'minWireThicknessMm', label: 'Espessura mín. do arame', kind: 'decimal', min: 0.01, step: 0.01, suffix: 'mm' },
     {
       key: 'maxWireThicknessMm',
@@ -218,27 +257,37 @@ export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = 
       gteField: 'minWireThicknessMm',
       gteLabel: 'espessura mín.',
     },
-    { key: 'maxStitchingThicknessMm', label: 'Espessura máx. de grampeação', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'maxStitchingThicknessMm', label: 'Espessura máx. de grampeação', kind: 'int', min: 1, suffix: 'mm', help: 'Altura máxima do bloco.' },
   ],
   HOLE_PUNCHING: [
     MANUFACTURER,
     MODEL,
-    { key: 'perforationLengthMm', label: 'Extensão de perfuração', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'sheetsPerStroke', label: 'Folhas por batida', kind: 'int', min: 1 },
-    { key: 'simultaneousHoles', label: 'Furos simultâneos', kind: 'int', min: 1 },
+    { key: 'maxPunchBlockHeightMm', label: 'Altura máx. de furação por bloco', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'setupMinutes', label: 'Setup (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'blocksPerHour', label: 'Blocos por hora', kind: 'int', min: 1, suffix: 'blocos/h' },
   ],
   LAMINATING: [
     MANUFACTURER,
     MODEL,
-    { key: 'maxLaminationWidthMm', label: 'Largura máx de laminação', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'cruiseSpeedMetersPerHour', label: 'Velocidade', kind: 'int', min: 1, suffix: 'm/h' },
-    { key: 'supportsDuplex', label: 'Lamina duas faces?', kind: 'boolean' },
+    { key: 'minReelWidthMm', label: 'Largura mín. da bobina', kind: 'int', min: 1, suffix: 'mm' },
+    {
+      key: 'maxReelWidthMm',
+      label: 'Largura máx. da bobina',
+      kind: 'int',
+      min: 1,
+      suffix: 'mm',
+      gteField: 'minReelWidthMm',
+      gteLabel: 'largura mín.',
+    },
+    { key: 'maxReelDiameterMm', label: 'Diâmetro máx. da bobina', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'setupMinutes', label: 'Setup (min)', kind: 'decimal', min: 0, step: 0.01, suffix: 'min' },
+    { key: 'speedMetersPerMinute', label: 'Velocidade', kind: 'decimal', min: 0.01, step: 0.01, suffix: 'm/min' },
   ],
   IMAGESETTER: [
     MANUFACTURER,
     MODEL,
     { key: 'maxMediaWidthMm', label: 'Largura máx da mídia', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxMediaHeightMm', label: 'Altura máx da mídia', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'maxMediaLengthMm', label: 'Comprimento máx da mídia', kind: 'int', min: 1, suffix: 'mm' },
     { key: 'maxResolutionDpi', label: 'Resolução máx', kind: 'int', min: 1, suffix: 'dpi' },
   ],
   CTP: [
@@ -246,8 +295,8 @@ export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = 
     MODEL,
     { key: 'technology', label: 'Tecnologia', kind: 'text', maxLength: 150, help: 'Ex.: Laser Violeta 405nm' },
     { key: 'maxPlateWidthMm', label: 'Largura máx da chapa', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxPlateHeightMm', label: 'Altura máx da chapa', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'platesPerHour', label: 'Chapas/hora', kind: 'int', min: 1 },
+    { key: 'maxPlateLengthMm', label: 'Comprimento máx da chapa', kind: 'int', min: 1, suffix: 'mm' },
+    { key: 'platesPerHour', label: 'Chapas/hora', kind: 'int', min: 1, suffix: 'chapas/h' },
     { key: 'resolutionDpi', label: 'Resolução', kind: 'int', min: 1, suffix: 'dpi' },
   ],
   PLATE_COPIER: [
@@ -279,20 +328,24 @@ export function setByPath(obj: Record<string, unknown>, path: string, value: unk
   target[keys[keys.length - 1]!] = value
 }
 
-/** Default do bloco DIGITAL (costModel inicia em CLICK_CHARGE zerado). */
-export function defaultDigitalBlock(): DigitalBlock {
+// ---------- Bloco FOLDING (componente dedicado) ----------
+
+/** Default do bloco FOLDING — inicia com uma unidade de dobra de 1 bolsa. */
+export function defaultFoldingBlock(): FoldingBlock {
   return {
-    pagesPerMinute: 1,
-    supportsNumbering: false,
-    duplexMultiplier: 1,
-    costModel: { type: 'CLICK_CHARGE', pricePerMonoClick: 0, pricePerColorClick: 0 },
-    calibration: { sheetsPerCalibration: 0, intervalMinutes: 0 },
+    manufacturer: '',
+    model: '',
+    minWeightGsm: 0,
+    maxWeightGsm: 0,
+    idealWeightGsm: 0,
+    maxSpeedSheetsPerHour: 0,
+    foldUnits: [{ orderIndex: 0, pockets: 1, hasKnife: false }],
   }
 }
 
 /** Constrói um bloco específico vazio (defaults sensatos) para o tipo. */
 export function defaultSpecificBlock(type: MachineType): Record<string, unknown> {
-  if (type === 'DIGITAL') return defaultDigitalBlock() as unknown as Record<string, unknown>
+  if (type === 'FOLDING') return defaultFoldingBlock() as unknown as Record<string, unknown>
   const descriptors = SPECIFIC_FIELDS[type] ?? []
   const block: Record<string, unknown> = {}
   for (const d of descriptors) {
@@ -344,46 +397,35 @@ export function validateDescriptors(
   return errors
 }
 
-/** Rótulos dos tipos de consumível (bloco DIGITAL, WEAR_CONSUMABLES). */
-export const CONSUMABLE_TYPE_LABELS: Record<DigitalConsumable['consumableType'], string> = {
-  DRUM: 'Cilindro',
-  FUSER: 'Fusor',
-  DEVELOPER: 'Revelador',
-}
+/** Opções de bolsas por unidade de dobra. */
+export const FOLD_POCKET_OPTIONS = [1, 2, 4]
 
-/** Validação do bloco DIGITAL (costModel polimórfico). Erros por dot-path. */
-export function validateDigital(block: DigitalBlock): Record<string, string> {
+/** Validação do bloco FOLDING. Erros por dot-path. */
+export function validateFolding(block: FoldingBlock): Record<string, string> {
   const errors: Record<string, string> = {}
-  if (!(block.pagesPerMinute >= 1)) errors['pagesPerMinute'] = 'Valor mínimo: 1.'
-  if (!(block.duplexMultiplier > 0)) errors['duplexMultiplier'] = 'Deve ser maior que zero.'
-  if (block.calibration.sheetsPerCalibration < 0) errors['calibration.sheetsPerCalibration'] = 'Valor mínimo: 0.'
-  if (block.calibration.intervalMinutes < 0) errors['calibration.intervalMinutes'] = 'Valor mínimo: 0.'
+  if (!block.manufacturer.trim()) errors['manufacturer'] = 'Informe o fabricante.'
+  if (!block.model.trim()) errors['model'] = 'Informe o modelo.'
+  if (!(block.minWeightGsm > 0)) errors['minWeightGsm'] = 'Deve ser maior que zero.'
+  if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mín.'
+  if (block.idealWeightGsm < block.minWeightGsm || block.idealWeightGsm > block.maxWeightGsm) {
+    errors['idealWeightGsm'] = 'Deve estar entre a gramatura mín. e máx.'
+  }
+  if (!(block.maxSpeedSheetsPerHour >= 1)) errors['maxSpeedSheetsPerHour'] = 'Valor mínimo: 1.'
 
-  const cm = block.costModel
-  if (cm.type === 'CLICK_CHARGE') {
-    if (cm.pricePerMonoClick < 0) errors['costModel.pricePerMonoClick'] = 'Valor mínimo: 0.'
-    if (cm.pricePerColorClick < 0) errors['costModel.pricePerColorClick'] = 'Valor mínimo: 0.'
-  } else if (cm.type === 'INK_PURCHASE') {
-    if (cm.inkPricePerLiter < 0) errors['costModel.inkPricePerLiter'] = 'Valor mínimo: 0.'
-    if (cm.averageCoveragePerSheetMl < 0) errors['costModel.averageCoveragePerSheetMl'] = 'Valor mínimo: 0.'
-  } else {
-    if (cm.consumables.length === 0) {
-      errors['costModel.consumables'] = 'Adicione ao menos um consumível.'
+  if (block.foldUnits.length === 0) {
+    errors['foldUnits'] = 'Adicione ao menos uma unidade de dobra.'
+  }
+  block.foldUnits.forEach((unit, i) => {
+    if (!FOLD_POCKET_OPTIONS.includes(unit.pockets)) {
+      errors[`foldUnits.${i}.pockets`] = 'Bolsas devem ser 1, 2 ou 4.'
     }
-    cm.consumables.forEach((item, i) => {
-      if (item.price < 0) errors[`costModel.consumables.${i}.price`] = 'Valor mínimo: 0.'
-      if (!(item.durabilityCopies >= 1)) errors[`costModel.consumables.${i}.durabilityCopies`] = 'Valor mínimo: 1.'
-      if (item.description && item.description.length > 150) {
-        errors[`costModel.consumables.${i}.description`] = 'Máximo de 150 caracteres.'
-      }
-    })
+  })
+  const knifeCount = block.foldUnits.filter((u) => u.hasKnife).length
+  if (knifeCount > 2) errors['foldUnits'] = 'No máximo 2 unidades com faca.'
+  // Unidades com faca devem ser as últimas (contíguas no fim).
+  const firstKnife = block.foldUnits.findIndex((u) => u.hasKnife)
+  if (firstKnife !== -1 && block.foldUnits.slice(firstKnife).some((u) => !u.hasKnife)) {
+    errors['foldUnits'] = 'Unidades com faca devem ser sempre as últimas.'
   }
   return errors
-}
-
-/** Cria um costModel default para o tipo escolhido (usado ao trocar o tipo). */
-export function defaultCostModel(type: DigitalBlock['costModel']['type']): DigitalBlock['costModel'] {
-  if (type === 'CLICK_CHARGE') return { type: 'CLICK_CHARGE', pricePerMonoClick: 0, pricePerColorClick: 0 }
-  if (type === 'INK_PURCHASE') return { type: 'INK_PURCHASE', inkPricePerLiter: 0, averageCoveragePerSheetMl: 0 }
-  return { type: 'WEAR_CONSUMABLES', consumables: [] }
 }

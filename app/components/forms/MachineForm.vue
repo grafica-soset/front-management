@@ -1,15 +1,16 @@
 <script setup lang="ts">
 /**
  * Formulário unificado de máquina: parte comum (identificação, formato,
- * margens, alimentação, custo-hora) + um bloco específico renderizado conforme
+ * pinça, alimentação, custo-hora) + um bloco específico renderizado conforme
  * o `machineType`. O seletor de tipo oferece apenas os tipos da categoria; em
  * edição o tipo fica bloqueado (trocá-lo retornaria 409 na API).
  *
- * Dimensões são editadas e enviadas em milímetros (cf. guia). O `total` do
- * custo-hora é apenas um preview — o backend recalcula e devolve o valor final.
+ * Dimensões são editadas e enviadas em milímetros (cf. guia). O formato é
+ * largura × comprimento (não há altura). A alimentação por pilha só aparece —
+ * e só é enviada — nas máquinas que a utilizam (cf. machineUsesFeeder).
  */
 import { computed, reactive, ref, watch } from 'vue'
-import type { DigitalBlock, Machine, MachineCategory, MachineRequest, MachineType } from '@/types/Machine'
+import type { FoldingBlock, Machine, MachineCategory, MachineRequest, MachineType } from '@/types/Machine'
 import {
   MACHINE_TYPE_BLOCK_KEY,
   MACHINE_TYPE_LABELS,
@@ -17,11 +18,12 @@ import {
   categoryMetaByCategory,
   defaultSpecificBlock,
   isCustomBlock,
+  machineUsesFeeder,
   validateDescriptors,
-  validateDigital,
+  validateFolding,
 } from '@/utils/machineCatalog'
 import SpecificFields from '@/components/forms/machines/SpecificFields.vue'
-import DigitalBlockFields from '@/components/forms/machines/DigitalBlock.vue'
+import FoldingBlockFields from '@/components/forms/machines/FoldingBlock.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
@@ -48,16 +50,17 @@ const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 const form = reactive({
   name: '',
   machineType: (props.initial?.machineType ?? availableTypes[0]) as MachineType,
-  formatRange: { minWidthMm: 0, maxWidthMm: 0, minHeightMm: 0, maxHeightMm: 0 },
-  gripMargins: { gripMm: 0, borderMm: 0, gripLongSide: false },
-  paperFeeder: { maxStackHeightMm: 0, maxLoadKg: 0 },
-  hourlyCost: { depreciation: 0, occupancy: 0, energy: 0, maintenance: 0, labor: 0 },
+  formatRange: { minWidthMm: 0, maxWidthMm: 0, minLengthMm: 0, maxLengthMm: 0 },
+  gripMargins: { gripMm: 0 },
+  paperFeeder: { maxStackHeightMm: 0 },
+  hourlyCost: 0,
   active: true,
 })
 
 const specific = ref<Record<string, unknown>>(defaultSpecificBlock(form.machineType))
-const digitalBlock = computed(() => specific.value as unknown as DigitalBlock)
+const foldingBlock = computed(() => specific.value as unknown as FoldingBlock)
 const descriptors = computed(() => SPECIFIC_FIELDS[form.machineType] ?? [])
+const showsFeeder = computed(() => machineUsesFeeder(form.machineType, specific.value))
 
 const commonErrors = ref<Record<string, string>>({})
 const specificErrors = ref<Record<string, string>>({})
@@ -70,25 +73,14 @@ function hydrate(machine: Machine) {
   form.formatRange = {
     minWidthMm: fromMillimeters(machine.formatRange.minWidth.millimeters) ?? 0,
     maxWidthMm: fromMillimeters(machine.formatRange.maxWidth.millimeters) ?? 0,
-    minHeightMm: fromMillimeters(machine.formatRange.minHeight.millimeters) ?? 0,
-    maxHeightMm: fromMillimeters(machine.formatRange.maxHeight.millimeters) ?? 0,
+    minLengthMm: fromMillimeters(machine.formatRange.minLength.millimeters) ?? 0,
+    maxLengthMm: fromMillimeters(machine.formatRange.maxLength.millimeters) ?? 0,
   }
-  form.gripMargins = {
-    gripMm: fromMillimeters(machine.gripMargins.gripMm) ?? 0,
-    borderMm: fromMillimeters(machine.gripMargins.borderMm) ?? 0,
-    gripLongSide: machine.gripMargins.gripLongSide,
-  }
+  form.gripMargins = { gripMm: fromMillimeters(machine.gripMargins.gripMm) ?? 0 }
   form.paperFeeder = {
-    maxStackHeightMm: fromMillimeters(machine.paperFeeder.maxStackHeightMm) ?? 0,
-    maxLoadKg: machine.paperFeeder.maxLoadKg,
+    maxStackHeightMm: machine.paperFeeder ? (fromMillimeters(machine.paperFeeder.maxStackHeightMm) ?? 0) : 0,
   }
-  form.hourlyCost = {
-    depreciation: machine.hourlyCost.depreciation,
-    occupancy: machine.hourlyCost.occupancy,
-    energy: machine.hourlyCost.energy,
-    maintenance: machine.hourlyCost.maintenance,
-    labor: machine.hourlyCost.labor,
-  }
+  form.hourlyCost = machine.hourlyCost
   form.active = machine.active
   const block = machine[MACHINE_TYPE_BLOCK_KEY[machine.machineType]]
   specific.value = block
@@ -106,11 +98,6 @@ watch(
   },
 )
 
-const hourlyTotal = computed(() => {
-  const h = form.hourlyCost
-  return h.depreciation + h.occupancy + h.energy + h.maintenance + h.labor
-})
-
 const inputClass = (errKey: string) => [
   'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
   commonErrors.value[errKey] ? 'border-rose-500 focus:ring-rose-500 focus:border-rose-500' : '',
@@ -124,24 +111,20 @@ function validateCommon(): Record<string, string> {
 
   const fr = form.formatRange
   if (fr.minWidthMm < 0) e['formatRange.minWidthMm'] = 'Valor mínimo: 0.'
-  if (fr.minHeightMm < 0) e['formatRange.minHeightMm'] = 'Valor mínimo: 0.'
+  if (fr.minLengthMm < 0) e['formatRange.minLengthMm'] = 'Valor mínimo: 0.'
   if (fr.maxWidthMm < fr.minWidthMm) e['formatRange.maxWidthMm'] = 'Deve ser ≥ largura mínima.'
-  if (fr.maxHeightMm < fr.minHeightMm) e['formatRange.maxHeightMm'] = 'Deve ser ≥ altura mínima.'
+  if (fr.maxLengthMm < fr.minLengthMm) e['formatRange.maxLengthMm'] = 'Deve ser ≥ comprimento mínimo.'
 
   if (form.gripMargins.gripMm < 0) e['gripMargins.gripMm'] = 'Valor mínimo: 0.'
-  if (form.gripMargins.borderMm < 0) e['gripMargins.borderMm'] = 'Valor mínimo: 0.'
-  if (form.paperFeeder.maxStackHeightMm < 0) e['paperFeeder.maxStackHeightMm'] = 'Valor mínimo: 0.'
-  if (form.paperFeeder.maxLoadKg < 0) e['paperFeeder.maxLoadKg'] = 'Valor mínimo: 0.'
-  for (const k of ['depreciation', 'occupancy', 'energy', 'maintenance', 'labor'] as const) {
-    if (form.hourlyCost[k] < 0) e[`hourlyCost.${k}`] = 'Valor mínimo: 0.'
-  }
+  if (showsFeeder.value && form.paperFeeder.maxStackHeightMm < 0) e['paperFeeder.maxStackHeightMm'] = 'Valor mínimo: 0.'
+  if (form.hourlyCost < 0) e['hourlyCost'] = 'Valor mínimo: 0.'
   return e
 }
 
 const handleSubmit = () => {
   commonErrors.value = validateCommon()
   specificErrors.value = isCustomBlock(form.machineType)
-    ? validateDigital(digitalBlock.value)
+    ? validateFolding(foldingBlock.value)
     : validateDescriptors(specific.value, descriptors.value)
 
   if (Object.keys(commonErrors.value).length || Object.keys(specificErrors.value).length) return
@@ -153,21 +136,17 @@ const handleSubmit = () => {
     formatRange: {
       minWidthMm: toMillimeters(form.formatRange.minWidthMm) ?? 0,
       maxWidthMm: toMillimeters(form.formatRange.maxWidthMm) ?? 0,
-      minHeightMm: toMillimeters(form.formatRange.minHeightMm) ?? 0,
-      maxHeightMm: toMillimeters(form.formatRange.maxHeightMm) ?? 0,
+      minLengthMm: toMillimeters(form.formatRange.minLengthMm) ?? 0,
+      maxLengthMm: toMillimeters(form.formatRange.maxLengthMm) ?? 0,
     },
-    gripMargins: {
-      gripMm: toMillimeters(form.gripMargins.gripMm) ?? 0,
-      borderMm: toMillimeters(form.gripMargins.borderMm) ?? 0,
-      gripLongSide: form.gripMargins.gripLongSide,
-    },
-    paperFeeder: {
-      maxStackHeightMm: toMillimeters(form.paperFeeder.maxStackHeightMm) ?? 0,
-      maxLoadKg: form.paperFeeder.maxLoadKg,
-    },
-    hourlyCost: { ...form.hourlyCost },
+    gripMargins: { gripMm: toMillimeters(form.gripMargins.gripMm) ?? 0 },
+    hourlyCost: form.hourlyCost,
   } as MachineRequest
-  ;(payload as Record<string, unknown>)[MACHINE_TYPE_BLOCK_KEY[form.machineType]] = specific.value
+  // Alimentação por pilha só é enviada nas máquinas que a utilizam.
+  if (showsFeeder.value) {
+    payload.paperFeeder = { maxStackHeightMm: toMillimeters(form.paperFeeder.maxStackHeightMm) ?? 0 }
+  }
+  ;(payload as unknown as Record<string, unknown>)[MACHINE_TYPE_BLOCK_KEY[form.machineType]] = specific.value
   if (isEditing.value) payload.active = form.active
 
   emit('submit', payload, isEditing.value ? 'update' : 'create')
@@ -209,7 +188,7 @@ const handleSubmit = () => {
     <!-- Formato de papel -->
     <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Formato de papel ({{ suffix }})</legend>
-      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita. Para máquinas sem conceito de formato, deixe zeros.</p>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita — largura × comprimento. Para máquinas sem conceito de formato, deixe zeros.</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura mín.</label>
@@ -228,97 +207,57 @@ const handleSubmit = () => {
           <p v-if="commonErrors['formatRange.maxWidthMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.maxWidthMm'] }}</p>
         </div>
         <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura mín.</label>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento mín.</label>
           <div class="relative">
-            <input v-model.number="form.formatRange.minHeightMm" type="number" min="0" step="0.001" :class="[inputClass('formatRange.minHeightMm'), 'pr-12']" />
+            <input v-model.number="form.formatRange.minLengthMm" type="number" min="0" step="0.001" :class="[inputClass('formatRange.minLengthMm'), 'pr-12']" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
           </div>
-          <p v-if="commonErrors['formatRange.minHeightMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.minHeightMm'] }}</p>
+          <p v-if="commonErrors['formatRange.minLengthMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.minLengthMm'] }}</p>
         </div>
         <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx.</label>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento máx.</label>
           <div class="relative">
-            <input v-model.number="form.formatRange.maxHeightMm" type="number" min="0" step="0.001" :class="[inputClass('formatRange.maxHeightMm'), 'pr-12']" />
+            <input v-model.number="form.formatRange.maxLengthMm" type="number" min="0" step="0.001" :class="[inputClass('formatRange.maxLengthMm'), 'pr-12']" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
           </div>
-          <p v-if="commonErrors['formatRange.maxHeightMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.maxHeightMm'] }}</p>
+          <p v-if="commonErrors['formatRange.maxLengthMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.maxLengthMm'] }}</p>
         </div>
       </div>
     </fieldset>
 
-    <!-- Margens técnicas + Alimentação -->
+    <!-- Pinça + Alimentação -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Margens técnicas</legend>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Pinça ({{ suffix }})</label>
-            <input v-model.number="form.gripMargins.gripMm" type="number" min="0" step="0.001" :class="inputClass('gripMargins.gripMm')" />
-            <p v-if="commonErrors['gripMargins.gripMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['gripMargins.gripMm'] }}</p>
-          </div>
-          <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Contra-pinça ({{ suffix }})</label>
-            <input v-model.number="form.gripMargins.borderMm" type="number" min="0" step="0.001" :class="inputClass('gripMargins.borderMm')" />
-            <p v-if="commonErrors['gripMargins.borderMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['gripMargins.borderMm'] }}</p>
-          </div>
+        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Pinça</legend>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem de pinça ({{ suffix }})</label>
+          <input v-model.number="form.gripMargins.gripMm" type="number" min="0" step="0.001" :class="inputClass('gripMargins.gripMm')" />
+          <p v-if="commonErrors['gripMargins.gripMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['gripMargins.gripMm'] }}</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Puxa-se sempre pelo lado maior.</p>
         </div>
-        <label class="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-          <input v-model="form.gripMargins.gripLongSide" type="checkbox" class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600" />
-          Puxa pelo lado maior?
-        </label>
       </fieldset>
 
-      <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <fieldset v-if="showsFeeder" class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
         <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Alimentação</legend>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx. de pilha ({{ suffix }})</label>
-            <input v-model.number="form.paperFeeder.maxStackHeightMm" type="number" min="0" step="0.001" :class="inputClass('paperFeeder.maxStackHeightMm')" />
-            <p v-if="commonErrors['paperFeeder.maxStackHeightMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['paperFeeder.maxStackHeightMm'] }}</p>
-          </div>
-          <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Carga máx. (kg)</label>
-            <input v-model.number="form.paperFeeder.maxLoadKg" type="number" min="0" step="0.001" :class="inputClass('paperFeeder.maxLoadKg')" />
-            <p v-if="commonErrors['paperFeeder.maxLoadKg']" class="mt-1 text-xs text-rose-600">{{ commonErrors['paperFeeder.maxLoadKg'] }}</p>
-          </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx. de pilha ({{ suffix }})</label>
+          <input v-model.number="form.paperFeeder.maxStackHeightMm" type="number" min="0" step="0.001" :class="inputClass('paperFeeder.maxStackHeightMm')" />
+          <p v-if="commonErrors['paperFeeder.maxStackHeightMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['paperFeeder.maxStackHeightMm'] }}</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">A máquina aguenta a carga total da altura cadastrada.</p>
         </div>
       </fieldset>
     </div>
 
     <!-- Custo-hora -->
     <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Custo-hora máquina (R$)</legend>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Depreciação</label>
-          <input v-model.number="form.hourlyCost.depreciation" type="number" min="0" step="0.0001" :class="inputClass('hourlyCost.depreciation')" />
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Custo-Hora Máquina</legend>
+      <div class="max-w-xs">
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Custo por hora (R$)</label>
+        <div class="relative">
+          <span class="absolute inset-y-0 left-3 flex items-center text-xs text-slate-500">R$</span>
+          <input v-model.number="form.hourlyCost" type="number" min="0" step="0.0001" :class="[inputClass('hourlyCost'), 'pl-9']" />
         </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Ocupação predial</label>
-          <input v-model.number="form.hourlyCost.occupancy" type="number" min="0" step="0.0001" :class="inputClass('hourlyCost.occupancy')" />
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Energia</label>
-          <input v-model.number="form.hourlyCost.energy" type="number" min="0" step="0.0001" :class="inputClass('hourlyCost.energy')" />
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Manutenção</label>
-          <input v-model.number="form.hourlyCost.maintenance" type="number" min="0" step="0.0001" :class="inputClass('hourlyCost.maintenance')" />
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Mão de obra</label>
-          <input v-model.number="form.hourlyCost.labor" type="number" min="0" step="0.0001" :class="inputClass('hourlyCost.labor')" />
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Total (calculado)</label>
-          <input
-            :value="hourlyTotal.toFixed(4)"
-            type="text"
-            readonly
-            tabindex="-1"
-            class="bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-lg block w-full p-3 cursor-not-allowed dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-300"
-          />
-        </div>
+        <p v-if="commonErrors['hourlyCost']" class="mt-1 text-xs text-rose-600">{{ commonErrors['hourlyCost'] }}</p>
       </div>
     </fieldset>
 
@@ -327,7 +266,7 @@ const handleSubmit = () => {
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
         {{ MACHINE_TYPE_LABELS[form.machineType] }}
       </legend>
-      <DigitalBlockFields v-if="isCustomBlock(form.machineType)" :block="digitalBlock" :errors="specificErrors" />
+      <FoldingBlockFields v-if="isCustomBlock(form.machineType)" :block="foldingBlock" :errors="specificErrors" />
       <SpecificFields v-else :block="specific" :descriptors="descriptors" :errors="specificErrors" />
     </fieldset>
 

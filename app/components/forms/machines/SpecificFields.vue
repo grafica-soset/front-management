@@ -2,7 +2,7 @@
 /**
  * Renderer genérico do bloco específico de uma máquina, dirigido por
  * descritores (cf. machineCatalog.SPECIFIC_FIELDS). Cobre todos os tipos
- * "planos"; DIGITAL usa o componente dedicado DigitalBlock.
+ * "planos"; FOLDING usa o componente dedicado FoldingBlock.
  *
  * Os campos de comprimento (suffix "mm" e inteiros) são exibidos na unidade da
  * empresa ativa e convertidos para milímetros ao escrever — o objeto `block`

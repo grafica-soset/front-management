@@ -45,6 +45,7 @@ export default function useMenu() {
       children: [
         { name: 'Impressão', href: '/maquinas/impressao' },
         { name: 'Corte', href: '/maquinas/corte' },
+        { name: 'Corte e Vinco', href: '/maquinas/corte-e-vinco' },
         { name: 'Acabamento', href: '/maquinas/acabamento' },
         { name: 'Pré-impressão', href: '/maquinas/pre-impressao' },
       ],
