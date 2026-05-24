@@ -1,0 +1,46 @@
+# Pipeline disparado pelo Cloud Build a cada push na main:
+# build da imagem -> push no Artifact Registry -> deploy no Cloud Run.
+# As substituições _* vêm do trigger (definido no Terraform).
+
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: containers
+  _SERVICE_NAME: front-management-hml
+  _API_BASE_URL: https://api.soset.com.br
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=NUXT_API_BASE_URL=${_API_BASE_URL}
+      - -t=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$SHORT_SHA
+      - -t=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:latest
+
+# Service account customizada exige logs só no Cloud Logging.
+options:
+  logging: CLOUD_LOGGING_ONLY
