@@ -17,6 +17,7 @@ import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
+import { grainDirectionLabel } from '@/utils/grainDirection'
 import type { PaperType } from '@/types/PaperType'
 import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
 
@@ -126,7 +127,7 @@ const priceLabel = (value: number | null) => (value != null ? `R$ ${value.toFixe
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-white">Dimensões</h2>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          Tamanhos deste agrupamento ({{ family.weightPerM2Grams }} g/m² · {{ family.thicknessMicrometers }} µm · {{ family.hasTwoSides ? '2 faces' : '1 face' }}).
+          Tamanhos deste agrupamento ({{ family.weightPerM2Grams }} g/m² · {{ family.thicknessMicrometers }} µm · {{ family.bothSidesEqual ? '2 lados' : '1 lado' }}).
         </p>
       </div>
       <button
@@ -151,6 +152,7 @@ const priceLabel = (value: number | null) => (value != null ? `R$ ${value.toFixe
           <tr>
             <th class="px-5 py-3 font-semibold">Código</th>
             <th class="px-5 py-3 font-semibold">Dimensões</th>
+            <th class="px-5 py-3 font-semibold">Fibra</th>
             <th class="px-5 py-3 font-semibold">R$/kg</th>
             <th class="px-5 py-3 font-semibold">R$/folha</th>
             <th class="px-5 py-3 font-semibold text-center">Status</th>
@@ -164,6 +166,7 @@ const priceLabel = (value: number | null) => (value != null ? `R$ ${value.toFixe
               <div class="text-xs text-slate-500 dark:text-slate-400">{{ paper.longName }}</div>
             </td>
             <td class="px-5 py-3 whitespace-nowrap">{{ format(paper.width.millimeters) }} × {{ format(paper.height.millimeters) }}</td>
+            <td class="px-5 py-3 whitespace-nowrap">{{ grainDirectionLabel(paper.grainDirection) }}</td>
             <td class="px-5 py-3 whitespace-nowrap">{{ priceLabel(paper.pricePerKg) }}</td>
             <td class="px-5 py-3 whitespace-nowrap">{{ priceLabel(paper.pricePerSheet) }}</td>
             <td class="px-5 py-3 text-center">

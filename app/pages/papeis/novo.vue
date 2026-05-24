@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Cadastro de um Agrupamento de medidas em 2 etapas:
- *  1. Dados do agrupamento: nome, gramatura, espessura, face.
+ *  1. Dados do agrupamento: nome, gramatura, espessura, lado do papel.
  *  2. Primeiras dimensões (SKUs) do agrupamento recém-criado.
  *
  * O agrupamento é criado ao concluir a etapa 1 (POST /paper-types); a etapa 2
@@ -36,7 +36,7 @@ const handleFamilySubmit = async (payload: {
   description: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
 }) => {
   loading.value = true
   serverError.value = null
@@ -46,7 +46,7 @@ const handleFamilySubmit = async (payload: {
       description: payload.description,
       weightPerM2Grams: payload.weightPerM2Grams,
       thicknessMicrometers: payload.thicknessMicrometers,
-      hasTwoSides: payload.hasTwoSides,
+      bothSidesEqual: payload.bothSidesEqual,
     })
     toast.success('Agrupamento de medidas criado. Agora adicione as primeiras dimensões.')
     step.value = 2

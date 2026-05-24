@@ -3,8 +3,9 @@
  * Formulário reutilizável para criar/editar um Agrupamento de medidas (PaperType).
  *
  * O agrupamento define os atributos compartilhados por todos os seus papéis:
- * gramatura (g/m²), espessura (µm) e face (1 ou 2 lados). Sem chamadas de API —
- * a página chama o composable e dispara `@submit`. `active` só aparece em edição.
+ * gramatura (g/m²), espessura (µm) e lado do papel (1 ou 2 lados). Sem chamadas
+ * de API — a página chama o composable e dispara `@submit`. `active` só aparece
+ * em edição.
  */
 import { reactive, ref, watch } from 'vue'
 import { z } from 'zod'
@@ -25,7 +26,7 @@ const emit = defineEmits<{
       description: string | null
       weightPerM2Grams: number
       thicknessMicrometers: number
-      hasTwoSides: boolean
+      bothSidesEqual: boolean
       active?: boolean
     },
   ): void
@@ -39,7 +40,7 @@ const form = reactive({
   description: props.initial?.description ?? '',
   weightPerM2Grams: props.initial?.weightPerM2Grams ?? 0,
   thicknessMicrometers: props.initial?.thicknessMicrometers ?? 0,
-  hasTwoSides: props.initial?.hasTwoSides ?? false,
+  bothSidesEqual: props.initial?.bothSidesEqual ?? true,
   active: props.initial?.active ?? true,
 })
 
@@ -50,7 +51,7 @@ watch(
     form.description = next?.description ?? ''
     form.weightPerM2Grams = next?.weightPerM2Grams ?? 0
     form.thicknessMicrometers = next?.thicknessMicrometers ?? 0
-    form.hasTwoSides = next?.hasTwoSides ?? false
+    form.bothSidesEqual = next?.bothSidesEqual ?? true
     form.active = next?.active ?? true
   },
 )
@@ -62,7 +63,7 @@ const schema = z.object({
   description: z.string().max(255, 'Máximo de 255 caracteres.').optional(),
   weightPerM2Grams: z.number().int('Gramatura inválida.').min(1, 'Gramatura deve ser ≥ 1.'),
   thicknessMicrometers: z.number().int('Espessura inválida.').min(1, 'Espessura deve ser ≥ 1.'),
-  hasTwoSides: z.boolean(),
+  bothSidesEqual: z.boolean(),
   active: z.boolean(),
 })
 
@@ -82,7 +83,7 @@ const handleSubmit = () => {
     description: data.description && data.description.trim() ? data.description : null,
     weightPerM2Grams: data.weightPerM2Grams,
     thicknessMicrometers: data.thicknessMicrometers,
-    hasTwoSides: data.hasTwoSides,
+    bothSidesEqual: data.bothSidesEqual,
     ...(isEditing ? { active: data.active } : {}),
   })
 }
@@ -94,7 +95,7 @@ const handleSubmit = () => {
       <label for="paper-type-name" class="block mb-1 text-sm font-medium text-slate-900 dark:text-white">
         Nome do agrupamento de medidas <span class="text-rose-500">*</span>
       </label>
-      <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Agrupa papéis de mesma gramatura, espessura e face. Ex.: Couché 400g.</p>
+      <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Agrupa papéis de mesma gramatura, espessura e lado. Ex.: Couché 400g.</p>
       <input
         id="paper-type-name"
         v-model="form.name"
@@ -148,18 +149,18 @@ const handleSubmit = () => {
       </div>
       <div>
         <label for="paper-type-sides" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Lado <span class="text-rose-500">*</span>
+          Lado do papel <span class="text-rose-500">*</span>
         </label>
         <select
           id="paper-type-sides"
-          :value="form.hasTwoSides ? 2 : 1"
-          @change="form.hasTwoSides = ($event.target as HTMLSelectElement).value === '2'"
+          :value="form.bothSidesEqual ? 2 : 1"
+          @change="form.bothSidesEqual = ($event.target as HTMLSelectElement).value === '2'"
           class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
         >
-          <option :value="1">1 lado</option>
-          <option :value="2">2 lados</option>
+          <option :value="2">2 lados (iguais)</option>
+          <option :value="1">1 lado (diferentes)</option>
         </select>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Use 2 quando frente e verso têm texturas diferentes.</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">2 lados quando frente e verso são iguais (ex.: Couché Brilho); 1 lado quando são diferentes (ex.: cartão duplex).</p>
       </div>
     </div>
 

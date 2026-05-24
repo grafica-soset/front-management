@@ -12,6 +12,7 @@ import { usePapersStore } from '@/stores/papers'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
+import { grainDirectionLabel } from '@/utils/grainDirection'
 import type { CustomerPaperEntry } from '@/types/CustomerPaper'
 
 definePageMeta({
@@ -137,6 +138,10 @@ const handleDeactivate = async (entry: CustomerPaperEntry) => {
           <div>
             <dt class="text-xs text-slate-500 dark:text-slate-400">Gramatura</dt>
             <dd class="font-medium text-slate-900 dark:text-slate-100">{{ entry.paper.paperType.weightPerM2Grams }} g/m²</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500 dark:text-slate-400">Fibra</dt>
+            <dd class="font-medium text-slate-900 dark:text-slate-100">{{ grainDirectionLabel(entry.paper.grainDirection) }}</dd>
           </div>
           <div>
             <dt class="text-xs text-slate-500 dark:text-slate-400">Preço/folha</dt>

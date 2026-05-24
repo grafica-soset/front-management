@@ -4,7 +4,10 @@
  *
  * Define os atributos compartilhados por todos os seus papéis:
  * gramatura (weightPerM2Grams), espessura (thicknessMicrometers) e
- * face (hasTwoSides).
+ * lado do papel (bothSidesEqual).
+ *
+ * Lado do papel (`bothSidesEqual`): `true` = "2 lados" (lados iguais, ex.:
+ * Couché Brilho); `false` = "1 lado" (lados diferentes, ex.: cartão duplex).
  */
 export interface PaperType {
   id: number
@@ -12,7 +15,7 @@ export interface PaperType {
   description: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
   active: boolean
 }
 
@@ -22,7 +25,7 @@ export interface CreatePaperTypeRequest {
   description?: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
 }
 
 /** Payload de PUT /paper-types/{id}. */
@@ -31,6 +34,6 @@ export interface UpdatePaperTypeRequest {
   description?: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
   active: boolean
 }

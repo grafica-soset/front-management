@@ -3,8 +3,8 @@
  * Lista de Papéis (agrupamentos de medidas).
  *
  * Cada item é um agrupamento de medidas (PaperType): define gramatura,
- * espessura e face. Suas dimensões concretas (os SKUs) são gerenciadas dentro
- * dele, na tela de detalhe/edição (/papeis/{id}).
+ * espessura e lado do papel. Suas dimensões concretas (os SKUs) são gerenciadas
+ * dentro dele, na tela de detalhe/edição (/papeis/{id}).
  */
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -67,7 +67,7 @@ const handleDelete = async (paper: PaperType) => {
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Papéis</h1>
         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Cada agrupamento de medidas define gramatura, espessura e face; as dimensões (tamanhos) são cadastradas dentro dele.
+          Cada agrupamento de medidas define gramatura, espessura e lado do papel; as dimensões (tamanhos) são cadastradas dentro dele.
         </p>
       </div>
       <NuxtLink
@@ -103,7 +103,7 @@ const handleDelete = async (paper: PaperType) => {
               <th class="px-5 py-3 font-semibold">Nome</th>
               <th class="px-5 py-3 font-semibold">Gramatura</th>
               <th class="px-5 py-3 font-semibold">Espessura</th>
-              <th class="px-5 py-3 font-semibold">Face</th>
+              <th class="px-5 py-3 font-semibold">Lado do papel</th>
               <th class="px-5 py-3 font-semibold text-center">Status</th>
               <th v-if="canManage" class="px-5 py-3 font-semibold text-right">Ações</th>
             </tr>
@@ -116,7 +116,7 @@ const handleDelete = async (paper: PaperType) => {
               </td>
               <td class="px-5 py-3 whitespace-nowrap">{{ paper.weightPerM2Grams }} g/m²</td>
               <td class="px-5 py-3 whitespace-nowrap">{{ paper.thicknessMicrometers }} µm</td>
-              <td class="px-5 py-3 whitespace-nowrap">{{ paper.hasTwoSides ? '2 faces' : '1 face' }}</td>
+              <td class="px-5 py-3 whitespace-nowrap">{{ paper.bothSidesEqual ? '2 lados' : '1 lado' }}</td>
               <td class="px-5 py-3 text-center">
                 <span
                   class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"

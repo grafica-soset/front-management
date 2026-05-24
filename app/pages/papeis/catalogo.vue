@@ -22,6 +22,7 @@ import { useToast } from '@/composables/useToast'
 import { usePapersStore } from '@/stores/papers'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
+import { grainDirectionLabel } from '@/utils/grainDirection'
 import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
 import type { PaperType } from '@/types/PaperType'
 
@@ -207,7 +208,7 @@ const handlePaperTypeSubmit = async (payload: {
   description: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
 }) => {
   paperTypeFormLoading.value = true
   paperTypeFormError.value = null
@@ -217,7 +218,7 @@ const handlePaperTypeSubmit = async (payload: {
       description: payload.description,
       weightPerM2Grams: payload.weightPerM2Grams,
       thicknessMicrometers: payload.thicknessMicrometers,
-      hasTwoSides: payload.hasTwoSides,
+      bothSidesEqual: payload.bothSidesEqual,
     })
     newPaperTypeId.value = created.id
     toast.success('Agrupamento de medidas cadastrado e selecionado no formulário.')
@@ -295,6 +296,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
               <th class="px-5 py-3 font-semibold">Nome</th>
               <th class="px-5 py-3 font-semibold">Tipo</th>
               <th class="px-5 py-3 font-semibold">Dimensões</th>
+              <th class="px-5 py-3 font-semibold">Fibra</th>
               <th class="px-5 py-3 font-semibold">Gramatura</th>
               <th class="px-5 py-3 font-semibold">R$/folha</th>
               <th v-if="canToggle" class="px-5 py-3 font-semibold text-center">Ativo p/ empresa</th>
@@ -313,6 +315,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
               <td class="px-5 py-3 whitespace-nowrap">
                 {{ format(paper.width.millimeters) }} × {{ format(paper.height.millimeters) }}
               </td>
+              <td class="px-5 py-3 whitespace-nowrap">{{ grainDirectionLabel(paper.grainDirection) }}</td>
               <td class="px-5 py-3 whitespace-nowrap">{{ paper.paperType.weightPerM2Grams }} g/m²</td>
               <td class="px-5 py-3 whitespace-nowrap">{{ paper.pricePerSheet != null ? `R$ ${paper.pricePerSheet.toFixed(4)}` : '—' }}</td>
               <td v-if="canToggle" class="px-5 py-3 text-center">
