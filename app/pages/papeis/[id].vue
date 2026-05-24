@@ -4,7 +4,7 @@
  *
  * Topo: detalhamento do agrupamento (somente leitura) com botão "Editar" que
  * abre um modal para alterar os atributos. Abaixo: as Dimensões (SKUs), via
- * PaperDimensionsManager. Alterar gramatura/espessura/face recalcula os papéis,
+ * PaperDimensionsManager. Alterar gramatura/espessura/lado recalcula os papéis,
  * então recarregamos as dimensões após uma edição que mude esses atributos.
  */
 import { computed, onMounted, ref } from 'vue'
@@ -70,7 +70,7 @@ const handleEditSubmit = async (payload: {
   description: string | null
   weightPerM2Grams: number
   thicknessMicrometers: number
-  hasTwoSides: boolean
+  bothSidesEqual: boolean
   active?: boolean
 }) => {
   const current = family.value
@@ -79,11 +79,11 @@ const handleEditSubmit = async (payload: {
   const attributeChanged =
     payload.weightPerM2Grams !== current.weightPerM2Grams
     || payload.thicknessMicrometers !== current.thicknessMicrometers
-    || payload.hasTwoSides !== current.hasTwoSides
+    || payload.bothSidesEqual !== current.bothSidesEqual
   if (
     attributeChanged
     && !window.confirm(
-      'Alterar gramatura, espessura ou face muda esses atributos em todas as dimensões deste papel (e recalcula o preço por folha). Deseja continuar?',
+      'Alterar gramatura, espessura ou lado do papel muda esses atributos em todas as dimensões deste papel (e recalcula o preço por folha). Deseja continuar?',
     )
   ) {
     return
@@ -97,7 +97,7 @@ const handleEditSubmit = async (payload: {
       description: payload.description,
       weightPerM2Grams: payload.weightPerM2Grams,
       thicknessMicrometers: payload.thicknessMicrometers,
-      hasTwoSides: payload.hasTwoSides,
+      bothSidesEqual: payload.bothSidesEqual,
       active: payload.active ?? current.active,
     })
     toast.success('Agrupamento de medidas atualizado.')
@@ -167,8 +167,8 @@ const handleEditSubmit = async (payload: {
             <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.thicknessMicrometers }} µm</dd>
           </div>
           <div>
-            <dt class="text-xs text-slate-500 dark:text-slate-400">Face</dt>
-            <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.hasTwoSides ? '2 faces' : '1 face' }}</dd>
+            <dt class="text-xs text-slate-500 dark:text-slate-400">Lado do papel</dt>
+            <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.bothSidesEqual ? '2 lados' : '1 lado' }}</dd>
           </div>
         </dl>
       </section>

@@ -4,11 +4,15 @@
  * de medidas.
  *
  * Inteligências:
- *  - Agrupamento: gramatura, espessura e face são herdadas do agrupamento e
- *    exibidas SOMENTE LEITURA. Quando `lockedPaperType` é informado, o
- *    agrupamento fica fixo; caso contrário há um seletor com ação de cadastro.
+ *  - Agrupamento: gramatura, espessura e lado do papel são herdados do
+ *    agrupamento e exibidos SOMENTE LEITURA. Quando `lockedPaperType` é
+ *    informado, o agrupamento fica fixo; caso contrário há um seletor com ação
+ *    de cadastro.
  *  - Dimensões: o input mostra o sufixo da unidade da empresa ativa (mm/cm/m) e
- *    o componente converte para milímetros antes de emitir.
+ *    o componente converte para milímetros antes de emitir. A largura é sempre
+ *    apresentada antes do comprimento.
+ *  - Sentido da fibra: propriedade do papel; o usuário escolhe se a fibra corre
+ *    no sentido da largura ou do comprimento, com a medida exibida ao lado.
  *  - Preço por folha: calculado pelo backend a partir das dimensões, da
  *    gramatura do agrupamento e do preço/kg. O input fica readonly e mostra um
  *    preview em tempo real.
@@ -17,6 +21,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { z } from 'zod'
 import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
 import type { PaperType } from '@/types/PaperType'
+import type { GrainDirection } from '@/types/GrainDirection'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useAuthStore } from '@/stores/auth'
 
@@ -64,9 +69,19 @@ const form = reactive({
   pricePerKg: seed?.pricePerKg ?? 0,
   width: initialWidth,
   height: initialHeight,
+  grainDirection: (seed?.grainDirection ?? 'WIDTH') as GrainDirection,
   isEnvelope: seed?.isEnvelope ?? false,
   active: seed?.active ?? true,
 })
+
+/**
+ * Opções do sentido da fibra, com a medida atual de cada lado embutida no rótulo
+ * para deixar evidente o que está sendo escolhido (ex.: "Largura (660 mm)").
+ */
+const grainOptions = computed<{ value: GrainDirection; label: string }[]>(() => [
+  { value: 'WIDTH', label: `Largura (${form.width || '—'} ${suffix.value})` },
+  { value: 'HEIGHT', label: `Comprimento (${form.height || '—'} ${suffix.value})` },
+])
 
 /** Agrupamento atualmente selecionado — fonte da gramatura/espessura/face exibidas. */
 const selectedFamily = computed<PaperType | null>(
@@ -110,6 +125,7 @@ watch(
     form.pricePerKg = next.pricePerKg ?? 0
     form.width = fromMillimeters(next.width.millimeters) ?? 0
     form.height = fromMillimeters(next.height.millimeters) ?? 0
+    form.grainDirection = next.grainDirection ?? 'WIDTH'
     form.isEnvelope = next.isEnvelope
     form.active = next.active
   },
@@ -125,6 +141,7 @@ watch(
     form.pricePerKg = next.pricePerKg ?? 0
     form.width = fromMillimeters(next.width.millimeters) ?? 0
     form.height = fromMillimeters(next.height.millimeters) ?? 0
+    form.grainDirection = next.grainDirection ?? 'WIDTH'
     form.isEnvelope = next.isEnvelope
     form.active = true
   },
@@ -138,7 +155,8 @@ const schema = z.object({
   longName: z.string().min(1, 'Informe o nome completo.').max(255),
   pricePerKg: z.number().min(0, 'Preço por quilo inválido.'),
   width: z.number().positive('Largura deve ser maior que zero.'),
-  height: z.number().positive('Altura deve ser maior que zero.'),
+  height: z.number().positive('Comprimento deve ser maior que zero.'),
+  grainDirection: z.enum(['WIDTH', 'HEIGHT'], { message: 'Selecione o sentido da fibra.' }),
   isEnvelope: z.boolean(),
   active: z.boolean(),
 })
@@ -164,6 +182,7 @@ const handleSubmit = () => {
     pricePerKg: data.pricePerKg,
     widthMm,
     heightMm,
+    grainDirection: data.grainDirection,
     isEnvelope: data.isEnvelope,
   }
 
@@ -233,7 +252,7 @@ const handleSubmit = () => {
       <div class="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
         <span>Gramatura: <strong>{{ selectedFamily.weightPerM2Grams }} g/m²</strong></span>
         <span>Espessura: <strong>{{ selectedFamily.thicknessMicrometers }} µm</strong></span>
-        <span>Face: <strong>{{ selectedFamily.hasTwoSides ? '2 faces' : '1 face' }}</strong></span>
+        <span>Lado do papel: <strong>{{ selectedFamily.bothSidesEqual ? '2 lados' : '1 lado' }}</strong></span>
       </div>
     </div>
 
@@ -293,7 +312,7 @@ const handleSubmit = () => {
       </div>
       <div>
         <label for="paper-height" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          Altura <span class="text-rose-500">*</span>
+          Comprimento <span class="text-rose-500">*</span>
         </label>
         <div class="relative">
           <input
@@ -309,6 +328,25 @@ const handleSubmit = () => {
         </div>
         <p v-if="errors.height" class="mt-1 text-xs text-rose-600">{{ errors.height }}</p>
       </div>
+    </div>
+
+    <!-- Sentido da fibra -->
+    <div>
+      <label for="paper-grain" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Sentido da fibra <span class="text-rose-500">*</span>
+      </label>
+      <select
+        id="paper-grain"
+        v-model="form.grainDirection"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.grainDirection }"
+      >
+        <option v-for="opt in grainOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+      </select>
+      <p v-if="errors.grainDirection" class="mt-1 text-xs text-rose-600">{{ errors.grainDirection }}</p>
+      <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Lado da folha em que a fibra corre — largura ou comprimento.
+      </p>
     </div>
 
     <!-- Preços -->

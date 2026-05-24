@@ -1,15 +1,19 @@
 import type { PaperType } from './PaperType'
 import type { FormattedDimension } from './FormattedDimension'
+import type { GrainDirection } from './GrainDirection'
 
 /**
  * Papel = SKU (variação de tamanho) dentro de um Agrupamento de medidas (`paperType`).
  *
- * Gramatura, espessura e face NÃO vivem aqui — são herdadas do agrupamento e devem
- * ser lidas de `paperType.weightPerM2Grams` / `paperType.thicknessMicrometers` /
- * `paperType.hasTwoSides` (somente leitura).
+ * Gramatura, espessura e lado do papel NÃO vivem aqui — são herdadas do agrupamento e
+ * devem ser lidas de `paperType.weightPerM2Grams` / `paperType.thicknessMicrometers` /
+ * `paperType.bothSidesEqual` (somente leitura).
+ *
+ * Já o sentido da fibra (`grainDirection`) é uma propriedade do próprio papel.
  *
  * `pricePerKg` e `pricePerSheet` vêm `null` quando não há contexto de empresa
- * (catálogo global / ADMIN sem customerId).
+ * (catálogo global / ADMIN sem customerId). `grainDirection` pode vir `null` em
+ * papéis legados.
  */
 export interface Paper {
   id: number
@@ -20,6 +24,7 @@ export interface Paper {
   pricePerSheet: number | null
   width: FormattedDimension
   height: FormattedDimension
+  grainDirection: GrainDirection | null
   isEnvelope: boolean
   active: boolean
 }
@@ -33,6 +38,7 @@ export interface CreatePaperRequest {
   pricePerKg: number
   widthMm: number
   heightMm: number
+  grainDirection: GrainDirection
   isEnvelope: boolean
 }
 
@@ -45,6 +51,7 @@ export interface UpdatePaperRequest {
   pricePerKg: number
   widthMm: number
   heightMm: number
+  grainDirection: GrainDirection
   isEnvelope: boolean
   active: boolean
 }
