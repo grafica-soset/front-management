@@ -54,7 +54,8 @@ export function defaultOffsetBlock(): OffsetBlock {
     supportsNumbering: false,
     maxNumberingUnits: 0,
     setupTimes: {
-      setupMinutes: 0,
+      plateSetupMinutesPerColor: 0,
+      colorMatchingMinutes: 0,
       numberingSetupMinutesPerUnit: 0,
       paperFeedSetupMinutes: 0,
       feedTimeSecondsPerLoad: 0,
@@ -203,7 +204,8 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
 
   const st = block.setupTimes
   const setupKeys: (keyof typeof st)[] = [
-    'setupMinutes',
+    'plateSetupMinutesPerColor',
+    'colorMatchingMinutes',
     'numberingSetupMinutesPerUnit',
     'paperFeedSetupMinutes',
     'feedTimeSecondsPerLoad',

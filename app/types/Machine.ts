@@ -38,9 +38,14 @@ export interface FormatRangeResponse {
   maxLength: FormattedDimension
 }
 
-/** Margem técnica — apenas a pinça (mm). */
+/** Margens técnicas (mm): pinça e limite máximo de mancha. */
 export interface GripMargins {
   gripMm: number
+  /**
+   * Limite máximo de mancha (mm): borda não imprimível entre a máquina e o papel.
+   * Quanto maior, menor a área de impressão útil.
+   */
+  maxImageMarginMm: number
 }
 
 /** Alimentador — apenas a altura máxima da pilha (mm). Obrigatório p/ OFFSET. */
@@ -51,7 +56,10 @@ export interface PaperFeeder {
 // ---------- Bloco OFFSET (Rampa de Velocidade) ----------
 
 export interface OffsetSetupTimes {
-  setupMinutes: number
+  /** Acerto de Chapa por Cor (min): aplicado por cor (× numberOfColors). */
+  plateSetupMinutesPerColor: number
+  /** Acerto das Cores (min): aplicado por cor (× numberOfColors). */
+  colorMatchingMinutes: number
   numberingSetupMinutesPerUnit: number
   paperFeedSetupMinutes: number
   feedTimeSecondsPerLoad: number

@@ -137,9 +137,14 @@ const cellClass =
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Tempos de setup</legend>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div>
-          <label class="block mb-1.5 text-sm text-slate-700 dark:text-slate-300">Acerto geral (min)</label>
-          <input v-model.number="block.setupTimes.setupMinutes" type="number" min="0" step="1" :class="inputClass('setupTimes.setupMinutes')" />
-          <p v-if="errors['setupTimes.setupMinutes']" class="mt-1 text-xs text-rose-600">{{ errors['setupTimes.setupMinutes'] }}</p>
+          <label class="block mb-1.5 text-sm text-slate-700 dark:text-slate-300">Acerto de Chapa por Cor (min)</label>
+          <input v-model.number="block.setupTimes.plateSetupMinutesPerColor" type="number" min="0" step="1" :class="inputClass('setupTimes.plateSetupMinutesPerColor')" />
+          <p v-if="errors['setupTimes.plateSetupMinutesPerColor']" class="mt-1 text-xs text-rose-600">{{ errors['setupTimes.plateSetupMinutesPerColor'] }}</p>
+        </div>
+        <div>
+          <label class="block mb-1.5 text-sm text-slate-700 dark:text-slate-300">Acerto das Cores (min)</label>
+          <input v-model.number="block.setupTimes.colorMatchingMinutes" type="number" min="0" step="1" :class="inputClass('setupTimes.colorMatchingMinutes')" />
+          <p v-if="errors['setupTimes.colorMatchingMinutes']" class="mt-1 text-xs text-rose-600">{{ errors['setupTimes.colorMatchingMinutes'] }}</p>
         </div>
         <div>
           <label class="block mb-1.5 text-sm text-slate-700 dark:text-slate-300">Ajuste do papel (min)</label>

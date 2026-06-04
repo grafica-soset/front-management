@@ -39,7 +39,8 @@ function buildSakuraiOffset(): OffsetBlock {
     supportsNumbering: true,
     maxNumberingUnits: 20,
     setupTimes: {
-      setupMinutes: 15,
+      plateSetupMinutesPerColor: 15,
+      colorMatchingMinutes: 10,
       numberingSetupMinutesPerUnit: 4,
       paperFeedSetupMinutes: 6,
       feedTimeSecondsPerLoad: 45,
@@ -72,7 +73,7 @@ function buildSakuraiRequest(): MachineRequest {
     machineType: 'OFFSET',
     name: 'Sakurai 58 Monocolor',
     formatRange: { minWidthMm: 290, maxWidthMm: 580, minLengthMm: 185, maxLengthMm: 450 },
-    gripMargins: { gripMm: 12 },
+    gripMargins: { gripMm: 12, maxImageMarginMm: 5 },
     paperFeeder: { maxStackHeightMm: 800 },
     hourlyCost: '97.41',
     offset: buildSakuraiOffset(),
@@ -84,8 +85,11 @@ describe('Cadastro OFFSET — Sakurai 58 Monocolor', () => {
     const req = buildSakuraiRequest()
     expect(req.formatRange).toEqual({ minWidthMm: 290, maxWidthMm: 580, minLengthMm: 185, maxLengthMm: 450 })
     expect(req.gripMargins.gripMm).toBe(12)
+    expect(req.gripMargins.maxImageMarginMm).toBe(5)
     expect(req.paperFeeder.maxStackHeightMm).toBe(800)
     expect(req.hourlyCost).toBe('97.41')
+    expect(req.offset.setupTimes.plateSetupMinutesPerColor).toBe(15)
+    expect(req.offset.setupTimes.colorMatchingMinutes).toBe(10)
     expect(req.offset.setupTimes.feedLoadIncrementMm).toBe(40)
   })
 

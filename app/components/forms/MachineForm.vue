@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * Formulário da impressora OFFSET: identificação + formato de papel + pinça +
- * alimentação + custo-hora + bloco offset (Rampa de Velocidade).
+ * Formulário da impressora OFFSET: identificação + formato de papel + margens
+ * (pinça e limite de mancha) + alimentação + custo-hora + bloco offset (Rampa de Velocidade).
  *
  * Recebe os dados iniciais via prop `initial` (edição) e emite o payload
  * validado em `@submit`. O formato de papel é editado na unidade da empresa
@@ -37,6 +37,8 @@ const form = reactive({
   // Dimensões na unidade da empresa (convertidas para mm no submit).
   formatRange: { minWidth: 0, maxWidth: 0, minLength: 0, maxLength: 0 },
   grip: 0,
+  // Limite máximo de mancha (borda não imprimível), na unidade da empresa.
+  maxImageMargin: 0,
   maxStackHeight: 0,
   // Custo-hora como string decimal (R$).
   hourlyCost: '0',
@@ -59,6 +61,7 @@ function hydrate(machine: Machine) {
     maxLength: fromMillimeters(machine.formatRange.maxLength.millimeters) ?? 0,
   }
   form.grip = fromMillimeters(machine.gripMargins.gripMm) ?? 0
+  form.maxImageMargin = fromMillimeters(machine.gripMargins.maxImageMarginMm) ?? 0
   form.maxStackHeight = fromMillimeters(machine.paperFeeder?.maxStackHeightMm ?? 0) ?? 0
   form.hourlyCost = String(machine.hourlyCost)
   form.active = machine.active
@@ -83,6 +86,7 @@ function validateCommon(): Record<string, string> {
   if (fr.maxLength < fr.minLength) e['formatRange.maxLength'] = 'Deve ser ≥ comprimento mínimo.'
 
   if (form.grip < 0) e['grip'] = 'Valor mínimo: 0.'
+  if (form.maxImageMargin < 0) e['maxImageMargin'] = 'Valor mínimo: 0.'
   if (form.maxStackHeight < 0) e['maxStackHeight'] = 'Valor mínimo: 0.'
 
   const cost = Number(form.hourlyCost)
@@ -106,7 +110,10 @@ const handleSubmit = () => {
       minLengthMm: toMillimeters(form.formatRange.minLength) ?? 0,
       maxLengthMm: toMillimeters(form.formatRange.maxLength) ?? 0,
     },
-    gripMargins: { gripMm: toMillimeters(form.grip) ?? 0 },
+    gripMargins: {
+      gripMm: toMillimeters(form.grip) ?? 0,
+      maxImageMarginMm: toMillimeters(form.maxImageMargin) ?? 0,
+    },
     paperFeeder: { maxStackHeightMm: toMillimeters(form.maxStackHeight) ?? 0 },
     hourlyCost: String(form.hourlyCost),
     offset: JSON.parse(JSON.stringify(offset)) as OffsetBlock,
@@ -189,10 +196,15 @@ const handleSubmit = () => {
     <!-- Pinça + Alimentação + Custo-hora -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
-        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Pinça</legend>
+        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Margens</legend>
         <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem da pinça ({{ suffix }})</label>
         <input v-model.number="form.grip" type="number" min="0" step="0.001" :class="inputClass('grip')" />
         <p v-if="commonErrors['grip']" class="mt-1 text-xs text-rose-600">{{ commonErrors['grip'] }}</p>
+
+        <label class="block mt-3 mb-2 text-sm text-slate-700 dark:text-slate-300">Limite máximo de mancha ({{ suffix }})</label>
+        <input v-model.number="form.maxImageMargin" type="number" min="0" step="0.001" :class="inputClass('maxImageMargin')" />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Borda não imprimível entre a máquina e o papel. Quanto maior, menor a área de impressão.</p>
+        <p v-if="commonErrors['maxImageMargin']" class="mt-1 text-xs text-rose-600">{{ commonErrors['maxImageMargin'] }}</p>
       </fieldset>
 
       <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
