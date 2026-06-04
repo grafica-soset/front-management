@@ -235,7 +235,7 @@ const handleSubmit = () => {
 
     <div
       v-if="serverError"
-      class="rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300"
+      class="whitespace-pre-line rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300"
     >
       {{ serverError }}
     </div>
