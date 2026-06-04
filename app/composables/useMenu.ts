@@ -17,17 +17,17 @@ export default function useMenu() {
       icon: 'dashboard',
       current: true
     },
-    {
-      name: 'Cadastros',
-      icon: 'cadastros',
-      expanded: true,
-      children: [
-        { name: 'Produtos', href: '/sample' }, // Adicionado link para a listagem
-        { name: 'Adicionar Produto', href: '/sample/add' },
-        { name: 'Categorias', href: '#' },
-        { name: 'Fornecedores', href: '#' }
-      ]
-    },
+    // {
+    //   name: 'Cadastros',
+    //   icon: 'cadastros',
+    //   expanded: true,
+    //   children: [
+    //     { name: 'Produtos', href: '/sample' }, // Adicionado link para a listagem
+    //     { name: 'Adicionar Produto', href: '/sample/add' },
+    //     { name: 'Categorias', href: '#' },
+    //     { name: 'Fornecedores', href: '#' }
+    //   ]
+    // },
     {
       name: 'Papéis',
       icon: 'papers',
@@ -40,14 +40,8 @@ export default function useMenu() {
     },
     {
       name: 'Máquinas',
+      href: '/maquinas',
       icon: 'machines',
-      expanded: false,
-      children: [
-        { name: 'Impressão', href: '/maquinas/impressao' },
-        { name: 'Corte', href: '/maquinas/corte' },
-        { name: 'Acabamento', href: '/maquinas/acabamento' },
-        { name: 'Pré-impressão', href: '/maquinas/pre-impressao' },
-      ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {

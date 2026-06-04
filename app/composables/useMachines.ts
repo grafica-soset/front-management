@@ -12,14 +12,12 @@ import type {
   MachineKeyValue,
   MachinePage,
   MachineRequest,
-  MachineType,
 } from '@/types/Machine'
 import { useAuthStore } from '@/stores/auth'
 
 interface ListPageOptions {
   page?: number
   size?: number
-  machineType?: MachineType | null
   onlyActive?: boolean
 }
 
@@ -42,7 +40,6 @@ export function useMachines(base: string) {
     const query: Record<string, string | number | boolean> = {}
     if (options.page !== undefined) query.page = options.page
     if (options.size !== undefined) query.size = options.size
-    if (options.machineType) query.machineType = options.machineType
     if (options.onlyActive !== undefined) query.onlyActive = options.onlyActive
     return await api<MachinePage>(`${base}/page`, { query })
   }

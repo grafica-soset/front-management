@@ -7,6 +7,8 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
@@ -20,5 +22,8 @@
     "vue": "^3.5.33",
     "vue-router": "^5.0.6",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.8"
   }
 }

@@ -1,256 +1,132 @@
 import type { FormattedDimension } from './FormattedDimension'
 
 /**
- * Domínio de máquinas do parque fabril (cf. .docs/machines-frontend-guide.md).
+ * Domínio de máquinas do parque fabril.
  *
- * Cada máquina tem um `machineType` que pertence a uma `category`. A categoria
- * define o endpoint dedicado. O payload tem uma parte comum + um único bloco
- * específico cujo nome corresponde ao tipo selecionado.
+ * Neste momento o cadastro suporta apenas a **impressora OFFSET** (categoria
+ * PRINTING, endpoint `/printing-machines`), modelada com o **modelo de Rampa de
+ * Velocidade** descrito em `.docs/offset-machines-api.md`. Os demais tipos foram
+ * removidos enquanto validamos o fluxo com o cliente.
+ *
+ * Convenções:
+ * - Dimensões são persistidas sempre em milímetros (largura × comprimento).
+ * - Valores decimais (custo-hora e percentuais) trafegam como string para
+ *   preservar a precisão exigida pelo backend (BigDecimal).
  */
 
-export type MachineCategory = 'PRINTING' | 'CUTTING' | 'FINISHING' | 'PREPRESS'
+export type MachineCategory = 'PRINTING'
+export type MachineType = 'OFFSET'
 
-export type MachineType =
-  | 'OFFSET'
-  | 'DIGITAL'
-  | 'SCREEN_PRINTING'
-  | 'GUILLOTINE'
-  | 'DIE_CUTTING'
-  | 'PERFORATING'
-  | 'FOLDING'
-  | 'STITCHING'
-  | 'HOLE_PUNCHING'
-  | 'LAMINATING'
-  | 'IMAGESETTER'
-  | 'CTP'
-  | 'PLATE_COPIER'
+/** Tipo de tinta usado na matriz de velocidade/quebra. */
+export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
 
 // ---------- Blocos comuns ----------
 
-/** Faixa de formato de papel, em milímetros (lado do request). */
+/** Faixa de formato de papel (largura × comprimento), em milímetros. */
 export interface FormatRangeRequest {
   minWidthMm: number
   maxWidthMm: number
-  minHeightMm: number
-  maxHeightMm: number
+  minLengthMm: number
+  maxLengthMm: number
 }
 
 /** Faixa de formato devolvida pela API, com dimensões já formatadas. */
 export interface FormatRangeResponse {
   minWidth: FormattedDimension
   maxWidth: FormattedDimension
-  minHeight: FormattedDimension
-  maxHeight: FormattedDimension
+  minLength: FormattedDimension
+  maxLength: FormattedDimension
 }
 
+/** Margens técnicas (mm): pinça e limite máximo de mancha. */
 export interface GripMargins {
   gripMm: number
-  borderMm: number
-  gripLongSide: boolean
+  /**
+   * Limite máximo de mancha (mm): borda não imprimível entre a máquina e o papel.
+   * Quanto maior, menor a área de impressão útil.
+   */
+  maxImageMarginMm: number
 }
 
+/** Alimentador — apenas a altura máxima da pilha (mm). Obrigatório p/ OFFSET. */
 export interface PaperFeeder {
   maxStackHeightMm: number
-  maxLoadKg: number
 }
 
-export interface HourlyCostRequest {
-  depreciation: number
-  occupancy: number
-  energy: number
-  maintenance: number
-  labor: number
-}
-
-/** O `total` é calculado pelo backend (somente leitura na UI). */
-export interface HourlyCostResponse extends HourlyCostRequest {
-  total: number
-}
-
-// ---------- Blocos específicos ----------
+// ---------- Bloco OFFSET (Rampa de Velocidade) ----------
 
 export interface OffsetSetupTimes {
-  setupMinutes: number
-  feedSwapMinutes: number
-  cleanupMinutes: number
+  /** Acerto de Chapa por Cor (min): aplicado por cor (× numberOfColors). */
+  plateSetupMinutesPerColor: number
+  /** Acerto das Cores (min): aplicado por cor (× numberOfColors). */
+  colorMatchingMinutes: number
+  numberingSetupMinutesPerUnit: number
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  washMinutesPerColor: number
 }
 
-export interface OffsetSpeedProfile {
+/** Ajustes por tipo de impressão — um item por LINE, CMYK e PANTONE. */
+export interface OffsetInkSetting {
+  inkType: InkType
+  initialWasteSheets: number
+  fullCoverageExtraWastePercent: string
+}
+
+/**
+ * Faixa de quantidade configurável (por tipo de tinta). O usuário define quantas
+ * faixas quiser, com início/fim livres. `toQuantity` nulo = faixa aberta
+ * ("acima de"), permitida apenas na última faixa de cada tinta. As faixas de uma
+ * mesma tinta devem ser contíguas (próxima `fromQuantity` = anterior `toQuantity` + 1).
+ */
+export interface OffsetTier {
+  inkType: InkType
+  fromQuantity: number
+  toQuantity: number | null
+  sheetsPerHour: number
+  wastePercent: string
+}
+
+export interface OffsetSpeedRamp {
+  /** Envelope de velocidade da máquina (piso e teto físicos). */
   minSpeedSheetsPerHour: number
   maxSpeedSheetsPerHour: number
-  cruiseSpeedSheets: number
+  /** Teto de velocidade quando há numeração — único da máquina (não varia por tinta). */
+  numberingMaxSheetsPerHour: number
+  idealWeightMinGsm: number
+  idealWeightMaxGsm: number
+  belowIdealSpeedReducerPercent: string
+  aboveIdealSpeedReducerPercent: string
+  fullCoverageSpeedReducerPercent: string
+  numberingSpeedReducerPercent: string
+  inkSettings: OffsetInkSetting[]
+  tiers: OffsetTier[]
 }
 
 export interface OffsetBlock {
   numberOfColors: number
   supportsNumbering: boolean
+  maxNumberingUnits: number
   setupTimes: OffsetSetupTimes
-  speedProfile: OffsetSpeedProfile
-}
-
-export type DigitalCostModelType = 'CLICK_CHARGE' | 'WEAR_CONSUMABLES' | 'INK_PURCHASE'
-export type ConsumableType = 'DRUM' | 'FUSER' | 'DEVELOPER'
-
-export interface DigitalConsumable {
-  consumableType: ConsumableType
-  description: string | null
-  price: number
-  durabilityCopies: number
-}
-
-export interface ClickChargeCostModel {
-  type: 'CLICK_CHARGE'
-  pricePerMonoClick: number
-  pricePerColorClick: number
-}
-
-export interface WearConsumablesCostModel {
-  type: 'WEAR_CONSUMABLES'
-  consumables: DigitalConsumable[]
-}
-
-export interface InkPurchaseCostModel {
-  type: 'INK_PURCHASE'
-  inkPricePerLiter: number
-  averageCoveragePerSheetMl: number
-}
-
-export type DigitalCostModel =
-  | ClickChargeCostModel
-  | WearConsumablesCostModel
-  | InkPurchaseCostModel
-
-export interface DigitalCalibration {
-  sheetsPerCalibration: number
-  intervalMinutes: number
-}
-
-export interface DigitalBlock {
-  pagesPerMinute: number
-  supportsNumbering: boolean
-  duplexMultiplier: number
-  costModel: DigitalCostModel
-  calibration: DigitalCalibration
-}
-
-export interface ScreenPrintingBlock {
-  maxPrintAreaWidthMm: number
-  maxPrintAreaHeightMm: number
-  simultaneousColors: number
-  baseSetupMinutes: number
-}
-
-export interface GuillotineBlock {
-  cuttingWidthMm: number
-  clampForceKgf: number
-  secondsPerCut: number
-  numberOfPrograms: number
-  hasSafetyCurtain: boolean
-}
-
-export interface DieCuttingBlock {
-  manufacturer: string
-  model: string
-  maxSheetWidthMm: number
-  maxSheetHeightMm: number
-  automaticFeeding: boolean
-}
-
-export interface PerforatingBlock {
-  manufacturer: string
-  model: string
-  maxCuttingWidthMm: number
-  sheetsPerCycle: number
-  referencePaperWeightGsm: number
-}
-
-export interface FoldingBlock {
-  manufacturer: string
-  model: string
-  maxFoldsPerSheet: number
-  sheetsPerHour: number
-}
-
-export interface StitchingBlock {
-  manufacturer: string
-  model: string
-  staplesPerMinute: number
-  minWireThicknessMm: number
-  maxWireThicknessMm: number
-  maxStitchingThicknessMm: number
-}
-
-export interface HolePunchingBlock {
-  manufacturer: string
-  model: string
-  perforationLengthMm: number
-  sheetsPerStroke: number
-  simultaneousHoles: number
-}
-
-export interface LaminatingBlock {
-  manufacturer: string
-  model: string
-  maxLaminationWidthMm: number
-  cruiseSpeedMetersPerHour: number
-  supportsDuplex: boolean
-}
-
-export interface ImagesetterBlock {
-  manufacturer: string
-  model: string
-  maxMediaWidthMm: number
-  maxMediaHeightMm: number
-  maxResolutionDpi: number
-}
-
-export interface CtpBlock {
-  manufacturer: string
-  model: string
-  technology: string
-  maxPlateWidthMm: number
-  maxPlateHeightMm: number
-  platesPerHour: number
-  resolutionDpi: number
-}
-
-export interface PlateCopierBlock {
-  manufacturer: string
-  model: string
-  doubleSided: boolean
-  hasVacuumSystem: boolean
-  hasUvExposure: boolean
-}
-
-/** Conjunto de blocos específicos — exatamente um é preenchido por máquina. */
-export interface MachineSpecificBlocks {
-  offset?: OffsetBlock
-  digital?: DigitalBlock
-  screenPrinting?: ScreenPrintingBlock
-  guillotine?: GuillotineBlock
-  dieCutting?: DieCuttingBlock
-  perforating?: PerforatingBlock
-  folding?: FoldingBlock
-  stitching?: StitchingBlock
-  holePunching?: HolePunchingBlock
-  laminating?: LaminatingBlock
-  imagesetter?: ImagesetterBlock
-  ctp?: CtpBlock
-  plateCopier?: PlateCopierBlock
+  speedRamp: OffsetSpeedRamp
 }
 
 // ---------- Request / Response ----------
 
-/** Corpo de POST /{base} e PUT /{base}/{id}. `active` só é enviado no PUT. */
-export interface MachineRequest extends MachineSpecificBlocks {
+/** Corpo de POST /printing-machines e PUT /printing-machines/{id}. */
+export interface MachineRequest {
   customerId: number
   machineType: MachineType
   name: string
+  /** Enviado apenas no PUT. */
   active?: boolean
   formatRange: FormatRangeRequest
   gripMargins: GripMargins
   paperFeeder: PaperFeeder
-  hourlyCost: HourlyCostRequest
+  /** Custo-Hora Máquina (R$) como string decimal. */
+  hourlyCost: string
+  offset: OffsetBlock
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */
@@ -263,24 +139,12 @@ export interface Machine {
   active: boolean
   formatRange: FormatRangeResponse
   gripMargins: GripMargins
-  paperFeeder: PaperFeeder
-  hourlyCost: HourlyCostResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
   offset: OffsetBlock | null
-  digital: DigitalBlock | null
-  screenPrinting: ScreenPrintingBlock | null
-  guillotine: GuillotineBlock | null
-  dieCutting: DieCuttingBlock | null
-  perforating: PerforatingBlock | null
-  folding: FoldingBlock | null
-  stitching: StitchingBlock | null
-  holePunching: HolePunchingBlock | null
-  laminating: LaminatingBlock | null
-  imagesetter: ImagesetterBlock | null
-  ctp: CtpBlock | null
-  plateCopier: PlateCopierBlock | null
 }
 
-/** Item da grid paginada (GET /{base}/page). */
+/** Item da grid paginada (GET /printing-machines/page). */
 export interface MachinePageItem {
   id: number
   name: string
@@ -297,7 +161,7 @@ export interface MachinePage {
   totalPages: number
 }
 
-/** Item do seletor enxuto (GET /{base}). */
+/** Item do seletor enxuto (GET /printing-machines). */
 export interface MachineKeyValue {
   id: number
   value: string

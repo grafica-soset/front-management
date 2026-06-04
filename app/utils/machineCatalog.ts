@@ -1,389 +1,258 @@
 /**
- * Catálogo de metadados de máquinas — fonte única de verdade para dirigir
- * menus, roteamento, formulários e leitura das responses
- * (cf. .docs/machines-frontend-guide.md, seção "Regra-chave").
+ * Metadados e helpers do cadastro de máquinas.
  *
- * Aqui ficam: o mapa categoria → (slug, endpoint, tipos), os rótulos PT-BR dos
- * tipos, e os descritores de campos dos blocos específicos "planos" — usados
- * pelo renderer genérico SpecificFields. DIGITAL é o único bloco não-plano
- * (costModel polimórfico + lista de consumíveis) e tem componente dedicado.
+ * Hoje só existe a impressora OFFSET (endpoint `/printing-machines`). Este
+ * arquivo concentra: rótulos PT-BR (tipo de máquina, tipo de tinta), construção
+ * do bloco offset default, hidratação da response, helpers de faixas (tiers) e a
+ * validação do formulário (cf. `.docs/offset-machines-api.md`).
  */
 import type {
-  DigitalBlock,
-  DigitalConsumable,
-  MachineCategory,
-  MachineSpecificBlocks,
+  InkType,
   MachineType,
+  OffsetBlock,
+  OffsetInkSetting,
+  OffsetTier,
 } from '@/types/Machine'
 
-export interface CategoryMeta {
-  category: MachineCategory
-  /** Slug usado na URL (ex.: /maquinas/impressao). */
-  slug: string
-  label: string
-  /** Endpoint base da API (ex.: /printing-machines). */
-  base: string
-  types: MachineType[]
-}
-
-export const MACHINE_CATEGORIES: CategoryMeta[] = [
-  {
-    category: 'PRINTING',
-    slug: 'impressao',
-    label: 'Impressão',
-    base: '/printing-machines',
-    types: ['OFFSET', 'DIGITAL', 'SCREEN_PRINTING'],
-  },
-  {
-    category: 'CUTTING',
-    slug: 'corte',
-    label: 'Corte',
-    base: '/cutting-machines',
-    types: ['GUILLOTINE', 'DIE_CUTTING', 'PERFORATING'],
-  },
-  {
-    category: 'FINISHING',
-    slug: 'acabamento',
-    label: 'Acabamento',
-    base: '/finishing-machines',
-    types: ['FOLDING', 'STITCHING', 'HOLE_PUNCHING', 'LAMINATING'],
-  },
-  {
-    category: 'PREPRESS',
-    slug: 'pre-impressao',
-    label: 'Pré-impressão',
-    base: '/prepress-machines',
-    types: ['IMAGESETTER', 'CTP', 'PLATE_COPIER'],
-  },
-]
+/** Endpoint base da API de impressão. */
+export const PRINTING_MACHINES_BASE = '/printing-machines'
 
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
-  OFFSET: 'Impressão Offset',
-  DIGITAL: 'Impressão Digital',
-  SCREEN_PRINTING: 'Serigrafia',
-  GUILLOTINE: 'Guilhotina',
-  DIE_CUTTING: 'Corte e Vinco',
-  PERFORATING: 'Picotadeira / Serrilhadeira',
-  FOLDING: 'Dobradeira',
-  STITCHING: 'Grampeadeira',
-  HOLE_PUNCHING: 'Furadeira',
-  LAMINATING: 'Plastificadora / Laminadora',
-  IMAGESETTER: 'Gravadora de Filmes',
-  CTP: 'Gravadora de Chapas (CTP)',
-  PLATE_COPIER: 'Prensa de Cópia de Chapas',
+  OFFSET: 'Impressora Offset',
 }
 
-/** Chave do bloco específico no JSON, por tipo. */
-export const MACHINE_TYPE_BLOCK_KEY: Record<MachineType, keyof MachineSpecificBlocks> = {
-  OFFSET: 'offset',
-  DIGITAL: 'digital',
-  SCREEN_PRINTING: 'screenPrinting',
-  GUILLOTINE: 'guillotine',
-  DIE_CUTTING: 'dieCutting',
-  PERFORATING: 'perforating',
-  FOLDING: 'folding',
-  STITCHING: 'stitching',
-  HOLE_PUNCHING: 'holePunching',
-  LAMINATING: 'laminating',
-  IMAGESETTER: 'imagesetter',
-  CTP: 'ctp',
-  PLATE_COPIER: 'plateCopier',
+// ---------- Tipos de tinta ----------
+
+export const INK_TYPES: InkType[] = ['LINE', 'CMYK', 'PANTONE']
+
+export const INK_TYPE_LABELS: Record<InkType, string> = {
+  LINE: 'Traço (linha)',
+  CMYK: 'CMYK (escala)',
+  PANTONE: 'Pantone (especial)',
 }
 
-const TYPE_CATEGORY: Record<MachineType, MachineCategory> = MACHINE_CATEGORIES.reduce(
-  (acc, meta) => {
-    for (const type of meta.types) acc[type] = meta.category
-    return acc
-  },
-  {} as Record<MachineType, MachineCategory>,
-)
+// ---------- Bloco offset ----------
 
-export function categoryMetaBySlug(slug: string): CategoryMeta | null {
-  return MACHINE_CATEGORIES.find((m) => m.slug === slug) ?? null
+/** Cria uma faixa (tier) padrão para um tipo de tinta. */
+export function makeTier(inkType: InkType, fromQuantity: number, toQuantity: number | null): OffsetTier {
+  return { inkType, fromQuantity, toQuantity, sheetsPerHour: 0, wastePercent: '0' }
 }
 
-export function categoryMetaByCategory(category: MachineCategory): CategoryMeta | null {
-  return MACHINE_CATEGORIES.find((m) => m.category === category) ?? null
+/** Faixas (tiers) de um tipo de tinta, na ordem em que aparecem no bloco. */
+export function tiersForInk(block: OffsetBlock, ink: InkType): OffsetTier[] {
+  return block.speedRamp.tiers.filter((t) => t.inkType === ink)
 }
 
-export function machineTypeCategory(type: MachineType): MachineCategory {
-  return TYPE_CATEGORY[type]
-}
-
-/** DIGITAL é o único bloco com componente dedicado (não dirigido por descritores). */
-export function isCustomBlock(type: MachineType): boolean {
-  return type === 'DIGITAL'
-}
-
-// ---------- Descritores de campos dos blocos planos ----------
-
-export type FieldKind = 'int' | 'decimal' | 'boolean' | 'text' | 'select'
-
-export interface FieldDescriptor {
-  /** Caminho (dot-path) dentro do bloco específico, ex.: "setupTimes.setupMinutes". */
-  key: string
-  label: string
-  kind: FieldKind
-  min?: number
-  max?: number
-  step?: number
-  maxLength?: number
-  suffix?: string
-  help?: string
-  /** Opções para campos do tipo `select` (valor numérico). */
-  options?: { value: number; label: string }[]
-  /** Quando definido, o valor deve ser ≥ ao valor neste outro caminho. */
-  gteField?: string
-  /** Label do campo referenciado em `gteField`, para a mensagem de erro. */
-  gteLabel?: string
-}
-
-const MANUFACTURER: FieldDescriptor = { key: 'manufacturer', label: 'Fabricante', kind: 'text', maxLength: 100 }
-const MODEL: FieldDescriptor = { key: 'model', label: 'Modelo', kind: 'text', maxLength: 150 }
-
-/** Descritores por tipo. DIGITAL fica de fora (componente dedicado). */
-export const SPECIFIC_FIELDS: Partial<Record<MachineType, FieldDescriptor[]>> = {
-  OFFSET: [
-    {
-      key: 'numberOfColors',
-      label: 'Nº de cores (castelos)',
-      kind: 'select',
-      options: [
-        { value: 1, label: '1' },
-        { value: 2, label: '2' },
-        { value: 3, label: '3' },
-        { value: 4, label: '4' },
-      ],
-    },
-    { key: 'supportsNumbering', label: 'Suporta numeração?', kind: 'boolean' },
-    { key: 'setupTimes.setupMinutes', label: 'Setup (min)', kind: 'int', min: 0 },
-    { key: 'setupTimes.feedSwapMinutes', label: 'Troca de pilha (min)', kind: 'int', min: 0 },
-    { key: 'setupTimes.cleanupMinutes', label: 'Lavagem (min)', kind: 'int', min: 0 },
-    { key: 'speedProfile.minSpeedSheetsPerHour', label: 'Vmín (folhas/h)', kind: 'int', min: 1 },
-    {
-      key: 'speedProfile.maxSpeedSheetsPerHour',
-      label: 'Vmáx (folhas/h)',
-      kind: 'int',
-      min: 1,
-      gteField: 'speedProfile.minSpeedSheetsPerHour',
-      gteLabel: 'Vmín',
-    },
-    { key: 'speedProfile.cruiseSpeedSheets', label: 'Folhas de rampa', kind: 'int', min: 1 },
-  ],
-  SCREEN_PRINTING: [
-    { key: 'maxPrintAreaWidthMm', label: 'Área máx — largura', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxPrintAreaHeightMm', label: 'Área máx — altura', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'simultaneousColors', label: 'Cores simultâneas (telas)', kind: 'int', min: 1 },
-    { key: 'baseSetupMinutes', label: 'Setup base de tela (min)', kind: 'int', min: 0 },
-  ],
-  GUILLOTINE: [
-    { key: 'cuttingWidthMm', label: 'Largura de corte / lâmina', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'clampForceKgf', label: 'Força do prensador', kind: 'decimal', min: 0.01, step: 0.01, suffix: 'kgf' },
-    { key: 'secondsPerCut', label: 'Tempo médio por corte', kind: 'decimal', min: 0.001, step: 0.001, suffix: 's' },
-    { key: 'numberOfPrograms', label: 'Programas de corte (0 = manual)', kind: 'int', min: 0 },
-    { key: 'hasSafetyCurtain', label: 'Cortina de segurança?', kind: 'boolean' },
-  ],
-  DIE_CUTTING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxSheetWidthMm', label: 'Largura máx', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxSheetHeightMm', label: 'Altura máx', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'automaticFeeding', label: 'Alimentação automática?', kind: 'boolean' },
-  ],
-  PERFORATING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxCuttingWidthMm', label: 'Largura máx de corte/serrilha', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'sheetsPerCycle', label: 'Folhas por ciclo', kind: 'int', min: 1 },
-    { key: 'referencePaperWeightGsm', label: 'Gramatura de referência', kind: 'int', min: 1, suffix: 'g/m²' },
-  ],
-  FOLDING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxFoldsPerSheet', label: 'Dobras por folha', kind: 'int', min: 1 },
-    { key: 'sheetsPerHour', label: 'Folhas/hora', kind: 'int', min: 1 },
-  ],
-  STITCHING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'staplesPerMinute', label: 'Grampos por minuto', kind: 'int', min: 1 },
-    { key: 'minWireThicknessMm', label: 'Espessura mín. do arame', kind: 'decimal', min: 0.01, step: 0.01, suffix: 'mm' },
-    {
-      key: 'maxWireThicknessMm',
-      label: 'Espessura máx. do arame',
-      kind: 'decimal',
-      min: 0.01,
-      step: 0.01,
-      suffix: 'mm',
-      gteField: 'minWireThicknessMm',
-      gteLabel: 'espessura mín.',
-    },
-    { key: 'maxStitchingThicknessMm', label: 'Espessura máx. de grampeação', kind: 'int', min: 1, suffix: 'mm' },
-  ],
-  HOLE_PUNCHING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'perforationLengthMm', label: 'Extensão de perfuração', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'sheetsPerStroke', label: 'Folhas por batida', kind: 'int', min: 1 },
-    { key: 'simultaneousHoles', label: 'Furos simultâneos', kind: 'int', min: 1 },
-  ],
-  LAMINATING: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxLaminationWidthMm', label: 'Largura máx de laminação', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'cruiseSpeedMetersPerHour', label: 'Velocidade', kind: 'int', min: 1, suffix: 'm/h' },
-    { key: 'supportsDuplex', label: 'Lamina duas faces?', kind: 'boolean' },
-  ],
-  IMAGESETTER: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'maxMediaWidthMm', label: 'Largura máx da mídia', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxMediaHeightMm', label: 'Altura máx da mídia', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxResolutionDpi', label: 'Resolução máx', kind: 'int', min: 1, suffix: 'dpi' },
-  ],
-  CTP: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'technology', label: 'Tecnologia', kind: 'text', maxLength: 150, help: 'Ex.: Laser Violeta 405nm' },
-    { key: 'maxPlateWidthMm', label: 'Largura máx da chapa', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'maxPlateHeightMm', label: 'Altura máx da chapa', kind: 'int', min: 1, suffix: 'mm' },
-    { key: 'platesPerHour', label: 'Chapas/hora', kind: 'int', min: 1 },
-    { key: 'resolutionDpi', label: 'Resolução', kind: 'int', min: 1, suffix: 'dpi' },
-  ],
-  PLATE_COPIER: [
-    MANUFACTURER,
-    MODEL,
-    { key: 'doubleSided', label: 'Dupla face?', kind: 'boolean' },
-    { key: 'hasVacuumSystem', label: 'Sistema de vácuo?', kind: 'boolean' },
-    { key: 'hasUvExposure', label: 'Exposição UV?', kind: 'boolean' },
-  ],
-}
-
-// ---------- Helpers de leitura/escrita por dot-path ----------
-
-export function getByPath(obj: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce<unknown>((acc, key) => {
-    if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key]
-    return undefined
-  }, obj)
-}
-
-export function setByPath(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const keys = path.split('.')
-  let target = obj
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i]!
-    if (typeof target[key] !== 'object' || target[key] === null) target[key] = {}
-    target = target[key] as Record<string, unknown>
-  }
-  target[keys[keys.length - 1]!] = value
-}
-
-/** Default do bloco DIGITAL (costModel inicia em CLICK_CHARGE zerado). */
-export function defaultDigitalBlock(): DigitalBlock {
+/**
+ * Bloco offset vazio. Cada tinta começa com uma única faixa aberta (1 → ∞);
+ * o usuário adiciona/edita faixas conforme a máquina (cf. doc — totalmente
+ * configurável).
+ */
+export function defaultOffsetBlock(): OffsetBlock {
   return {
-    pagesPerMinute: 1,
+    numberOfColors: 1,
     supportsNumbering: false,
-    duplexMultiplier: 1,
-    costModel: { type: 'CLICK_CHARGE', pricePerMonoClick: 0, pricePerColorClick: 0 },
-    calibration: { sheetsPerCalibration: 0, intervalMinutes: 0 },
+    maxNumberingUnits: 0,
+    setupTimes: {
+      plateSetupMinutesPerColor: 0,
+      colorMatchingMinutes: 0,
+      numberingSetupMinutesPerUnit: 0,
+      paperFeedSetupMinutes: 0,
+      feedTimeSecondsPerLoad: 0,
+      feedLoadIncrementMm: 40,
+      washMinutesPerColor: 0,
+    },
+    speedRamp: {
+      minSpeedSheetsPerHour: 0,
+      maxSpeedSheetsPerHour: 0,
+      numberingMaxSheetsPerHour: 0,
+      idealWeightMinGsm: 63,
+      idealWeightMaxGsm: 180,
+      belowIdealSpeedReducerPercent: '0',
+      aboveIdealSpeedReducerPercent: '0',
+      fullCoverageSpeedReducerPercent: '0',
+      numberingSpeedReducerPercent: '0',
+      inkSettings: INK_TYPES.map((inkType) => ({
+        inkType,
+        initialWasteSheets: 0,
+        fullCoverageExtraWastePercent: '0',
+      })),
+      // Uma faixa aberta por tinta (0 → ∞); o usuário define as faixas conforme
+      // a máquina (limites livres, validados por contiguidade).
+      tiers: INK_TYPES.map((inkType) => makeTier(inkType, 0, null)),
+    },
   }
 }
 
-/** Constrói um bloco específico vazio (defaults sensatos) para o tipo. */
-export function defaultSpecificBlock(type: MachineType): Record<string, unknown> {
-  if (type === 'DIGITAL') return defaultDigitalBlock() as unknown as Record<string, unknown>
-  const descriptors = SPECIFIC_FIELDS[type] ?? []
-  const block: Record<string, unknown> = {}
-  for (const d of descriptors) {
-    let value: unknown
-    if (d.kind === 'boolean') value = false
-    else if (d.kind === 'text') value = ''
-    else if (d.kind === 'select') value = d.options?.[0]?.value ?? 0
-    else value = d.min ?? 0
-    setByPath(block, d.key, value)
+/**
+ * Normaliza o bloco offset vindo da API para uso na UI: tintas e ajustes na
+ * ordem canônica de `INK_TYPES`, faixas agrupadas por tinta e ordenadas por
+ * `fromQuantity`, e percentuais como string. Tinta sem faixas recebe uma faixa
+ * aberta default, de modo que o formulário nunca quebre.
+ */
+export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
+  const base = defaultOffsetBlock()
+  const inkByType = new Map(block.speedRamp?.inkSettings?.map((s) => [s.inkType, s]) ?? [])
+
+  const inkSettings: OffsetInkSetting[] = INK_TYPES.map((inkType) => {
+    const found = inkByType.get(inkType)
+    return found
+      ? {
+          inkType,
+          initialWasteSheets: found.initialWasteSheets,
+          fullCoverageExtraWastePercent: String(found.fullCoverageExtraWastePercent),
+        }
+      : base.speedRamp.inkSettings.find((s) => s.inkType === inkType)!
+  })
+
+  const tiers: OffsetTier[] = INK_TYPES.flatMap((inkType) => {
+    const list = (block.speedRamp?.tiers ?? [])
+      .filter((t) => t.inkType === inkType)
+      .map((t) => ({
+        inkType,
+        fromQuantity: t.fromQuantity,
+        toQuantity: t.toQuantity ?? null,
+        sheetsPerHour: t.sheetsPerHour,
+        wastePercent: String(t.wastePercent),
+      }))
+      .sort((a, b) => a.fromQuantity - b.fromQuantity)
+    return list.length ? list : [makeTier(inkType, 0, null)]
+  })
+
+  return {
+    numberOfColors: block.numberOfColors,
+    supportsNumbering: block.supportsNumbering,
+    maxNumberingUnits: block.maxNumberingUnits,
+    setupTimes: { ...base.setupTimes, ...block.setupTimes },
+    speedRamp: {
+      minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,
+      maxSpeedSheetsPerHour: block.speedRamp.maxSpeedSheetsPerHour ?? 0,
+      numberingMaxSheetsPerHour: block.speedRamp.numberingMaxSheetsPerHour ?? 0,
+      idealWeightMinGsm: block.speedRamp.idealWeightMinGsm,
+      idealWeightMaxGsm: block.speedRamp.idealWeightMaxGsm,
+      belowIdealSpeedReducerPercent: String(block.speedRamp.belowIdealSpeedReducerPercent),
+      aboveIdealSpeedReducerPercent: String(block.speedRamp.aboveIdealSpeedReducerPercent),
+      fullCoverageSpeedReducerPercent: String(block.speedRamp.fullCoverageSpeedReducerPercent),
+      numberingSpeedReducerPercent: String(block.speedRamp.numberingSpeedReducerPercent),
+      inkSettings,
+      tiers,
+    },
   }
-  return block
 }
 
-/** Valida um bloco plano contra seus descritores. Retorna erros por dot-path. */
-export function validateDescriptors(
-  block: Record<string, unknown>,
-  descriptors: FieldDescriptor[],
-): Record<string, string> {
-  const errors: Record<string, string> = {}
-  for (const d of descriptors) {
-    const value = getByPath(block, d.key)
-    if (d.kind === 'text') {
-      const text = typeof value === 'string' ? value.trim() : ''
-      if (!text) errors[d.key] = `Informe ${d.label.toLowerCase()}.`
-      else if (d.maxLength && text.length > d.maxLength) errors[d.key] = `Máximo de ${d.maxLength} caracteres.`
-      continue
+// ---------- Validação ----------
+
+/** `true` se o texto representa um número finito ≥ 0. */
+function isNonNegativeNumber(value: string | number): boolean {
+  const num = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(num) && num >= 0
+}
+
+/**
+ * Valida as faixas de um tipo de tinta (na ordem dada). Retorna a primeira
+ * mensagem de erro encontrada, ou `null` se estiver tudo certo. Regras:
+ * ao menos uma faixa; contíguas e sem sobreposição; só a última pode ser aberta;
+ * velocidade dentro do envelope `[min, max]`.
+ */
+function validateInkTiers(
+  tiers: OffsetTier[],
+  minSpeed: number,
+  maxSpeed: number,
+): string | null {
+  if (tiers.length === 0) return 'Adicione ao menos uma faixa.'
+  const envelopeOk = minSpeed >= 1 && maxSpeed >= minSpeed
+
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i]!
+    const isLast = i === tiers.length - 1
+    const pos = i + 1
+
+    if (!(t.fromQuantity >= 0)) return `Faixa ${pos}: "de" inválido.`
+
+    if (t.toQuantity === null) {
+      if (!isLast) return 'Apenas a última faixa pode ser aberta (sem "até").'
+    } else if (!(t.toQuantity >= t.fromQuantity)) {
+      return `Faixa ${pos}: "até" deve ser ≥ "de".`
     }
-    if (d.kind === 'boolean' || d.kind === 'select') continue
-    const num = typeof value === 'number' ? value : Number(value)
-    if (!Number.isFinite(num)) {
-      errors[d.key] = 'Valor inválido.'
-      continue
-    }
-    if (d.min !== undefined && num < d.min) {
-      errors[d.key] = `Valor mínimo: ${d.min}.`
-      continue
-    }
-    if (d.max !== undefined && num > d.max) {
-      errors[d.key] = `Valor máximo: ${d.max}.`
-      continue
-    }
-    if (d.gteField) {
-      const ref = Number(getByPath(block, d.gteField))
-      if (Number.isFinite(ref) && num < ref) {
-        errors[d.key] = `Deve ser maior ou igual a ${d.gteLabel ?? d.gteField}.`
+
+    if (i > 0) {
+      const prev = tiers[i - 1]!
+      if (prev.toQuantity === null) return 'Só a última faixa pode ser aberta.'
+      if (t.fromQuantity !== prev.toQuantity + 1) {
+        return `Faixa ${pos}: deve iniciar em ${prev.toQuantity + 1} (contígua à anterior).`
       }
     }
-  }
-  return errors
-}
 
-/** Rótulos dos tipos de consumível (bloco DIGITAL, WEAR_CONSUMABLES). */
-export const CONSUMABLE_TYPE_LABELS: Record<DigitalConsumable['consumableType'], string> = {
-  DRUM: 'Cilindro',
-  FUSER: 'Fusor',
-  DEVELOPER: 'Revelador',
-}
-
-/** Validação do bloco DIGITAL (costModel polimórfico). Erros por dot-path. */
-export function validateDigital(block: DigitalBlock): Record<string, string> {
-  const errors: Record<string, string> = {}
-  if (!(block.pagesPerMinute >= 1)) errors['pagesPerMinute'] = 'Valor mínimo: 1.'
-  if (!(block.duplexMultiplier > 0)) errors['duplexMultiplier'] = 'Deve ser maior que zero.'
-  if (block.calibration.sheetsPerCalibration < 0) errors['calibration.sheetsPerCalibration'] = 'Valor mínimo: 0.'
-  if (block.calibration.intervalMinutes < 0) errors['calibration.intervalMinutes'] = 'Valor mínimo: 0.'
-
-  const cm = block.costModel
-  if (cm.type === 'CLICK_CHARGE') {
-    if (cm.pricePerMonoClick < 0) errors['costModel.pricePerMonoClick'] = 'Valor mínimo: 0.'
-    if (cm.pricePerColorClick < 0) errors['costModel.pricePerColorClick'] = 'Valor mínimo: 0.'
-  } else if (cm.type === 'INK_PURCHASE') {
-    if (cm.inkPricePerLiter < 0) errors['costModel.inkPricePerLiter'] = 'Valor mínimo: 0.'
-    if (cm.averageCoveragePerSheetMl < 0) errors['costModel.averageCoveragePerSheetMl'] = 'Valor mínimo: 0.'
-  } else {
-    if (cm.consumables.length === 0) {
-      errors['costModel.consumables'] = 'Adicione ao menos um consumível.'
+    if (!(t.sheetsPerHour >= 1)) return `Faixa ${pos}: informe a velocidade (folhas/h).`
+    if (envelopeOk && (t.sheetsPerHour < minSpeed || t.sheetsPerHour > maxSpeed)) {
+      return `Faixa ${pos}: a velocidade (folhas/h) deve estar entre ${minSpeed} e ${maxSpeed} (envelope da máquina).`
     }
-    cm.consumables.forEach((item, i) => {
-      if (item.price < 0) errors[`costModel.consumables.${i}.price`] = 'Valor mínimo: 0.'
-      if (!(item.durabilityCopies >= 1)) errors[`costModel.consumables.${i}.durabilityCopies`] = 'Valor mínimo: 1.'
-      if (item.description && item.description.length > 150) {
-        errors[`costModel.consumables.${i}.description`] = 'Máximo de 150 caracteres.'
-      }
-    })
+    if (!isNonNegativeNumber(t.wastePercent)) return `Faixa ${pos}: quebra inválida.`
   }
-  return errors
+  return null
 }
 
-/** Cria um costModel default para o tipo escolhido (usado ao trocar o tipo). */
-export function defaultCostModel(type: DigitalBlock['costModel']['type']): DigitalBlock['costModel'] {
-  if (type === 'CLICK_CHARGE') return { type: 'CLICK_CHARGE', pricePerMonoClick: 0, pricePerColorClick: 0 }
-  if (type === 'INK_PURCHASE') return { type: 'INK_PURCHASE', inkPricePerLiter: 0, averageCoveragePerSheetMl: 0 }
-  return { type: 'WEAR_CONSUMABLES', consumables: [] }
+/**
+ * Valida o bloco offset. Erros por dot-path (campos escalares), erros por tinta
+ * em `tiers.<INK>` e um agregado `inkSettings` para os ajustes por tinta.
+ */
+export function validateOffset(block: OffsetBlock): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (!(block.numberOfColors >= 1)) errors['numberOfColors'] = 'Mínimo de 1 cor.'
+  if (block.maxNumberingUnits < 0) errors['maxNumberingUnits'] = 'Valor mínimo: 0.'
+
+  const st = block.setupTimes
+  const setupKeys: (keyof typeof st)[] = [
+    'plateSetupMinutesPerColor',
+    'colorMatchingMinutes',
+    'numberingSetupMinutesPerUnit',
+    'paperFeedSetupMinutes',
+    'feedTimeSecondsPerLoad',
+    'washMinutesPerColor',
+  ]
+  for (const k of setupKeys) {
+    if (!(st[k] >= 0)) errors[`setupTimes.${k}`] = 'Valor mínimo: 0.'
+  }
+  if (!(st.feedLoadIncrementMm >= 1)) errors['setupTimes.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+
+  const sr = block.speedRamp
+
+  // Envelope de velocidade.
+  if (!(sr.minSpeedSheetsPerHour >= 1)) errors['speedRamp.minSpeedSheetsPerHour'] = 'Valor mínimo: 1.'
+  if (!(sr.maxSpeedSheetsPerHour >= sr.minSpeedSheetsPerHour)) {
+    errors['speedRamp.maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  }
+  // Teto com numeração (único da máquina). Só exigido quando há numeração.
+  if (block.supportsNumbering && !(sr.numberingMaxSheetsPerHour >= 1)) {
+    errors['speedRamp.numberingMaxSheetsPerHour'] = 'Valor mínimo: 1.'
+  }
+
+  if (!(sr.idealWeightMinGsm >= 0)) errors['speedRamp.idealWeightMinGsm'] = 'Valor mínimo: 0.'
+  if (sr.idealWeightMaxGsm < sr.idealWeightMinGsm) {
+    errors['speedRamp.idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
+  }
+  const reducerKeys: (keyof typeof sr)[] = [
+    'belowIdealSpeedReducerPercent',
+    'aboveIdealSpeedReducerPercent',
+    'fullCoverageSpeedReducerPercent',
+    'numberingSpeedReducerPercent',
+  ]
+  for (const k of reducerKeys) {
+    if (!isNonNegativeNumber(sr[k] as string)) errors[`speedRamp.${k}`] = 'Percentual inválido.'
+  }
+
+  const inkSettingsOk = sr.inkSettings.every(
+    (s) => s.initialWasteSheets >= 0 && isNonNegativeNumber(s.fullCoverageExtraWastePercent),
+  )
+  if (!inkSettingsOk) errors['inkSettings'] = 'Revise os ajustes por tipo de impressão (não podem ser negativos).'
+
+  // Faixas por tipo de tinta.
+  for (const ink of INK_TYPES) {
+    const inkTiers = sr.tiers.filter((t) => t.inkType === ink)
+    const msg = validateInkTiers(inkTiers, sr.minSpeedSheetsPerHour, sr.maxSpeedSheetsPerHour)
+    if (msg) errors[`tiers.${ink}`] = msg
+  }
+
+  return errors
 }

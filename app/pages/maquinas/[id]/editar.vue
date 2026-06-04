@@ -1,37 +1,32 @@
 <script setup lang="ts">
 /**
- * Edição de máquina. Busca a máquina completa (GET /{base}/{id}) para popular
- * o formulário; o tipo fica bloqueado no MachineForm. Salva via PUT.
+ * Edição de impressora offset. Busca a máquina completa (GET /printing-machines/{id})
+ * para popular o formulário e salva via PUT.
  */
 import { ref } from 'vue'
 import MachineForm from '@/components/forms/MachineForm.vue'
 import { useMachines } from '@/composables/useMachines'
 import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
-import { categoryMetaBySlug } from '@/utils/machineCatalog'
+import { PRINTING_MACHINES_BASE } from '@/utils/machineCatalog'
 import type { Machine, MachineRequest } from '@/types/Machine'
 
 definePageMeta({ middleware: 'auth', key: (route) => route.path })
 
 const route = useRoute()
-const meta = categoryMetaBySlug(String(route.params.category))
-if (!meta) throw createError({ statusCode: 404, statusMessage: 'Categoria de máquina inválida', fatal: true })
-
 const machineId = Number(route.params.id)
 if (!Number.isFinite(machineId) || machineId <= 0) {
   throw createError({ statusCode: 404, statusMessage: 'Máquina inválida', fatal: true })
 }
 
 const toast = useToast()
-const { getById, update } = useMachines(meta.base)
+const { getById, update } = useMachines(PRINTING_MACHINES_BASE)
 
 const machine = ref<Machine | null>(null)
 const loadingDetail = ref(true)
 const detailError = ref<string | null>(null)
 const saving = ref(false)
 const serverError = ref<string | null>(null)
-
-const listUrl = `/maquinas/${meta.slug}`
 
 onMounted(async () => {
   try {
@@ -49,7 +44,7 @@ const handleSubmit = async (payload: MachineRequest) => {
   try {
     const updated = await update(machineId, payload)
     toast.success(`Máquina "${updated.name}" atualizada.`)
-    await navigateTo(listUrl)
+    await navigateTo('/maquinas')
   } catch (err) {
     serverError.value = extractApiError(err, 'Falha ao atualizar a máquina.')
   } finally {
@@ -61,7 +56,7 @@ const handleSubmit = async (payload: MachineRequest) => {
 <template>
   <div class="space-y-6">
     <header>
-      <NuxtLink :to="listUrl" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+      <NuxtLink to="/maquinas" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
         Voltar para a lista
       </NuxtLink>
@@ -75,14 +70,7 @@ const handleSubmit = async (payload: MachineRequest) => {
       {{ detailError }}
     </div>
     <div v-else-if="machine" class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
-      <MachineForm
-        :category="meta.category"
-        :initial="machine"
-        :loading="saving"
-        :server-error="serverError"
-        @submit="handleSubmit"
-        @cancel="navigateTo(listUrl)"
-      />
+      <MachineForm mode="edit" :initial="machine" :loading="saving" :server-error="serverError" @submit="handleSubmit" @cancel="navigateTo('/maquinas')" />
     </div>
   </div>
 </template>
