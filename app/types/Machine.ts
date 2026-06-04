@@ -20,15 +20,6 @@ export type MachineType = 'OFFSET'
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
 
-/** Faixas de volume (quantidade de folhas) que indexam a matriz. */
-export type QuantityTier =
-  | 'UP_TO_500'
-  | 'FROM_500_TO_1000'
-  | 'FROM_1000_TO_2000'
-  | 'FROM_2000_TO_3000'
-  | 'FROM_3000_TO_5000'
-  | 'ABOVE_5000'
-
 // ---------- Blocos comuns ----------
 
 /** Faixa de formato de papel (largura × comprimento), em milímetros. */
@@ -68,23 +59,33 @@ export interface OffsetSetupTimes {
   washMinutesPerColor: number
 }
 
-/** Ajustes por tipo de tinta — um item por LINE, CMYK e PANTONE. */
+/** Ajustes por tipo de impressão — um item por LINE, CMYK e PANTONE. */
 export interface OffsetInkSetting {
   inkType: InkType
-  numberingMaxSheetsPerHour: number
   initialWasteSheets: number
   fullCoverageExtraWastePercent: string
 }
 
-/** Célula da matriz — uma por (inkType × quantityTier), 18 no total. */
+/**
+ * Faixa de quantidade configurável (por tipo de tinta). O usuário define quantas
+ * faixas quiser, com início/fim livres. `toQuantity` nulo = faixa aberta
+ * ("acima de"), permitida apenas na última faixa de cada tinta. As faixas de uma
+ * mesma tinta devem ser contíguas (próxima `fromQuantity` = anterior `toQuantity` + 1).
+ */
 export interface OffsetTier {
   inkType: InkType
-  quantityTier: QuantityTier
+  fromQuantity: number
+  toQuantity: number | null
   sheetsPerHour: number
   wastePercent: string
 }
 
 export interface OffsetSpeedRamp {
+  /** Envelope de velocidade da máquina (piso e teto físicos). */
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  /** Teto de velocidade quando há numeração — único da máquina (não varia por tinta). */
+  numberingMaxSheetsPerHour: number
   idealWeightMinGsm: number
   idealWeightMaxGsm: number
   belowIdealSpeedReducerPercent: string

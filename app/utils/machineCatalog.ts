@@ -2,8 +2,8 @@
  * Metadados e helpers do cadastro de máquinas.
  *
  * Hoje só existe a impressora OFFSET (endpoint `/printing-machines`). Este
- * arquivo concentra: rótulos PT-BR (tipo de máquina, tipo de tinta, faixas de
- * volume), construção do bloco offset default, hidratação da response e a
+ * arquivo concentra: rótulos PT-BR (tipo de máquina, tipo de tinta), construção
+ * do bloco offset default, hidratação da response, helpers de faixas (tiers) e a
  * validação do formulário (cf. `.docs/offset-machines-api.md`).
  */
 import type {
@@ -12,7 +12,6 @@ import type {
   OffsetBlock,
   OffsetInkSetting,
   OffsetTier,
-  QuantityTier,
 } from '@/types/Machine'
 
 /** Endpoint base da API de impressão. */
@@ -28,33 +27,27 @@ export const INK_TYPES: InkType[] = ['LINE', 'CMYK', 'PANTONE']
 
 export const INK_TYPE_LABELS: Record<InkType, string> = {
   LINE: 'Traço (linha)',
-  CMYK: 'CMYK (seleção)',
+  CMYK: 'CMYK (escala)',
   PANTONE: 'Pantone (especial)',
-}
-
-// ---------- Faixas de volume (quantidade de folhas) ----------
-
-export const QUANTITY_TIERS: QuantityTier[] = [
-  'UP_TO_500',
-  'FROM_500_TO_1000',
-  'FROM_1000_TO_2000',
-  'FROM_2000_TO_3000',
-  'FROM_3000_TO_5000',
-  'ABOVE_5000',
-]
-
-export const QUANTITY_TIER_LABELS: Record<QuantityTier, string> = {
-  UP_TO_500: 'Até 500',
-  FROM_500_TO_1000: '501 – 1.000',
-  FROM_1000_TO_2000: '1.001 – 2.000',
-  FROM_2000_TO_3000: '2.001 – 3.000',
-  FROM_3000_TO_5000: '3.001 – 5.000',
-  ABOVE_5000: 'Acima de 5.000',
 }
 
 // ---------- Bloco offset ----------
 
-/** Bloco offset vazio, com a matriz completa (3 tintas × 6 faixas = 18 células). */
+/** Cria uma faixa (tier) padrão para um tipo de tinta. */
+export function makeTier(inkType: InkType, fromQuantity: number, toQuantity: number | null): OffsetTier {
+  return { inkType, fromQuantity, toQuantity, sheetsPerHour: 0, wastePercent: '0' }
+}
+
+/** Faixas (tiers) de um tipo de tinta, na ordem em que aparecem no bloco. */
+export function tiersForInk(block: OffsetBlock, ink: InkType): OffsetTier[] {
+  return block.speedRamp.tiers.filter((t) => t.inkType === ink)
+}
+
+/**
+ * Bloco offset vazio. Cada tinta começa com uma única faixa aberta (1 → ∞);
+ * o usuário adiciona/edita faixas conforme a máquina (cf. doc — totalmente
+ * configurável).
+ */
 export function defaultOffsetBlock(): OffsetBlock {
   return {
     numberOfColors: 1,
@@ -69,6 +62,9 @@ export function defaultOffsetBlock(): OffsetBlock {
       washMinutesPerColor: 0,
     },
     speedRamp: {
+      minSpeedSheetsPerHour: 0,
+      maxSpeedSheetsPerHour: 0,
+      numberingMaxSheetsPerHour: 0,
       idealWeightMinGsm: 63,
       idealWeightMaxGsm: 180,
       belowIdealSpeedReducerPercent: '0',
@@ -77,60 +73,50 @@ export function defaultOffsetBlock(): OffsetBlock {
       numberingSpeedReducerPercent: '0',
       inkSettings: INK_TYPES.map((inkType) => ({
         inkType,
-        numberingMaxSheetsPerHour: 0,
         initialWasteSheets: 0,
         fullCoverageExtraWastePercent: '0',
       })),
-      tiers: INK_TYPES.flatMap((inkType) =>
-        QUANTITY_TIERS.map((quantityTier) => ({
-          inkType,
-          quantityTier,
-          sheetsPerHour: 0,
-          wastePercent: '0',
-        })),
-      ),
+      // Uma faixa aberta por tinta (0 → ∞); o usuário define as faixas conforme
+      // a máquina (limites livres, validados por contiguidade).
+      tiers: INK_TYPES.map((inkType) => makeTier(inkType, 0, null)),
     },
   }
 }
 
 /**
- * Normaliza o bloco offset vindo da API para a ordem canônica usada na UI
- * (tintas na ordem de `INK_TYPES`, faixas na ordem de `QUANTITY_TIERS`) e
- * garante que percentuais venham como string. Células ausentes são preenchidas
- * com o default, de modo que o formulário nunca quebre.
+ * Normaliza o bloco offset vindo da API para uso na UI: tintas e ajustes na
+ * ordem canônica de `INK_TYPES`, faixas agrupadas por tinta e ordenadas por
+ * `fromQuantity`, e percentuais como string. Tinta sem faixas recebe uma faixa
+ * aberta default, de modo que o formulário nunca quebre.
  */
 export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
   const base = defaultOffsetBlock()
   const inkByType = new Map(block.speedRamp?.inkSettings?.map((s) => [s.inkType, s]) ?? [])
-  const tierByKey = new Map(
-    block.speedRamp?.tiers?.map((t) => [`${t.inkType}:${t.quantityTier}`, t]) ?? [],
-  )
 
   const inkSettings: OffsetInkSetting[] = INK_TYPES.map((inkType) => {
     const found = inkByType.get(inkType)
     return found
       ? {
           inkType,
-          numberingMaxSheetsPerHour: found.numberingMaxSheetsPerHour,
           initialWasteSheets: found.initialWasteSheets,
           fullCoverageExtraWastePercent: String(found.fullCoverageExtraWastePercent),
         }
       : base.speedRamp.inkSettings.find((s) => s.inkType === inkType)!
   })
 
-  const tiers: OffsetTier[] = INK_TYPES.flatMap((inkType) =>
-    QUANTITY_TIERS.map((quantityTier) => {
-      const found = tierByKey.get(`${inkType}:${quantityTier}`)
-      return found
-        ? {
-            inkType,
-            quantityTier,
-            sheetsPerHour: found.sheetsPerHour,
-            wastePercent: String(found.wastePercent),
-          }
-        : { inkType, quantityTier, sheetsPerHour: 0, wastePercent: '0' }
-    }),
-  )
+  const tiers: OffsetTier[] = INK_TYPES.flatMap((inkType) => {
+    const list = (block.speedRamp?.tiers ?? [])
+      .filter((t) => t.inkType === inkType)
+      .map((t) => ({
+        inkType,
+        fromQuantity: t.fromQuantity,
+        toQuantity: t.toQuantity ?? null,
+        sheetsPerHour: t.sheetsPerHour,
+        wastePercent: String(t.wastePercent),
+      }))
+      .sort((a, b) => a.fromQuantity - b.fromQuantity)
+    return list.length ? list : [makeTier(inkType, 0, null)]
+  })
 
   return {
     numberOfColors: block.numberOfColors,
@@ -138,6 +124,9 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
     maxNumberingUnits: block.maxNumberingUnits,
     setupTimes: { ...base.setupTimes, ...block.setupTimes },
     speedRamp: {
+      minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,
+      maxSpeedSheetsPerHour: block.speedRamp.maxSpeedSheetsPerHour ?? 0,
+      numberingMaxSheetsPerHour: block.speedRamp.numberingMaxSheetsPerHour ?? 0,
       idealWeightMinGsm: block.speedRamp.idealWeightMinGsm,
       idealWeightMaxGsm: block.speedRamp.idealWeightMaxGsm,
       belowIdealSpeedReducerPercent: String(block.speedRamp.belowIdealSpeedReducerPercent),
@@ -159,8 +148,52 @@ function isNonNegativeNumber(value: string | number): boolean {
 }
 
 /**
- * Valida o bloco offset. Retorna erros por dot-path (campos escalares) mais a
- * chave agregada `matrix` quando alguma célula da matriz/ajuste é inválida.
+ * Valida as faixas de um tipo de tinta (na ordem dada). Retorna a primeira
+ * mensagem de erro encontrada, ou `null` se estiver tudo certo. Regras:
+ * ao menos uma faixa; contíguas e sem sobreposição; só a última pode ser aberta;
+ * velocidade dentro do envelope `[min, max]`.
+ */
+function validateInkTiers(
+  tiers: OffsetTier[],
+  minSpeed: number,
+  maxSpeed: number,
+): string | null {
+  if (tiers.length === 0) return 'Adicione ao menos uma faixa.'
+  const envelopeOk = minSpeed >= 1 && maxSpeed >= minSpeed
+
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i]!
+    const isLast = i === tiers.length - 1
+    const pos = i + 1
+
+    if (!(t.fromQuantity >= 0)) return `Faixa ${pos}: "de" inválido.`
+
+    if (t.toQuantity === null) {
+      if (!isLast) return 'Apenas a última faixa pode ser aberta (sem "até").'
+    } else if (!(t.toQuantity >= t.fromQuantity)) {
+      return `Faixa ${pos}: "até" deve ser ≥ "de".`
+    }
+
+    if (i > 0) {
+      const prev = tiers[i - 1]!
+      if (prev.toQuantity === null) return 'Só a última faixa pode ser aberta.'
+      if (t.fromQuantity !== prev.toQuantity + 1) {
+        return `Faixa ${pos}: deve iniciar em ${prev.toQuantity + 1} (contígua à anterior).`
+      }
+    }
+
+    if (!(t.sheetsPerHour >= 1)) return `Faixa ${pos}: informe a velocidade (folhas/h).`
+    if (envelopeOk && (t.sheetsPerHour < minSpeed || t.sheetsPerHour > maxSpeed)) {
+      return `Faixa ${pos}: a velocidade (folhas/h) deve estar entre ${minSpeed} e ${maxSpeed} (envelope da máquina).`
+    }
+    if (!isNonNegativeNumber(t.wastePercent)) return `Faixa ${pos}: quebra inválida.`
+  }
+  return null
+}
+
+/**
+ * Valida o bloco offset. Erros por dot-path (campos escalares), erros por tinta
+ * em `tiers.<INK>` e um agregado `inkSettings` para os ajustes por tinta.
  */
 export function validateOffset(block: OffsetBlock): Record<string, string> {
   const errors: Record<string, string> = {}
@@ -182,6 +215,17 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
   if (!(st.feedLoadIncrementMm >= 1)) errors['setupTimes.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
 
   const sr = block.speedRamp
+
+  // Envelope de velocidade.
+  if (!(sr.minSpeedSheetsPerHour >= 1)) errors['speedRamp.minSpeedSheetsPerHour'] = 'Valor mínimo: 1.'
+  if (!(sr.maxSpeedSheetsPerHour >= sr.minSpeedSheetsPerHour)) {
+    errors['speedRamp.maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  }
+  // Teto com numeração (único da máquina). Só exigido quando há numeração.
+  if (block.supportsNumbering && !(sr.numberingMaxSheetsPerHour >= 1)) {
+    errors['speedRamp.numberingMaxSheetsPerHour'] = 'Valor mínimo: 1.'
+  }
+
   if (!(sr.idealWeightMinGsm >= 0)) errors['speedRamp.idealWeightMinGsm'] = 'Valor mínimo: 0.'
   if (sr.idealWeightMaxGsm < sr.idealWeightMinGsm) {
     errors['speedRamp.idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
@@ -196,15 +240,17 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
     if (!isNonNegativeNumber(sr[k] as string)) errors[`speedRamp.${k}`] = 'Percentual inválido.'
   }
 
-  const matrixOk =
-    sr.inkSettings.every(
-      (s) =>
-        s.numberingMaxSheetsPerHour >= 0 &&
-        s.initialWasteSheets >= 0 &&
-        isNonNegativeNumber(s.fullCoverageExtraWastePercent),
-    ) &&
-    sr.tiers.every((t) => t.sheetsPerHour >= 0 && isNonNegativeNumber(t.wastePercent))
-  if (!matrixOk) errors['matrix'] = 'Revise os valores da matriz de velocidade/quebra (não podem ser negativos).'
+  const inkSettingsOk = sr.inkSettings.every(
+    (s) => s.initialWasteSheets >= 0 && isNonNegativeNumber(s.fullCoverageExtraWastePercent),
+  )
+  if (!inkSettingsOk) errors['inkSettings'] = 'Revise os ajustes por tipo de impressão (não podem ser negativos).'
+
+  // Faixas por tipo de tinta.
+  for (const ink of INK_TYPES) {
+    const inkTiers = sr.tiers.filter((t) => t.inkType === ink)
+    const msg = validateInkTiers(inkTiers, sr.minSpeedSheetsPerHour, sr.maxSpeedSheetsPerHour)
+    if (msg) errors[`tiers.${ink}`] = msg
+  }
 
   return errors
 }

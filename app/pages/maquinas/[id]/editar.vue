@@ -70,7 +70,7 @@ const handleSubmit = async (payload: MachineRequest) => {
       {{ detailError }}
     </div>
     <div v-else-if="machine" class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
-      <MachineForm :initial="machine" :loading="saving" :server-error="serverError" @submit="handleSubmit" @cancel="navigateTo('/maquinas')" />
+      <MachineForm mode="edit" :initial="machine" :loading="saving" :server-error="serverError" @submit="handleSubmit" @cancel="navigateTo('/maquinas')" />
     </div>
   </div>
 </template>

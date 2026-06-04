@@ -148,6 +148,12 @@ const handleDelete = async (item: MachinePageItem) => {
                     >
                       Editar
                     </NuxtLink>
+                    <NuxtLink
+                      :to="`/maquinas/nova?duplicate=${item.id}`"
+                      class="px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Duplicar
+                    </NuxtLink>
                     <button
                       type="button"
                       :disabled="deletingId === item.id"

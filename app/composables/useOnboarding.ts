@@ -7,11 +7,13 @@
 import type { CreateCustomerRequest } from '@/types/CreateCustomerRequest'
 import type { CustomerResponse } from '@/types/CustomerResponse'
 import { useAuthStore } from '@/stores/auth'
+import { useAuth } from '@/composables/useAuth'
 import { useCustomers } from '@/composables/useCustomers'
 
 export function useOnboarding() {
   const api = useApi()
   const auth = useAuthStore()
+  const { refresh } = useAuth()
   const { listCustomers, syncActiveCompanySettings } = useCustomers()
 
   /**
@@ -25,8 +27,13 @@ export function useOnboarding() {
     })
     // Reflete no estado local o efeito colateral server-side de ganhar a role CUSTOMER.
     auth.addRole('CUSTOMER')
-    // Já carrega a lista (que auto-seleciona quando há só uma) e suas settings.
+    // O JWT atual foi emitido no login, ANTES de o usuário ganhar a role
+    // CUSTOMER e o vínculo com a empresa. Como GET /customers exige essa role,
+    // o token velho responde 403 (não 401, então o refresh transparente do
+    // useApi não dispara). Renovamos a sessão para o novo access token já
+    // carregar a role/vínculo — só então a listagem funciona neste 1º acesso.
     try {
+      await refresh()
       await listCustomers()
       if (auth.activeCompanyId) await syncActiveCompanySettings()
     } catch (_err) {

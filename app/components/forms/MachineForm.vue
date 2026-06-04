@@ -14,7 +14,10 @@ import OffsetBlockFields from '@/components/forms/machines/OffsetBlock.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
+  /** Dados para pré-preencher o formulário (edição ou duplicação). */
   initial?: Machine | null
+  /** 'edit' → PUT (mostra "ativa"); 'create' → POST, mesmo com `initial` (duplicação). */
+  mode?: 'create' | 'edit'
   loading?: boolean
   serverError?: string | null
 }>()
@@ -24,18 +27,17 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-const isEditing = computed(() => !!props.initial)
+const isEditing = computed(() => props.mode === 'edit')
 
 // O formato é exibido/editado na unidade da empresa e convertido p/ mm no envio.
 const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 
 const form = reactive({
   name: '',
-  // Formato na unidade da empresa (convertido para mm no submit).
+  // Dimensões na unidade da empresa (convertidas para mm no submit).
   formatRange: { minWidth: 0, maxWidth: 0, minLength: 0, maxLength: 0 },
-  // Pinça e altura de pilha sempre em mm (a API não converte esses campos).
-  gripMm: 0,
-  maxStackHeightMm: 0,
+  grip: 0,
+  maxStackHeight: 0,
   // Custo-hora como string decimal (R$).
   hourlyCost: '0',
   active: true,
@@ -56,15 +58,15 @@ function hydrate(machine: Machine) {
     minLength: fromMillimeters(machine.formatRange.minLength.millimeters) ?? 0,
     maxLength: fromMillimeters(machine.formatRange.maxLength.millimeters) ?? 0,
   }
-  form.gripMm = machine.gripMargins.gripMm
-  form.maxStackHeightMm = machine.paperFeeder?.maxStackHeightMm ?? 0
+  form.grip = fromMillimeters(machine.gripMargins.gripMm) ?? 0
+  form.maxStackHeight = fromMillimeters(machine.paperFeeder?.maxStackHeightMm ?? 0) ?? 0
   form.hourlyCost = String(machine.hourlyCost)
   form.active = machine.active
   Object.assign(offset, hydrateOffsetBlock(machine.offset ?? defaultOffsetBlock()))
 }
 
 const inputClass = (errKey: string) => [
-  'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
+  'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full min-w-0 p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
   commonErrors.value[errKey] ? 'border-rose-500 focus:ring-rose-500 focus:border-rose-500' : '',
 ]
 
@@ -80,8 +82,8 @@ function validateCommon(): Record<string, string> {
   if (fr.maxWidth < fr.minWidth) e['formatRange.maxWidth'] = 'Deve ser ≥ largura mínima.'
   if (fr.maxLength < fr.minLength) e['formatRange.maxLength'] = 'Deve ser ≥ comprimento mínimo.'
 
-  if (form.gripMm < 0) e['gripMm'] = 'Valor mínimo: 0.'
-  if (form.maxStackHeightMm < 0) e['maxStackHeightMm'] = 'Valor mínimo: 0.'
+  if (form.grip < 0) e['grip'] = 'Valor mínimo: 0.'
+  if (form.maxStackHeight < 0) e['maxStackHeight'] = 'Valor mínimo: 0.'
 
   const cost = Number(form.hourlyCost)
   if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
@@ -104,8 +106,8 @@ const handleSubmit = () => {
       minLengthMm: toMillimeters(form.formatRange.minLength) ?? 0,
       maxLengthMm: toMillimeters(form.formatRange.maxLength) ?? 0,
     },
-    gripMargins: { gripMm: form.gripMm },
-    paperFeeder: { maxStackHeightMm: form.maxStackHeightMm },
+    gripMargins: { gripMm: toMillimeters(form.grip) ?? 0 },
+    paperFeeder: { maxStackHeightMm: toMillimeters(form.maxStackHeight) ?? 0 },
     hourlyCost: String(form.hourlyCost),
     offset: JSON.parse(JSON.stringify(offset)) as OffsetBlock,
   }
@@ -145,7 +147,7 @@ const handleSubmit = () => {
     </div>
 
     <!-- Formato de papel -->
-    <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+    <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Formato de papel ({{ suffix }})</legend>
       <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita — largura × comprimento.</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -186,21 +188,21 @@ const handleSubmit = () => {
 
     <!-- Pinça + Alimentação + Custo-hora -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
         <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Pinça</legend>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem da pinça (mm)</label>
-        <input v-model.number="form.gripMm" type="number" min="0" step="1" :class="inputClass('gripMm')" />
-        <p v-if="commonErrors['gripMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['gripMm'] }}</p>
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem da pinça ({{ suffix }})</label>
+        <input v-model.number="form.grip" type="number" min="0" step="0.001" :class="inputClass('grip')" />
+        <p v-if="commonErrors['grip']" class="mt-1 text-xs text-rose-600">{{ commonErrors['grip'] }}</p>
       </fieldset>
 
-      <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
         <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Alimentação</legend>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx. da pilha (mm)</label>
-        <input v-model.number="form.maxStackHeightMm" type="number" min="0" step="1" :class="inputClass('maxStackHeightMm')" />
-        <p v-if="commonErrors['maxStackHeightMm']" class="mt-1 text-xs text-rose-600">{{ commonErrors['maxStackHeightMm'] }}</p>
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx. da pilha ({{ suffix }})</label>
+        <input v-model.number="form.maxStackHeight" type="number" min="0" step="0.001" :class="inputClass('maxStackHeight')" />
+        <p v-if="commonErrors['maxStackHeight']" class="mt-1 text-xs text-rose-600">{{ commonErrors['maxStackHeight'] }}</p>
       </fieldset>
 
-      <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
         <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Custo-Hora Máquina</legend>
         <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Valor (R$/hora)</label>
         <input v-model="form.hourlyCost" type="number" min="0" step="0.01" :class="inputClass('hourlyCost')" />
@@ -209,7 +211,7 @@ const handleSubmit = () => {
     </div>
 
     <!-- Bloco offset -->
-    <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+    <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ MACHINE_TYPE_LABELS.OFFSET }}</legend>
       <OffsetBlockFields :block="offset" :errors="offsetErrors" />
     </fieldset>
