@@ -16,6 +16,7 @@ import PaperForm from '@/components/forms/PaperForm.vue'
 import PaperTypeForm from '@/components/forms/PaperTypeForm.vue'
 import { usePapers } from '@/composables/usePapers'
 import { usePaperTypes } from '@/composables/usePaperTypes'
+import { useFormats } from '@/composables/useFormats'
 import { useCustomerPapers } from '@/composables/useCustomerPapers'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useToast } from '@/composables/useToast'
@@ -25,6 +26,7 @@ import { extractApiError } from '@/utils/apiError'
 import { grainDirectionLabel } from '@/utils/grainDirection'
 import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
 import type { PaperType } from '@/types/PaperType'
+import type { Format } from '@/types/Format'
 
 definePageMeta({
   middleware: 'auth',
@@ -36,7 +38,11 @@ const { papers, paperTypes, activePaperIds } = storeToRefs(store)
 
 const { listPapers, createPaper, updatePaper } = usePapers()
 const { listPaperTypes, createPaperType } = usePaperTypes()
+const { listFormats } = useFormats()
 const { listCustomerPapers, toggleCustomerPaper } = useCustomerPapers()
+
+// Formatos para o seletor com busca do PaperForm.
+const formats = ref<Format[]>([])
 const { format } = useUnitConverter()
 const toast = useToast()
 
@@ -70,6 +76,7 @@ const refresh = async () => {
     const tasks: Promise<unknown>[] = [
       listPapers(filterPaperTypeId.value ? { paperTypeId: filterPaperTypeId.value } : {}),
       listPaperTypes(),
+      listFormats().then((f) => { formats.value = f }),
     ]
     if (canToggle.value) tasks.push(listCustomerPapers({ onlyActive: false }))
     await Promise.all(tasks)
@@ -369,6 +376,7 @@ const findPaperType = (id: number): PaperType | null => store.paperTypeById(id)
         :initial="editingPaper"
         :duplicate-from="duplicatingPaper"
         :paper-types="paperTypes"
+        :formats="formats"
         :preselect-paper-type-id="newPaperTypeId"
         :loading="paperFormLoading"
         :server-error="paperFormError"

@@ -34,6 +34,7 @@ export default function useMenu() {
       expanded: false,
       children: [
         { name: 'Cadastro de Papéis', href: '/papeis' },
+        { name: 'Formatos', href: '/formatos' },
         { name: 'Catálogo', href: '/papeis/catalogo' },
         { name: 'Meus papéis', href: '/papeis/meus-papeis' },
       ],
