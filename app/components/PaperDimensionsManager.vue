@@ -13,20 +13,26 @@ import { computed, onMounted, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import PaperForm from '@/components/forms/PaperForm.vue'
 import { usePapers } from '@/composables/usePapers'
+import { useFormats } from '@/composables/useFormats'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
 import { grainDirectionLabel } from '@/utils/grainDirection'
 import type { PaperType } from '@/types/PaperType'
+import type { Format } from '@/types/Format'
 import type { CreatePaperRequest, Paper, UpdatePaperRequest } from '@/types/Paper'
 
 const props = defineProps<{ family: PaperType }>()
 
 const auth = useAuthStore()
 const { listPapers, createPaper, updatePaper, deletePaper } = usePapers()
+const { listFormats } = useFormats()
 const { format } = useUnitConverter()
 const toast = useToast()
+
+// Formatos disponíveis para o seletor com busca do PaperForm.
+const formats = ref<Format[]>([])
 
 const canManage = computed(() => auth.isAdmin || auth.hasCustomer)
 const canDelete = computed(() => auth.isAdmin)
@@ -48,7 +54,20 @@ const reload = async () => {
 }
 defineExpose({ reload })
 
-onMounted(reload)
+const loadFormats = async () => {
+  try {
+    formats.value = await listFormats()
+  } catch {
+    // Falha ao carregar formatos não bloqueia a listagem de dimensões; o seletor
+    // apenas ficará vazio e o usuário será orientado a cadastrar formatos.
+    formats.value = []
+  }
+}
+
+onMounted(() => {
+  reload()
+  loadFormats()
+})
 watch(() => props.family.id, reload)
 
 // ---------- Modal ----------
@@ -201,6 +220,7 @@ const priceLabel = (value: number | null) => (value != null ? `R$ ${value.toFixe
         :duplicate-from="duplicatingPaper"
         :locked-paper-type="family"
         :paper-types="[family]"
+        :formats="formats"
         :loading="formLoading"
         :server-error="formError"
         @submit="handleSubmit"

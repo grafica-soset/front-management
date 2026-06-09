@@ -15,13 +15,24 @@ import type { GrainDirection } from './GrainDirection'
  * (catálogo global / ADMIN sem customerId). `grainDirection` pode vir `null` em
  * papéis legados.
  */
+/** Resumo do Formato (dimensão-padrão) embutido no papel. */
+export interface PaperFormat {
+  id: number
+  name: string
+  width: FormattedDimension
+  height: FormattedDimension
+}
+
 export interface Paper {
   id: number
   paperType: PaperType
+  /** Formato (dimensão-padrão de mercado) ao qual o papel está vinculado. */
+  format: PaperFormat
   code: string
   longName: string
   pricePerKg: number | null
   pricePerSheet: number | null
+  /** Dimensões do papel — espelham as do formato (mantidas no topo por conveniência). */
   width: FormattedDimension
   height: FormattedDimension
   grainDirection: GrainDirection | null
@@ -33,11 +44,11 @@ export interface Paper {
 export interface CreatePaperRequest {
   customerId?: number
   paperTypeId: number
+  /** Formato selecionado — substitui widthMm/heightMm. */
+  formatId: number
   code: string
   longName: string
   pricePerKg: number
-  widthMm: number
-  heightMm: number
   grainDirection: GrainDirection
   isEnvelope: boolean
 }
@@ -46,11 +57,10 @@ export interface CreatePaperRequest {
 export interface UpdatePaperRequest {
   customerId?: number
   paperTypeId: number
+  formatId: number
   code: string
   longName: string
   pricePerKg: number
-  widthMm: number
-  heightMm: number
   grainDirection: GrainDirection
   isEnvelope: boolean
   active: boolean
