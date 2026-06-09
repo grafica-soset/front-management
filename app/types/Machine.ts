@@ -14,8 +14,8 @@ import type { FormattedDimension } from './FormattedDimension'
  *   preservar a precisão exigida pelo backend (BigDecimal).
  */
 
-export type MachineCategory = 'PRINTING'
-export type MachineType = 'OFFSET'
+export type MachineCategory = 'PRINTING' | 'CUTTING'
+export type MachineType = 'OFFSET' | 'GUILLOTINE'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -112,6 +112,23 @@ export interface OffsetBlock {
   speedRamp: OffsetSpeedRamp
 }
 
+// ---------- Bloco GUILLOTINE (categoria CUTTING) ----------
+
+/**
+ * Tempos unitários da guilhotina (em segundos). A guilhotina corta o papel do formato
+ * maior para o menor em múltiplos — a cada "descida" da lâmina há um corte e o operador
+ * move o papel. O número de descidas vem da tabela de conversões do Formato (cutCount);
+ * aqui só guardamos os tempos para o orçamento calcular o total.
+ */
+export interface GuillotineBlock {
+  /** Tempo (s) de uma descida da lâmina — 1x a cada descida (corte). */
+  bladeDescentTimeSeconds: number
+  /** Tempo (s) de movimentação do papel — 1x a cada descida. */
+  paperMovementTimeSeconds: number
+  /** Tempo (s) de setup das medidas — 1x a cada medida distinta. */
+  measureSetupTimeSeconds: number
+}
+
 // ---------- Request / Response ----------
 
 /** Corpo de POST /printing-machines e PUT /printing-machines/{id}. */
@@ -126,7 +143,22 @@ export interface MachineRequest {
   paperFeeder: PaperFeeder
   /** Custo-Hora Máquina (R$) como string decimal. */
   hourlyCost: string
+  /** Tempo de movimento e transporte de insumos (min) — comum a todos os tipos. */
+  supplyTransportTimeMinutes: number
   offset: OffsetBlock
+}
+
+/** Corpo de POST/PUT /cutting-machines. A guilhotina não usa margens/cores/quebras/rampa. */
+export interface CuttingMachineRequest {
+  customerId: number
+  machineType: 'GUILLOTINE'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  guillotine: GuillotineBlock
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */
@@ -141,7 +173,23 @@ export interface Machine {
   gripMargins: GripMargins
   paperFeeder: PaperFeeder | null
   hourlyCost: number
+  supplyTransportTimeMinutes: number
   offset: OffsetBlock | null
+}
+
+/** Máquina de corte (guilhotina) devolvida por GET/{id}, POST e PUT. */
+export interface CuttingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  guillotine: GuillotineBlock | null
 }
 
 /** Item da grid paginada (GET /printing-machines/page). */

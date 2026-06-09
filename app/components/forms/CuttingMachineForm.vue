@@ -1,21 +1,25 @@
 <script setup lang="ts">
 /**
- * Formulário da impressora OFFSET: identificação + formato de papel + margens
- * (pinça e limite de mancha) + alimentação + custo-hora + bloco offset (Rampa de Velocidade).
+ * Formulário da GUILHOTINA (categoria CUTTING): identificação + formato de papel +
+ * alimentação (altura da pilha) + custo-hora + transporte de insumos + bloco guilhotina.
  *
- * Recebe os dados iniciais via prop `initial` (edição) e emite o payload
- * validado em `@submit`. O formato de papel é editado na unidade da empresa
- * ativa e convertido para milímetros no envio (a API persiste sempre em mm).
+ * Diferente da offset, NÃO há margens, cores, quebras nem rampa de velocidade. O formato
+ * de papel é editado na unidade da empresa ativa e convertido para milímetros no envio.
  */
 import { computed, reactive, ref } from 'vue'
-import type { Machine, MachineRequest, OffsetBlock } from '@/types/Machine'
-import { MACHINE_TYPE_LABELS, defaultOffsetBlock, hydrateOffsetBlock, validateOffset } from '@/utils/machineCatalog'
-import OffsetBlockFields from '@/components/forms/machines/OffsetBlock.vue'
+import type { CuttingMachine, CuttingMachineRequest, GuillotineBlock } from '@/types/Machine'
+import {
+  MACHINE_TYPE_LABELS,
+  defaultGuillotineBlock,
+  hydrateGuillotineBlock,
+  validateGuillotine,
+} from '@/utils/machineCatalog'
+import GuillotineBlockFields from '@/components/forms/machines/GuillotineBlock.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
   /** Dados para pré-preencher o formulário (edição ou duplicação). */
-  initial?: Machine | null
+  initial?: CuttingMachine | null
   /** 'edit' → PUT (mostra "ativa"); 'create' → POST, mesmo com `initial` (duplicação). */
   mode?: 'create' | 'edit'
   loading?: boolean
@@ -23,38 +27,31 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'submit', payload: MachineRequest, mode: 'create' | 'update'): void
+  (e: 'submit', payload: CuttingMachineRequest, mode: 'create' | 'update'): void
   (e: 'cancel'): void
 }>()
 
 const isEditing = computed(() => props.mode === 'edit')
 
-// O formato é exibido/editado na unidade da empresa e convertido p/ mm no envio.
 const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 
 const form = reactive({
   name: '',
-  // Dimensões na unidade da empresa (convertidas para mm no submit).
   formatRange: { minWidth: 0, maxWidth: 0, minLength: 0, maxLength: 0 },
-  grip: 0,
-  // Limite máximo de mancha (borda não imprimível), na unidade da empresa.
-  maxImageMargin: 0,
   maxStackHeight: 0,
-  // Custo-hora como string decimal (R$).
   hourlyCost: '0',
-  // Tempo de movimento e transporte de insumos (minutos) — comum a todos os tipos.
   supplyTransportTimeMinutes: 0,
   active: true,
 })
 
-const offset = reactive<OffsetBlock>(defaultOffsetBlock())
+const guillotine = reactive<GuillotineBlock>(defaultGuillotineBlock())
 
 const commonErrors = ref<Record<string, string>>({})
-const offsetErrors = ref<Record<string, string>>({})
+const guillotineErrors = ref<Record<string, string>>({})
 
 if (props.initial) hydrate(props.initial)
 
-function hydrate(machine: Machine) {
+function hydrate(machine: CuttingMachine) {
   form.name = machine.name
   form.formatRange = {
     minWidth: fromMillimeters(machine.formatRange.minWidth.millimeters) ?? 0,
@@ -62,13 +59,11 @@ function hydrate(machine: Machine) {
     minLength: fromMillimeters(machine.formatRange.minLength.millimeters) ?? 0,
     maxLength: fromMillimeters(machine.formatRange.maxLength.millimeters) ?? 0,
   }
-  form.grip = fromMillimeters(machine.gripMargins.gripMm) ?? 0
-  form.maxImageMargin = fromMillimeters(machine.gripMargins.maxImageMarginMm) ?? 0
   form.maxStackHeight = fromMillimeters(machine.paperFeeder?.maxStackHeightMm ?? 0) ?? 0
   form.hourlyCost = String(machine.hourlyCost)
   form.supplyTransportTimeMinutes = machine.supplyTransportTimeMinutes ?? 0
   form.active = machine.active
-  Object.assign(offset, hydrateOffsetBlock(machine.offset ?? defaultOffsetBlock()))
+  Object.assign(guillotine, hydrateGuillotineBlock(machine.guillotine))
 }
 
 const inputClass = (errKey: string) => [
@@ -88,8 +83,6 @@ function validateCommon(): Record<string, string> {
   if (fr.maxWidth < fr.minWidth) e['formatRange.maxWidth'] = 'Deve ser ≥ largura mínima.'
   if (fr.maxLength < fr.minLength) e['formatRange.maxLength'] = 'Deve ser ≥ comprimento mínimo.'
 
-  if (form.grip < 0) e['grip'] = 'Valor mínimo: 0.'
-  if (form.maxImageMargin < 0) e['maxImageMargin'] = 'Valor mínimo: 0.'
   if (form.maxStackHeight < 0) e['maxStackHeight'] = 'Valor mínimo: 0.'
 
   const cost = Number(form.hourlyCost)
@@ -101,13 +94,13 @@ function validateCommon(): Record<string, string> {
 
 const handleSubmit = () => {
   commonErrors.value = validateCommon()
-  offsetErrors.value = validateOffset(offset)
+  guillotineErrors.value = validateGuillotine(guillotine)
 
-  if (Object.keys(commonErrors.value).length || Object.keys(offsetErrors.value).length) return
+  if (Object.keys(commonErrors.value).length || Object.keys(guillotineErrors.value).length) return
 
-  const payload: MachineRequest = {
+  const payload: CuttingMachineRequest = {
     customerId: 0,
-    machineType: 'OFFSET',
+    machineType: 'GUILLOTINE',
     name: form.name.trim(),
     formatRange: {
       minWidthMm: toMillimeters(form.formatRange.minWidth) ?? 0,
@@ -115,14 +108,10 @@ const handleSubmit = () => {
       minLengthMm: toMillimeters(form.formatRange.minLength) ?? 0,
       maxLengthMm: toMillimeters(form.formatRange.maxLength) ?? 0,
     },
-    gripMargins: {
-      gripMm: toMillimeters(form.grip) ?? 0,
-      maxImageMarginMm: toMillimeters(form.maxImageMargin) ?? 0,
-    },
     paperFeeder: { maxStackHeightMm: toMillimeters(form.maxStackHeight) ?? 0 },
     hourlyCost: String(form.hourlyCost),
     supplyTransportTimeMinutes: form.supplyTransportTimeMinutes,
-    offset: JSON.parse(JSON.stringify(offset)) as OffsetBlock,
+    guillotine: JSON.parse(JSON.stringify(guillotine)) as GuillotineBlock,
   }
   if (isEditing.value) payload.active = form.active
 
@@ -137,7 +126,7 @@ const handleSubmit = () => {
       <div>
         <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Tipo de máquina</label>
         <input
-          :value="MACHINE_TYPE_LABELS.OFFSET"
+          :value="MACHINE_TYPE_LABELS.GUILLOTINE"
           type="text"
           readonly
           tabindex="-1"
@@ -152,7 +141,7 @@ const handleSubmit = () => {
           v-model="form.name"
           type="text"
           maxlength="150"
-          placeholder="Ex.: Sakurai 58 Monocolor"
+          placeholder="Ex.: Polar 115"
           :class="inputClass('name')"
         />
         <p v-if="commonErrors['name']" class="mt-1 text-xs text-rose-600">{{ commonErrors['name'] }}</p>
@@ -162,7 +151,7 @@ const handleSubmit = () => {
     <!-- Formato de papel -->
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Formato de papel ({{ suffix }})</legend>
-      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita — largura × comprimento.</p>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita na mesa — largura × comprimento.</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura mín.</label>
@@ -199,24 +188,13 @@ const handleSubmit = () => {
       </div>
     </fieldset>
 
-    <!-- Pinça + Alimentação + Custo-hora -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
-        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Margens</legend>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem da pinça ({{ suffix }})</label>
-        <input v-model.number="form.grip" type="number" min="0" step="0.001" :class="inputClass('grip')" />
-        <p v-if="commonErrors['grip']" class="mt-1 text-xs text-rose-600">{{ commonErrors['grip'] }}</p>
-
-        <label class="block mt-3 mb-2 text-sm text-slate-700 dark:text-slate-300">Limite máximo de mancha ({{ suffix }})</label>
-        <input v-model.number="form.maxImageMargin" type="number" min="0" step="0.001" :class="inputClass('maxImageMargin')" />
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Borda não imprimível entre a máquina e o papel. Quanto maior, menor a área de impressão.</p>
-        <p v-if="commonErrors['maxImageMargin']" class="mt-1 text-xs text-rose-600">{{ commonErrors['maxImageMargin'] }}</p>
-      </fieldset>
-
+    <!-- Alimentação + Custo/Logística -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
         <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Alimentação</legend>
         <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Altura máx. da pilha ({{ suffix }})</label>
         <input v-model.number="form.maxStackHeight" type="number" min="0" step="0.001" :class="inputClass('maxStackHeight')" />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Altura de papel que a guilhotina corta por vez.</p>
         <p v-if="commonErrors['maxStackHeight']" class="mt-1 text-xs text-rose-600">{{ commonErrors['maxStackHeight'] }}</p>
       </fieldset>
 
@@ -233,10 +211,10 @@ const handleSubmit = () => {
       </fieldset>
     </div>
 
-    <!-- Bloco offset -->
+    <!-- Bloco guilhotina -->
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
-      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ MACHINE_TYPE_LABELS.OFFSET }}</legend>
-      <OffsetBlockFields :block="offset" :errors="offsetErrors" />
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Tempos da guilhotina</legend>
+      <GuillotineBlockFields :block="guillotine" :errors="guillotineErrors" />
     </fieldset>
 
     <label v-if="isEditing" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
@@ -264,7 +242,7 @@ const handleSubmit = () => {
         :disabled="loading"
         class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed font-medium rounded-lg text-sm px-5 py-2.5 shadow-md shadow-indigo-500/20"
       >
-        {{ loading ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Cadastrar máquina' }}
+        {{ loading ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Cadastrar guilhotina' }}
       </button>
     </div>
   </form>
