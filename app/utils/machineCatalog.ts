@@ -7,6 +7,7 @@
  * validação do formulário (cf. `.docs/offset-machines-api.md`).
  */
 import type {
+  GuillotineBlock,
   InkType,
   MachineType,
   OffsetBlock,
@@ -17,8 +18,12 @@ import type {
 /** Endpoint base da API de impressão. */
 export const PRINTING_MACHINES_BASE = '/printing-machines'
 
+/** Endpoint base da API de corte (guilhotina). */
+export const CUTTING_MACHINES_BASE = '/cutting-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
+  GUILLOTINE: 'Guilhotina',
 }
 
 // ---------- Tipos de tinta ----------
@@ -138,6 +143,42 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
       tiers,
     },
   }
+}
+
+// ---------- Bloco guilhotina ----------
+
+/** Bloco guilhotina vazio (tempos zerados, em segundos). */
+export function defaultGuillotineBlock(): GuillotineBlock {
+  return {
+    bladeDescentTimeSeconds: 0,
+    paperMovementTimeSeconds: 0,
+    measureSetupTimeSeconds: 0,
+  }
+}
+
+/** Normaliza o bloco guilhotina vindo da API, garantindo todos os campos. */
+export function hydrateGuillotineBlock(block: GuillotineBlock | null): GuillotineBlock {
+  const base = defaultGuillotineBlock()
+  if (!block) return base
+  return {
+    bladeDescentTimeSeconds: block.bladeDescentTimeSeconds ?? 0,
+    paperMovementTimeSeconds: block.paperMovementTimeSeconds ?? 0,
+    measureSetupTimeSeconds: block.measureSetupTimeSeconds ?? 0,
+  }
+}
+
+/** Valida o bloco guilhotina: os três tempos não podem ser negativos. */
+export function validateGuillotine(block: GuillotineBlock): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const keys: (keyof GuillotineBlock)[] = [
+    'bladeDescentTimeSeconds',
+    'paperMovementTimeSeconds',
+    'measureSetupTimeSeconds',
+  ]
+  for (const k of keys) {
+    if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  return errors
 }
 
 // ---------- Validação ----------

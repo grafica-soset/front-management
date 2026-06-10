@@ -21,11 +21,19 @@ interface ListPageOptions {
   onlyActive?: boolean
 }
 
-export function useMachines(base: string) {
+/**
+ * Parametrizado por tipo de máquina/payload para servir tanto a impressão
+ * (Machine/MachineRequest) quanto o corte (CuttingMachine/CuttingMachineRequest),
+ * que compartilham os mesmos verbos REST por categoria.
+ */
+export function useMachines<
+  TMachine = Machine,
+  TRequest extends { customerId: number } = MachineRequest,
+>(base: string) {
   const api = useApi()
   const auth = useAuthStore()
 
-  function withCustomer(payload: MachineRequest): MachineRequest {
+  function withCustomer(payload: TRequest): TRequest {
     if (!payload.customerId && auth.activeCompanyId) {
       return { ...payload, customerId: auth.activeCompanyId }
     }
@@ -44,16 +52,16 @@ export function useMachines(base: string) {
     return await api<MachinePage>(`${base}/page`, { query })
   }
 
-  async function getById(id: number): Promise<Machine> {
-    return await api<Machine>(`${base}/${id}`)
+  async function getById(id: number): Promise<TMachine> {
+    return await api<TMachine>(`${base}/${id}`)
   }
 
-  async function create(payload: MachineRequest): Promise<Machine> {
-    return await api<Machine>(base, { method: 'POST', body: withCustomer(payload) })
+  async function create(payload: TRequest): Promise<TMachine> {
+    return await api<TMachine>(base, { method: 'POST', body: withCustomer(payload) })
   }
 
-  async function update(id: number, payload: MachineRequest): Promise<Machine> {
-    return await api<Machine>(`${base}/${id}`, { method: 'PUT', body: withCustomer(payload) })
+  async function update(id: number, payload: TRequest): Promise<TMachine> {
+    return await api<TMachine>(`${base}/${id}`, { method: 'PUT', body: withCustomer(payload) })
   }
 
   async function remove(id: number): Promise<void> {

@@ -41,8 +41,12 @@ export default function useMenu() {
     },
     {
       name: 'Máquinas',
-      href: '/maquinas',
       icon: 'machines',
+      expanded: false,
+      children: [
+        { name: 'Impressão Offset', href: '/maquinas' },
+        { name: 'Guilhotina', href: '/maquinas/corte' },
+      ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {
