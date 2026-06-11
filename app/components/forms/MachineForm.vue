@@ -228,7 +228,7 @@ const handleSubmit = () => {
 
         <label class="block mt-3 mb-2 text-sm text-slate-700 dark:text-slate-300">Transporte de insumos (min)</label>
         <input v-model.number="form.supplyTransportTimeMinutes" type="number" min="0" step="1" :class="inputClass('supplyTransportTimeMinutes')" />
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Tempo para pegar os insumos no estoque e levá-los até a máquina.</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Tempo de transporte do insumo do corte até a máquina.</p>
         <p v-if="commonErrors['supplyTransportTimeMinutes']" class="mt-1 text-xs text-rose-600">{{ commonErrors['supplyTransportTimeMinutes'] }}</p>
       </fieldset>
     </div>

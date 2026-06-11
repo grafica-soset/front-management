@@ -92,14 +92,21 @@ export function defaultOffsetBlock(): OffsetBlock {
 /**
  * Normaliza o bloco offset vindo da API para uso na UI: tintas e ajustes na
  * ordem canônica de `INK_TYPES`, faixas agrupadas por tinta e ordenadas por
- * `fromQuantity`, e percentuais como string. Tinta sem faixas recebe uma faixa
- * aberta default, de modo que o formulário nunca quebre.
+ * `fromQuantity`, e percentuais como string.
+ *
+ * Nem toda máquina imprime todos os tipos de impressão (Traço, CMYK, Pantone):
+ * apenas os tipos que vierem da API ficam habilitados. Se nenhum vier (defensivo),
+ * habilita todos para o formulário não quebrar.
  */
 export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
   const base = defaultOffsetBlock()
-  const inkByType = new Map(block.speedRamp?.inkSettings?.map((s) => [s.inkType, s]) ?? [])
+  const apiInkSettings = block.speedRamp?.inkSettings ?? []
+  const inkByType = new Map(apiInkSettings.map((s) => [s.inkType, s]))
 
-  const inkSettings: OffsetInkSetting[] = INK_TYPES.map((inkType) => {
+  const present = INK_TYPES.filter((ink) => inkByType.has(ink))
+  const enabledInks = present.length ? present : INK_TYPES
+
+  const inkSettings: OffsetInkSetting[] = enabledInks.map((inkType) => {
     const found = inkByType.get(inkType)
     return found
       ? {
@@ -107,10 +114,10 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
           initialWasteSheets: found.initialWasteSheets,
           fullCoverageExtraWastePercent: String(found.fullCoverageExtraWastePercent),
         }
-      : base.speedRamp.inkSettings.find((s) => s.inkType === inkType)!
+      : { inkType, initialWasteSheets: 0, fullCoverageExtraWastePercent: '0' }
   })
 
-  const tiers: OffsetTier[] = INK_TYPES.flatMap((inkType) => {
+  const tiers: OffsetTier[] = enabledInks.flatMap((inkType) => {
     const list = (block.speedRamp?.tiers ?? [])
       .filter((t) => t.inkType === inkType)
       .map((t) => ({
@@ -147,12 +154,14 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
 
 // ---------- Bloco guilhotina ----------
 
-/** Bloco guilhotina vazio (tempos zerados, em segundos). */
+/** Bloco guilhotina vazio (tempos zerados, em segundos; leva de alimentação de 40 mm = 4 cm). */
 export function defaultGuillotineBlock(): GuillotineBlock {
   return {
     bladeDescentTimeSeconds: 0,
     paperMovementTimeSeconds: 0,
     measureSetupTimeSeconds: 0,
+    feedTimeSecondsPerLoad: 0,
+    feedLoadIncrementMm: 40,
   }
 }
 
@@ -164,20 +173,27 @@ export function hydrateGuillotineBlock(block: GuillotineBlock | null): Guillotin
     bladeDescentTimeSeconds: block.bladeDescentTimeSeconds ?? 0,
     paperMovementTimeSeconds: block.paperMovementTimeSeconds ?? 0,
     measureSetupTimeSeconds: block.measureSetupTimeSeconds ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
   }
 }
 
-/** Valida o bloco guilhotina: os três tempos não podem ser negativos. */
+/**
+ * Valida o bloco guilhotina: tempos não-negativos e a altura de cada leva de
+ * alimentação (≥ 1 mm), igual à Offset.
+ */
 export function validateGuillotine(block: GuillotineBlock): Record<string, string> {
   const errors: Record<string, string> = {}
   const keys: (keyof GuillotineBlock)[] = [
     'bladeDescentTimeSeconds',
     'paperMovementTimeSeconds',
     'measureSetupTimeSeconds',
+    'feedTimeSecondsPerLoad',
   ]
   for (const k of keys) {
     if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
   }
+  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
   return errors
 }
 
@@ -283,13 +299,20 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
     if (!isNonNegativeNumber(sr[k] as string)) errors[`speedRamp.${k}`] = 'Percentual inválido.'
   }
 
+  // Tipos de impressão habilitados (com ajuste). Nem toda máquina imprime os três.
+  const enabledInks = INK_TYPES.filter((ink) => sr.inkSettings.some((s) => s.inkType === ink))
+  if (enabledInks.length === 0) {
+    errors['inkSettings'] = 'Habilite ao menos um tipo de impressão.'
+    return errors
+  }
+
   const inkSettingsOk = sr.inkSettings.every(
     (s) => s.initialWasteSheets >= 0 && isNonNegativeNumber(s.fullCoverageExtraWastePercent),
   )
   if (!inkSettingsOk) errors['inkSettings'] = 'Revise os ajustes por tipo de impressão (não podem ser negativos).'
 
-  // Faixas por tipo de tinta.
-  for (const ink of INK_TYPES) {
+  // Faixas apenas dos tipos de tinta habilitados.
+  for (const ink of enabledInks) {
     const inkTiers = sr.tiers.filter((t) => t.inkType === ink)
     const msg = validateInkTiers(inkTiers, sr.minSpeedSheetsPerHour, sr.maxSpeedSheetsPerHour)
     if (msg) errors[`tiers.${ink}`] = msg

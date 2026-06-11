@@ -127,6 +127,10 @@ export interface GuillotineBlock {
   paperMovementTimeSeconds: number
   /** Tempo (s) de setup das medidas — 1x a cada medida distinta. */
   measureSetupTimeSeconds: number
+  /** Tempo (s) para carregar uma leva de papel de altura feedLoadIncrementMm na mesa. */
+  feedTimeSecondsPerLoad: number
+  /** Altura (mm) de cada leva de alimentação (ex.: 40 mm = 4 cm). */
+  feedLoadIncrementMm: number
 }
 
 // ---------- Request / Response ----------
