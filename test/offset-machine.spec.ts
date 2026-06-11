@@ -158,3 +158,36 @@ describe('Cadastro OFFSET — Sakurai 58 Monocolor', () => {
     expect(validateOffset(hydrated)).toEqual({})
   })
 })
+
+describe('Cadastro OFFSET — tipos de impressão habilitados (CMYK/Pantone/Traço opcionais)', () => {
+  // Mantém só o tipo informado, removendo ajustes e faixas dos demais.
+  function onlyInks(...inks: InkType[]): OffsetBlock {
+    const offset = buildSakuraiOffset()
+    offset.speedRamp.inkSettings = offset.speedRamp.inkSettings.filter((s) => inks.includes(s.inkType))
+    offset.speedRamp.tiers = offset.speedRamp.tiers.filter((t) => inks.includes(t.inkType))
+    return offset
+  }
+
+  it('aceita uma máquina que imprime apenas Traço (LINE)', () => {
+    expect(validateOffset(onlyInks('LINE'))).toEqual({})
+  })
+
+  it('não valida faixas de um tipo desabilitado', () => {
+    // CMYK desabilitado: mesmo sem faixas de CMYK, não há erro tiers.CMYK.
+    const errors = validateOffset(onlyInks('LINE', 'PANTONE'))
+    expect(errors['tiers.CMYK']).toBeUndefined()
+    expect(errors).toEqual({})
+  })
+
+  it('exige ao menos um tipo de impressão habilitado', () => {
+    const offset = onlyInks() // nenhum habilitado
+    expect(validateOffset(offset)['inkSettings']).toBeTruthy()
+  })
+
+  it('hidrata preservando apenas os tipos presentes na resposta da API', () => {
+    const hydrated = hydrateOffsetBlock(onlyInks('LINE', 'CMYK'))
+    const inks = hydrated.speedRamp.inkSettings.map((s) => s.inkType)
+    expect(inks).toEqual(['LINE', 'CMYK'])
+    expect(hydrated.speedRamp.tiers.some((t) => t.inkType === 'PANTONE')).toBe(false)
+  })
+})

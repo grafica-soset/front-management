@@ -41,6 +41,33 @@ const tiersByInk = computed<Record<InkType, OffsetTier[]>>(() => {
 const inkSettingFor = (ink: InkType) =>
   props.block.speedRamp.inkSettings.find((s) => s.inkType === ink)!
 
+/** Tipo de impressão habilitado = possui ajuste (inkSetting). */
+const isInkEnabled = (ink: InkType) =>
+  props.block.speedRamp.inkSettings.some((s) => s.inkType === ink)
+
+/** Tipos habilitados na ordem canônica de `INK_TYPES`. */
+const enabledInks = computed<InkType[]>(() => INK_TYPES.filter(isInkEnabled))
+
+/**
+ * Habilita/desabilita um tipo de impressão. Ao habilitar, cria o ajuste e uma
+ * faixa aberta default; ao desabilitar, remove ajuste e faixas (mantém ao menos
+ * um tipo habilitado — nem toda máquina imprime os três, mas precisa de um).
+ */
+const toggleInk = (ink: InkType) => {
+  if (isInkEnabled(ink)) {
+    if (enabledInks.value.length <= 1) return
+    props.block.speedRamp.inkSettings = props.block.speedRamp.inkSettings.filter((s) => s.inkType !== ink)
+    props.block.speedRamp.tiers = props.block.speedRamp.tiers.filter((t) => t.inkType !== ink)
+  } else {
+    props.block.speedRamp.inkSettings.push({
+      inkType: ink,
+      initialWasteSheets: 0,
+      fullCoverageExtraWastePercent: '0',
+    })
+    props.block.speedRamp.tiers.push(makeTier(ink, 0, null))
+  }
+}
+
 /** Origem da cópia de dados entre tipos de impressão (CMYK ← Traço, Pantone ← CMYK). */
 const COPY_SOURCE: Partial<Record<InkType, InkType>> = { CMYK: 'LINE', PANTONE: 'CMYK' }
 
@@ -231,13 +258,35 @@ const cellClass =
     <!-- Faixas por tipo de impressão -->
     <fieldset class="rounded-lg border border-slate-200 p-3 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Velocidade e quebra por tipo de impressão</legend>
+
+      <!-- Seleção dos tipos de impressão da máquina (nem toda imprime os três) -->
+      <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        Marque os tipos de impressão que esta máquina realiza. Desmarque os que não se aplicam.
+      </p>
+      <div class="mb-4 flex flex-wrap gap-4">
+        <label
+          v-for="ink in INK_TYPES"
+          :key="`toggle-${ink}`"
+          class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"
+        >
+          <input
+            type="checkbox"
+            :checked="isInkEnabled(ink)"
+            :disabled="isInkEnabled(ink) && enabledInks.length <= 1"
+            @change="toggleInk(ink)"
+            class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:border-slate-600"
+          />
+          {{ INK_TYPE_LABELS[ink] }}
+        </label>
+      </div>
+
       <p v-if="errors['inkSettings']" class="mb-3 text-xs text-rose-600">{{ errors['inkSettings'] }}</p>
 
-      <div v-for="ink in INK_TYPES" :key="ink" class="mb-5 last:mb-0">
+      <div v-for="ink in enabledInks" :key="ink" class="mb-5 last:mb-0">
         <div class="mb-2 flex items-center justify-between gap-2">
           <h4 class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{{ INK_TYPE_LABELS[ink] }}</h4>
           <button
-            v-if="COPY_SOURCE[ink]"
+            v-if="COPY_SOURCE[ink] && isInkEnabled(COPY_SOURCE[ink]!)"
             type="button"
             @click="copyInk(ink)"
             class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-300 rounded-md hover:bg-slate-100 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700"
