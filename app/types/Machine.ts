@@ -14,8 +14,8 @@ import type { FormattedDimension } from './FormattedDimension'
  *   preservar a precisão exigida pelo backend (BigDecimal).
  */
 
-export type MachineCategory = 'PRINTING' | 'CUTTING'
-export type MachineType = 'OFFSET' | 'GUILLOTINE'
+export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING'
+export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -133,6 +133,77 @@ export interface GuillotineBlock {
   feedLoadIncrementMm: number
 }
 
+// ---------- Bloco DIE_CUTTING (Corte e Vinco) ----------
+
+/**
+ * A máquina de corte e vinco é baseada na offset, mas NÃO imprime: sem cores, lavagem,
+ * quebra ou rampa por tinta. A velocidade e o tempo de setup de faca vêm de uma MATRIZ DE
+ * FORMATO (dois pontos: mínimo e máximo). Pode ser MANUAL ou AUTOMÁTICA — só a automática
+ * tem alimentador (altura da pilha) e o bloco de alimentação (`feed`).
+ */
+
+/**
+ * Ponto de calibração da matriz — request. Referencia um Formato cadastrado (o mesmo
+ * cadastro de `/formats` usado pelo papel) por `formatId`; o backend resolve as dimensões.
+ */
+export interface DieCuttingFormatPointRequest {
+  formatId: number
+  sheetsPerHour: number
+  /** Tempo de setup de faca (min) medido neste formato. */
+  dieSetupMinutes: number
+}
+
+/** Bloco de alimentação de papel — apenas máquina automática. */
+export interface DieCuttingFeed {
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+}
+
+/** Bloco corte e vinco — request (dimensões em mm, percentuais como string). */
+export interface DieCuttingBlockRequest {
+  automatic: boolean
+  /** Setup do esquadro (min). */
+  squareSetupMinutes: number
+  /** Margem de esquadro lateral (mm). */
+  lateralSquareMarginMm: number
+  minFormat: DieCuttingFormatPointRequest
+  maxFormat: DieCuttingFormatPointRequest
+  /** Redutor (%) p/ formatos menores que o mínimo. */
+  belowMinSpeedReducerPercent: string
+  /** Redutor (%) p/ formatos maiores que o máximo. */
+  aboveMaxSpeedReducerPercent: string
+  /** Preenchido apenas quando `automatic` é true. */
+  feed: DieCuttingFeed | null
+}
+
+/** Formato referenciado por um ponto da matriz (id + nome + dimensões formatadas). */
+export interface DieCuttingFormatRef {
+  formatId: number
+  formatName: string
+  width: FormattedDimension
+  length: FormattedDimension
+}
+
+/** Ponto de calibração devolvido pela API (com o Formato resolvido). */
+export interface DieCuttingFormatPointResponse {
+  format: DieCuttingFormatRef
+  sheetsPerHour: number
+  dieSetupMinutes: number
+}
+
+/** Bloco corte e vinco devolvido pela API. */
+export interface DieCuttingBlockResponse {
+  automatic: boolean
+  squareSetupMinutes: number
+  lateralSquareMargin: FormattedDimension
+  minFormat: DieCuttingFormatPointResponse
+  maxFormat: DieCuttingFormatPointResponse
+  belowMinSpeedReducerPercent: number
+  aboveMaxSpeedReducerPercent: number
+  feed: DieCuttingFeed | null
+}
+
 // ---------- Request / Response ----------
 
 /** Corpo de POST /printing-machines e PUT /printing-machines/{id}. */
@@ -163,6 +234,40 @@ export interface CuttingMachineRequest {
   hourlyCost: string
   supplyTransportTimeMinutes: number
   guillotine: GuillotineBlock
+}
+
+/**
+ * Corpo de POST/PUT /die-cutting-machines. Tem margem da pinça (gripMm), mas NÃO há
+ * "limite máximo de mancha" (não imprime). O alimentador (paperFeeder) só existe na
+ * máquina automática; na manual vai `null`.
+ */
+export interface DieCuttingMachineRequest {
+  customerId: number
+  machineType: 'DIE_CUTTING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  gripMm: number
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  dieCutting: DieCuttingBlockRequest
+}
+
+/** Máquina de corte e vinco devolvida por GET/{id}, POST e PUT. */
+export interface DieCuttingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  gripMm: number
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  dieCutting: DieCuttingBlockResponse | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */

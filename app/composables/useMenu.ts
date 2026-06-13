@@ -46,6 +46,7 @@ export default function useMenu() {
       children: [
         { name: 'Impressão Offset', href: '/maquinas' },
         { name: 'Guilhotina', href: '/maquinas/corte' },
+        { name: 'Corte e Vinco', href: '/maquinas/corte-vinco' },
       ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
