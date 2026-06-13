@@ -7,6 +7,9 @@
  * validação do formulário (cf. `.docs/offset-machines-api.md`).
  */
 import type {
+  DieCuttingBlockRequest,
+  DieCuttingBlockResponse,
+  DieCuttingFeed,
   GuillotineBlock,
   InkType,
   MachineType,
@@ -21,9 +24,13 @@ export const PRINTING_MACHINES_BASE = '/printing-machines'
 /** Endpoint base da API de corte (guilhotina). */
 export const CUTTING_MACHINES_BASE = '/cutting-machines'
 
+/** Endpoint base da API de corte e vinco. */
+export const DIE_CUTTING_MACHINES_BASE = '/die-cutting-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
+  DIE_CUTTING: 'Corte e Vinco',
 }
 
 // ---------- Tipos de tinta ----------
@@ -194,6 +201,87 @@ export function validateGuillotine(block: GuillotineBlock): Record<string, strin
     if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
   }
   if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  return errors
+}
+
+// ---------- Bloco corte e vinco (DIE_CUTTING) ----------
+
+/** Bloco de alimentação default (apenas automática; leva de 40 mm = 4 cm). */
+export function defaultDieCuttingFeed(): DieCuttingFeed {
+  return { paperFeedSetupMinutes: 0, feedTimeSecondsPerLoad: 0, feedLoadIncrementMm: 40 }
+}
+
+/** Bloco corte e vinco vazio (manual por padrão; matriz sem formato selecionado). */
+export function defaultDieCuttingBlock(): DieCuttingBlockRequest {
+  return {
+    automatic: false,
+    squareSetupMinutes: 0,
+    lateralSquareMarginMm: 0,
+    minFormat: { formatId: 0, sheetsPerHour: 0, dieSetupMinutes: 0 },
+    maxFormat: { formatId: 0, sheetsPerHour: 0, dieSetupMinutes: 0 },
+    belowMinSpeedReducerPercent: '0',
+    aboveMaxSpeedReducerPercent: '0',
+    feed: null,
+  }
+}
+
+/** Normaliza o bloco corte e vinco vindo da API para o formato de request (formatId + strings). */
+export function hydrateDieCuttingBlock(block: DieCuttingBlockResponse | null): DieCuttingBlockRequest {
+  const base = defaultDieCuttingBlock()
+  if (!block) return base
+  return {
+    automatic: block.automatic,
+    squareSetupMinutes: block.squareSetupMinutes ?? 0,
+    lateralSquareMarginMm: block.lateralSquareMargin?.millimeters ?? 0,
+    minFormat: {
+      formatId: block.minFormat.format.formatId,
+      sheetsPerHour: block.minFormat.sheetsPerHour,
+      dieSetupMinutes: block.minFormat.dieSetupMinutes,
+    },
+    maxFormat: {
+      formatId: block.maxFormat.format.formatId,
+      sheetsPerHour: block.maxFormat.sheetsPerHour,
+      dieSetupMinutes: block.maxFormat.dieSetupMinutes,
+    },
+    belowMinSpeedReducerPercent: String(block.belowMinSpeedReducerPercent),
+    aboveMaxSpeedReducerPercent: String(block.aboveMaxSpeedReducerPercent),
+    feed: block.automatic ? { ...defaultDieCuttingFeed(), ...(block.feed ?? {}) } : null,
+  }
+}
+
+/**
+ * Valida o bloco corte e vinco: setup do esquadro e margem lateral ≥ 0; a matriz de formato
+ * (dois pontos) com Formato selecionado e velocidade ≥ 1; redutores ≥ 0; e — só na automática —
+ * os campos de alimentação. (A regra "máximo ≥ mínimo" depende das dimensões dos Formatos e é
+ * validada no formulário, que tem a lista de Formatos; o backend também a reforça.)
+ */
+export function validateDieCutting(block: DieCuttingBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (!(block.squareSetupMinutes >= 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!(block.lateralSquareMarginMm >= 0)) errors['lateralSquareMarginMm'] = 'Valor mínimo: 0.'
+
+  for (const which of ['minFormat', 'maxFormat'] as const) {
+    const p = block[which]
+    if (!(p.formatId >= 1)) errors[`${which}.formatId`] = 'Selecione um formato.'
+    if (!(p.sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+    if (!(p.dieSetupMinutes >= 0)) errors[`${which}.dieSetupMinutes`] = 'Valor mínimo: 0.'
+  }
+
+  if (!isNonNegativeNumber(block.belowMinSpeedReducerPercent)) errors['belowMinSpeedReducerPercent'] = 'Percentual inválido.'
+  if (!isNonNegativeNumber(block.aboveMaxSpeedReducerPercent)) errors['aboveMaxSpeedReducerPercent'] = 'Percentual inválido.'
+
+  if (block.automatic) {
+    const f = block.feed
+    if (!f) {
+      errors['feed'] = 'Informe os dados de alimentação.'
+    } else {
+      if (!(f.paperFeedSetupMinutes >= 0)) errors['feed.paperFeedSetupMinutes'] = 'Valor mínimo: 0.'
+      if (!(f.feedTimeSecondsPerLoad >= 0)) errors['feed.feedTimeSecondsPerLoad'] = 'Valor mínimo: 0.'
+      if (!(f.feedLoadIncrementMm >= 1)) errors['feed.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+    }
+  }
+
   return errors
 }
 
