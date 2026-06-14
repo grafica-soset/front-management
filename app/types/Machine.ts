@@ -143,11 +143,12 @@ export interface GuillotineBlock {
  */
 
 /**
- * Ponto de calibração da matriz — request. Referencia um Formato cadastrado (o mesmo
- * cadastro de `/formats` usado pelo papel) por `formatId`; o backend resolve as dimensões.
+ * Ponto de calibração da matriz — request. As dimensões (largura × comprimento, em mm) são
+ * digitadas diretamente (numéricas — não há mais vínculo com o cadastro de `/formats`).
  */
 export interface DieCuttingFormatPointRequest {
-  formatId: number
+  widthMm: number
+  lengthMm: number
   sheetsPerHour: number
   /** Tempo de setup de faca (min) medido neste formato. */
   dieSetupMinutes: number
@@ -163,10 +164,8 @@ export interface DieCuttingFeed {
 /** Bloco corte e vinco — request (dimensões em mm, percentuais como string). */
 export interface DieCuttingBlockRequest {
   automatic: boolean
-  /** Setup do esquadro (min). */
+  /** Setup de esquadros Frontal e Lateral (min). */
   squareSetupMinutes: number
-  /** Margem de esquadro lateral (mm). */
-  lateralSquareMarginMm: number
   minFormat: DieCuttingFormatPointRequest
   maxFormat: DieCuttingFormatPointRequest
   /** Redutor (%) p/ formatos menores que o mínimo. */
@@ -177,17 +176,10 @@ export interface DieCuttingBlockRequest {
   feed: DieCuttingFeed | null
 }
 
-/** Formato referenciado por um ponto da matriz (id + nome + dimensões formatadas). */
-export interface DieCuttingFormatRef {
-  formatId: number
-  formatName: string
+/** Ponto de calibração devolvido pela API (dimensões numéricas já formatadas). */
+export interface DieCuttingFormatPointResponse {
   width: FormattedDimension
   length: FormattedDimension
-}
-
-/** Ponto de calibração devolvido pela API (com o Formato resolvido). */
-export interface DieCuttingFormatPointResponse {
-  format: DieCuttingFormatRef
   sheetsPerHour: number
   dieSetupMinutes: number
 }
@@ -196,7 +188,6 @@ export interface DieCuttingFormatPointResponse {
 export interface DieCuttingBlockResponse {
   automatic: boolean
   squareSetupMinutes: number
-  lateralSquareMargin: FormattedDimension
   minFormat: DieCuttingFormatPointResponse
   maxFormat: DieCuttingFormatPointResponse
   belowMinSpeedReducerPercent: number

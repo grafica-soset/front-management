@@ -11,18 +11,15 @@
  */
 import { computed, watch } from 'vue'
 import type { DieCuttingBlockRequest, DieCuttingFormatPointRequest } from '@/types/Machine'
-import type { Format } from '@/types/Format'
 import { defaultDieCuttingFeed } from '@/utils/machineCatalog'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
   block: DieCuttingBlockRequest
   errors: Record<string, string>
-  /** Formatos cadastrados (dimensões-padrão) para os seletores da matriz. */
-  formats: Format[]
 }>()
 
-const { suffix: lengthUnit, format: formatMeasure, fromMillimeters, toMillimeters } = useUnitConverter()
+const { suffix: lengthUnit, fromMillimeters, toMillimeters } = useUnitConverter()
 
 // Liga/desliga o bloco de alimentação conforme a máquina é automática.
 watch(
@@ -41,9 +38,22 @@ function dimensionModel(get: () => number, set: (mm: number) => void) {
   })
 }
 
-const lateralSquareMargin = dimensionModel(
-  () => props.block.lateralSquareMarginMm,
-  (mm) => (props.block.lateralSquareMarginMm = mm),
+// Dimensões (largura × comprimento) dos pontos da matriz, editadas na unidade da empresa.
+const minFormatWidth = dimensionModel(
+  () => props.block.minFormat.widthMm,
+  (mm) => (props.block.minFormat.widthMm = mm),
+)
+const minFormatLength = dimensionModel(
+  () => props.block.minFormat.lengthMm,
+  (mm) => (props.block.minFormat.lengthMm = mm),
+)
+const maxFormatWidth = dimensionModel(
+  () => props.block.maxFormat.widthMm,
+  (mm) => (props.block.maxFormat.widthMm = mm),
+)
+const maxFormatLength = dimensionModel(
+  () => props.block.maxFormat.lengthMm,
+  (mm) => (props.block.maxFormat.lengthMm = mm),
 )
 const feedLoadIncrement = computed<number>({
   get: () => fromMillimeters(props.block.feed?.feedLoadIncrementMm ?? 0) ?? 0,
@@ -51,10 +61,6 @@ const feedLoadIncrement = computed<number>({
     if (props.block.feed) props.block.feed.feedLoadIncrementMm = toMillimeters(v) ?? 0
   },
 })
-
-/** Rótulo do formato no seletor (ex.: "66x96 — 66 × 96 cm"). */
-const formatLabel = (f: Format): string =>
-  `${f.name} — ${formatMeasure(f.width.millimeters)} × ${formatMeasure(f.height.millimeters)}`
 
 const inputClass = (err?: string, withSuffix = false) => [
   'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full min-w-0 p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
@@ -90,20 +96,12 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
     <!-- Esquadro -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup do esquadro</label>
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup de esquadros Frontal e Lateral</label>
         <div class="relative">
           <input v-model.number="block.squareSetupMinutes" type="number" min="0" step="1" :class="inputClass(errors.squareSetupMinutes, true)" />
           <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
         </div>
         <p v-if="errors.squareSetupMinutes" class="mt-1 text-xs text-rose-600">{{ errors.squareSetupMinutes }}</p>
-      </div>
-      <div>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Margem de esquadro lateral</label>
-        <div class="relative">
-          <input v-model.number="lateralSquareMargin" type="number" min="0" step="0.001" :class="inputClass(errors.lateralSquareMarginMm, true)" />
-          <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
-        </div>
-        <p v-if="errors.lateralSquareMarginMm" class="mt-1 text-xs text-rose-600">{{ errors.lateralSquareMarginMm }}</p>
       </div>
     </div>
 
@@ -111,21 +109,29 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Matriz de formato</legend>
       <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">
-        Calibre dois formatos (o mesmo formato cadastrado do papel) com a velocidade e o tempo de setup de
-        faca medidos em cada um. Entre eles o orçamento interpola pelo tamanho; fora deles aplica o redutor.
+        Calibre dois formatos (largura × comprimento) com a velocidade e o tempo de setup de faca
+        medidos em cada um. Entre eles o orçamento interpola pelo tamanho; fora deles aplica o redutor.
       </p>
 
       <!-- Formato mínimo -->
       <div class="mb-4">
         <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Formato mínimo</p>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="col-span-2">
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Formato</label>
-            <select v-model.number="block.minFormat.formatId" :class="inputClass(formatErr('minFormat', 'formatId'))">
-              <option :value="0" disabled>Selecione um formato…</option>
-              <option v-for="f in formats" :key="f.id" :value="f.id">{{ formatLabel(f) }}</option>
-            </select>
-            <p v-if="formatErr('minFormat', 'formatId')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'formatId') }}</p>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura</label>
+            <div class="relative">
+              <input v-model.number="minFormatWidth" type="number" min="0" step="0.001" :class="inputClass(formatErr('minFormat', 'widthMm'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
+            </div>
+            <p v-if="formatErr('minFormat', 'widthMm')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'widthMm') }}</p>
+          </div>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento</label>
+            <div class="relative">
+              <input v-model.number="minFormatLength" type="number" min="0" step="0.001" :class="inputClass(formatErr('minFormat', 'lengthMm'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
+            </div>
+            <p v-if="formatErr('minFormat', 'lengthMm')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'lengthMm') }}</p>
           </div>
           <div>
             <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Velocidade</label>
@@ -150,13 +156,21 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
       <div>
         <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Formato máximo</p>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="col-span-2">
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Formato</label>
-            <select v-model.number="block.maxFormat.formatId" :class="inputClass(formatErr('maxFormat', 'formatId'))">
-              <option :value="0" disabled>Selecione um formato…</option>
-              <option v-for="f in formats" :key="f.id" :value="f.id">{{ formatLabel(f) }}</option>
-            </select>
-            <p v-if="formatErr('maxFormat', 'formatId')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'formatId') }}</p>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura</label>
+            <div class="relative">
+              <input v-model.number="maxFormatWidth" type="number" min="0" step="0.001" :class="inputClass(formatErr('maxFormat', 'widthMm'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
+            </div>
+            <p v-if="formatErr('maxFormat', 'widthMm')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'widthMm') }}</p>
+          </div>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento</label>
+            <div class="relative">
+              <input v-model.number="maxFormatLength" type="number" min="0" step="0.001" :class="inputClass(formatErr('maxFormat', 'lengthMm'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
+            </div>
+            <p v-if="formatErr('maxFormat', 'lengthMm')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'lengthMm') }}</p>
           </div>
           <div>
             <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Velocidade</label>

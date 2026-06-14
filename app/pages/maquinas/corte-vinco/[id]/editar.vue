@@ -6,12 +6,10 @@
 import { ref } from 'vue'
 import DieCuttingMachineForm from '@/components/forms/DieCuttingMachineForm.vue'
 import { useMachines } from '@/composables/useMachines'
-import { useFormats } from '@/composables/useFormats'
 import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
 import { DIE_CUTTING_MACHINES_BASE } from '@/utils/machineCatalog'
 import type { DieCuttingMachine, DieCuttingMachineRequest } from '@/types/Machine'
-import type { Format } from '@/types/Format'
 
 definePageMeta({ middleware: 'auth', key: (route) => route.path })
 
@@ -23,10 +21,8 @@ if (!Number.isFinite(machineId) || machineId <= 0) {
 
 const toast = useToast()
 const { getById, update } = useMachines<DieCuttingMachine, DieCuttingMachineRequest>(DIE_CUTTING_MACHINES_BASE)
-const { listFormats } = useFormats()
 
 const machine = ref<DieCuttingMachine | null>(null)
-const formats = ref<Format[]>([])
 const loadingDetail = ref(true)
 const detailError = ref<string | null>(null)
 const saving = ref(false)
@@ -34,9 +30,7 @@ const serverError = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    const [m, fmts] = await Promise.all([getById(machineId), listFormats().catch(() => [])])
-    machine.value = m
-    formats.value = fmts
+    machine.value = await getById(machineId)
   } catch (err) {
     detailError.value = extractApiError(err, 'Máquina não encontrada.')
   } finally {
@@ -76,7 +70,7 @@ const handleSubmit = async (payload: DieCuttingMachineRequest) => {
       {{ detailError }}
     </div>
     <div v-else-if="machine" class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
-      <DieCuttingMachineForm mode="edit" :initial="machine" :formats="formats" :loading="saving" :server-error="serverError" @submit="handleSubmit" @cancel="navigateTo('/maquinas/corte-vinco')" />
+      <DieCuttingMachineForm mode="edit" :initial="machine" :loading="saving" :server-error="serverError" @submit="handleSubmit" @cancel="navigateTo('/maquinas/corte-vinco')" />
     </div>
   </div>
 </template>

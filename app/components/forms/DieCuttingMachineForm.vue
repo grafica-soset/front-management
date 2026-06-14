@@ -10,7 +10,6 @@
  */
 import { computed, reactive, ref } from 'vue'
 import type { DieCuttingBlockRequest, DieCuttingMachine, DieCuttingMachineRequest } from '@/types/Machine'
-import type { Format } from '@/types/Format'
 import {
   MACHINE_TYPE_LABELS,
   defaultDieCuttingBlock,
@@ -27,11 +26,7 @@ const props = defineProps<{
   mode?: 'create' | 'edit'
   loading?: boolean
   serverError?: string | null
-  /** Formatos cadastrados para os seletores da matriz. */
-  formats?: Format[]
 }>()
-
-const formats = computed<Format[]>(() => props.formats ?? [])
 
 const emit = defineEmits<{
   (e: 'submit', payload: DieCuttingMachineRequest, mode: 'create' | 'update'): void
@@ -104,21 +99,15 @@ function validateCommon(): Record<string, string> {
   return e
 }
 
-/** Tamanho linear (largura + comprimento, em mm) do formato selecionado, ou null. */
-const linearSizeOf = (formatId: number): number | null => {
-  const f = formats.value.find((fmt) => fmt.id === formatId)
-  return f ? f.width.millimeters + f.height.millimeters : null
-}
-
 const handleSubmit = () => {
   commonErrors.value = validateCommon()
   dieCuttingErrors.value = validateDieCutting(dieCutting)
 
   // O formato máximo deve ser maior ou igual ao mínimo (pelo tamanho linear das dimensões).
-  const minSize = linearSizeOf(dieCutting.minFormat.formatId)
-  const maxSize = linearSizeOf(dieCutting.maxFormat.formatId)
-  if (minSize !== null && maxSize !== null && maxSize < minSize) {
-    dieCuttingErrors.value['maxFormat.formatId'] = 'O formato máximo deve ser maior ou igual ao mínimo.'
+  const minSize = dieCutting.minFormat.widthMm + dieCutting.minFormat.lengthMm
+  const maxSize = dieCutting.maxFormat.widthMm + dieCutting.maxFormat.lengthMm
+  if (maxSize < minSize) {
+    dieCuttingErrors.value['maxFormat'] = 'O formato máximo deve ser maior ou igual ao mínimo.'
   }
 
   if (Object.keys(commonErrors.value).length || Object.keys(dieCuttingErrors.value).length) return
@@ -218,8 +207,8 @@ const handleSubmit = () => {
     <!-- Pinça + Alimentação (automática) + Custo/Logística -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
-        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Margem da pinça</legend>
-        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Pinça ({{ suffix }})</label>
+        <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Margem de esquadros frontal e lateral</legend>
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Esquadros frontal e lateral ({{ suffix }})</label>
         <div class="relative">
           <input v-model.number="form.gripMm" type="number" min="0" step="0.001" :class="[inputClass('gripMm'), 'pr-12']" />
           <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
@@ -255,7 +244,7 @@ const handleSubmit = () => {
     <!-- Bloco corte e vinco -->
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Corte e vinco</legend>
-      <DieCuttingBlockFields :block="dieCutting" :errors="dieCuttingErrors" :formats="formats" />
+      <DieCuttingBlockFields :block="dieCutting" :errors="dieCuttingErrors" />
     </fieldset>
 
     <label v-if="isEditing" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
