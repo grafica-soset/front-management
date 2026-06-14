@@ -9,13 +9,11 @@
 import { computed, ref } from 'vue'
 import DieCuttingMachineForm from '@/components/forms/DieCuttingMachineForm.vue'
 import { useMachines } from '@/composables/useMachines'
-import { useFormats } from '@/composables/useFormats'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
 import { DIE_CUTTING_MACHINES_BASE } from '@/utils/machineCatalog'
 import type { DieCuttingMachine, DieCuttingMachineRequest } from '@/types/Machine'
-import type { Format } from '@/types/Format'
 
 definePageMeta({ middleware: 'auth', key: (route) => route.fullPath })
 
@@ -23,9 +21,7 @@ const route = useRoute()
 const auth = useAuthStore()
 const toast = useToast()
 const { getById, create } = useMachines<DieCuttingMachine, DieCuttingMachineRequest>(DIE_CUTTING_MACHINES_BASE)
-const { listFormats } = useFormats()
 
-const formats = ref<Format[]>([])
 const loading = ref(false)
 const serverError = ref<string | null>(null)
 
@@ -41,13 +37,6 @@ const heading = computed(() =>
 )
 
 onMounted(async () => {
-  if (auth.activeCompanyId) {
-    try {
-      formats.value = await listFormats()
-    } catch {
-      // Sem formatos o seletor fica vazio; o usuário cadastra em /formatos.
-    }
-  }
   if (!isDuplicating || !auth.activeCompanyId) {
     prefilling.value = false
     return
@@ -108,7 +97,6 @@ const handleSubmit = async (payload: DieCuttingMachineRequest) => {
       <DieCuttingMachineForm
         mode="create"
         :initial="prefill"
-        :formats="formats"
         :loading="loading"
         :server-error="serverError"
         @submit="handleSubmit"

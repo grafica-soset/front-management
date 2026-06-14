@@ -8,8 +8,8 @@ import {
 } from '@/utils/machineCatalog'
 
 /**
- * Bloco CORTE E VINCO (DIE_CUTTING): matriz de formato (dois pontos), setup do esquadro,
- * margem de esquadro lateral, redutores e — só na automática — alimentação de papel.
+ * Bloco CORTE E VINCO (DIE_CUTTING): matriz de formato (dois pontos com dimensões numéricas),
+ * setup de esquadros frontal e lateral, redutores e — só na automática — alimentação de papel.
  */
 
 /** Bloco manual bem preenchido (exemplo do enunciado: 15×22→500 / 66×96→1000). */
@@ -17,9 +17,8 @@ function validManualBlock(): DieCuttingBlockRequest {
   return {
     automatic: false,
     squareSetupMinutes: 12,
-    lateralSquareMarginMm: 5,
-    minFormat: { formatId: 31, sheetsPerHour: 500, dieSetupMinutes: 8 },
-    maxFormat: { formatId: 47, sheetsPerHour: 1000, dieSetupMinutes: 15 },
+    minFormat: { widthMm: 150, lengthMm: 220, sheetsPerHour: 500, dieSetupMinutes: 8 },
+    maxFormat: { widthMm: 660, lengthMm: 960, sheetsPerHour: 1000, dieSetupMinutes: 15 },
     belowMinSpeedReducerPercent: '10',
     aboveMaxSpeedReducerPercent: '20',
     feed: null,
@@ -43,10 +42,13 @@ describe('Cadastro CORTE E VINCO — catálogo', () => {
     expect(validateDieCutting(block)['minFormat.sheetsPerHour']).toBeTruthy()
   })
 
-  it('exige um formato selecionado em cada ponto da matriz', () => {
+  it('exige dimensões ≥ 1 em cada ponto da matriz', () => {
     const block = validManualBlock()
-    block.minFormat.formatId = 0
-    expect(validateDieCutting(block)['minFormat.formatId']).toBeTruthy()
+    block.minFormat.widthMm = 0
+    block.maxFormat.lengthMm = 0
+    const errors = validateDieCutting(block)
+    expect(errors['minFormat.widthMm']).toBeTruthy()
+    expect(errors['maxFormat.lengthMm']).toBeTruthy()
   })
 
   it('máquina automática exige os campos de alimentação', () => {
@@ -57,28 +59,19 @@ describe('Cadastro CORTE E VINCO — catálogo', () => {
     expect(validateDieCutting(block)).toEqual({})
   })
 
-  it('hidrata a response (formatId + strings) e descarta a alimentação quando manual', () => {
+  it('hidrata a response (dimensões em mm + strings) e descarta a alimentação quando manual', () => {
     const fromApi: DieCuttingBlockResponse = {
       automatic: false,
       squareSetupMinutes: 12,
-      lateralSquareMargin: { value: 0.5, unit: 'CENTIMETER', millimeters: 5 },
       minFormat: {
-        format: {
-          formatId: 31,
-          formatName: '15x22',
-          width: { value: 15, unit: 'CENTIMETER', millimeters: 150 },
-          length: { value: 22, unit: 'CENTIMETER', millimeters: 220 },
-        },
+        width: { value: 15, unit: 'CENTIMETER', millimeters: 150 },
+        length: { value: 22, unit: 'CENTIMETER', millimeters: 220 },
         sheetsPerHour: 500,
         dieSetupMinutes: 8,
       },
       maxFormat: {
-        format: {
-          formatId: 47,
-          formatName: '66x96',
-          width: { value: 66, unit: 'CENTIMETER', millimeters: 660 },
-          length: { value: 96, unit: 'CENTIMETER', millimeters: 960 },
-        },
+        width: { value: 66, unit: 'CENTIMETER', millimeters: 660 },
+        length: { value: 96, unit: 'CENTIMETER', millimeters: 960 },
         sheetsPerHour: 1000,
         dieSetupMinutes: 15,
       },
@@ -87,9 +80,10 @@ describe('Cadastro CORTE E VINCO — catálogo', () => {
       feed: null,
     }
     const hydrated = hydrateDieCuttingBlock(fromApi)
-    expect(hydrated.lateralSquareMarginMm).toBe(5)
-    expect(hydrated.minFormat.formatId).toBe(31)
-    expect(hydrated.maxFormat.formatId).toBe(47)
+    expect(hydrated.minFormat.widthMm).toBe(150)
+    expect(hydrated.minFormat.lengthMm).toBe(220)
+    expect(hydrated.maxFormat.widthMm).toBe(660)
+    expect(hydrated.maxFormat.lengthMm).toBe(960)
     expect(hydrated.belowMinSpeedReducerPercent).toBe('10')
     expect(hydrated.feed).toBeNull()
   })
@@ -98,24 +92,15 @@ describe('Cadastro CORTE E VINCO — catálogo', () => {
     const fromApi: DieCuttingBlockResponse = {
       automatic: true,
       squareSetupMinutes: 12,
-      lateralSquareMargin: { value: 0.5, unit: 'CENTIMETER', millimeters: 5 },
       minFormat: {
-        format: {
-          formatId: 31,
-          formatName: '15x22',
-          width: { value: 15, unit: 'CENTIMETER', millimeters: 150 },
-          length: { value: 22, unit: 'CENTIMETER', millimeters: 220 },
-        },
+        width: { value: 15, unit: 'CENTIMETER', millimeters: 150 },
+        length: { value: 22, unit: 'CENTIMETER', millimeters: 220 },
         sheetsPerHour: 500,
         dieSetupMinutes: 8,
       },
       maxFormat: {
-        format: {
-          formatId: 47,
-          formatName: '66x96',
-          width: { value: 66, unit: 'CENTIMETER', millimeters: 660 },
-          length: { value: 96, unit: 'CENTIMETER', millimeters: 960 },
-        },
+        width: { value: 66, unit: 'CENTIMETER', millimeters: 660 },
+        length: { value: 96, unit: 'CENTIMETER', millimeters: 960 },
         sheetsPerHour: 1000,
         dieSetupMinutes: 15,
       },
