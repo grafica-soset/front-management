@@ -49,6 +49,7 @@ export default function useMenu() {
         { name: 'Corte e Vinco', href: '/maquinas/corte-vinco' },
         { name: 'Serigrafia', href: '/maquinas/serigrafia' },
         { name: 'Furadeira', href: '/maquinas/furadeira' },
+        { name: 'Plastificadora', href: '/maquinas/plastificadora' },
       ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
