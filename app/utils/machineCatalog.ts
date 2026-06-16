@@ -13,6 +13,8 @@ import type {
   GuillotineBlock,
   HolePunchingBlock,
   InkType,
+  LaminatingBlock,
+  LaminatingBlockResponse,
   MachineType,
   OffsetBlock,
   OffsetInkSetting,
@@ -36,12 +38,16 @@ export const SCREEN_PRINTING_MACHINES_BASE = '/screen-printing-machines'
 /** Endpoint base da API de furadeira. */
 export const HOLE_PUNCHING_MACHINES_BASE = '/hole-punching-machines'
 
+/** Endpoint base da API de plastificadora. */
+export const LAMINATING_MACHINES_BASE = '/laminating-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
   DIE_CUTTING: 'Corte e Vinco',
   SCREEN_PRINTING: 'Serigrafia',
   HOLE_PUNCHING: 'Furadeira',
+  LAMINATING: 'Plastificadora',
 }
 
 // ---------- Tipos de tinta ----------
@@ -257,6 +263,35 @@ export function validateHolePunching(block: HolePunchingBlock): Record<string, s
     if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
   }
   if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  return errors
+}
+
+// ---------- Bloco plastificadora (LAMINATING) ----------
+
+/** Bloco plastificadora vazio (velocidade 1 m/min como ponto de partida). */
+export function defaultLaminatingBlock(): LaminatingBlock {
+  return {
+    setupMinutes: 0,
+    speedMetersPerMinute: '1',
+  }
+}
+
+/** Normaliza o bloco plastificadora vindo da API para o formato de request (velocidade como string). */
+export function hydrateLaminatingBlock(block: LaminatingBlockResponse | null): LaminatingBlock {
+  const base = defaultLaminatingBlock()
+  if (!block) return base
+  return {
+    setupMinutes: block.setupMinutes ?? 0,
+    speedMetersPerMinute: String(block.speedMetersPerMinute),
+  }
+}
+
+/** Valida o bloco plastificadora: setup ≥ 0 e velocidade (m/min) > 0. */
+export function validateLaminating(block: LaminatingBlock): Record<string, string> {
+  const errors: Record<string, string> = {}
+  if (!(block.setupMinutes >= 0)) errors['setupMinutes'] = 'Valor mínimo: 0.'
+  const speed = Number(block.speedMetersPerMinute)
+  if (!Number.isFinite(speed) || speed <= 0) errors['speedMetersPerMinute'] = 'Informe uma velocidade maior que zero.'
   return errors
 }
 

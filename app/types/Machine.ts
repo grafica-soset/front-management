@@ -15,7 +15,7 @@ import type { FormattedDimension } from './FormattedDimension'
  */
 
 export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING' | 'FINISHING'
-export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING' | 'HOLE_PUNCHING'
+export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING' | 'HOLE_PUNCHING' | 'LAMINATING'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -392,6 +392,51 @@ export interface HolePunchingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   holePunching: HolePunchingBlock | null
+}
+
+// ---------- Plastificadora / Laminadora (LAMINATING) ----------
+/**
+ * A plastificadora funciona com um rolo: 1 folha por vez, com velocidade em metros por minuto.
+ * Guarda o tempo de setup e a velocidade; o tempo de rodagem (que depende do comprimento das
+ * folhas) é calculado no orçamento. É manual: sem alimentador, margem da pinça, cores ou quebra.
+ */
+export interface LaminatingBlock {
+  /** Tempo de setup da máquina (min) — 1x. */
+  setupMinutes: number
+  /** Velocidade de laminação em metros por minuto (> 0) — string decimal. */
+  speedMetersPerMinute: string
+}
+
+/** Corpo de POST/PUT /laminating-machines. Sem margem da pinça nem alimentador (manual). */
+export interface LaminatingMachineRequest {
+  customerId: number
+  machineType: 'LAMINATING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  laminating: LaminatingBlock
+}
+
+/** Bloco plastificadora devolvido pela API (velocidade como número). */
+export interface LaminatingBlockResponse {
+  setupMinutes: number
+  speedMetersPerMinute: number
+}
+
+/** Máquina de plastificadora devolvida por GET/{id}, POST e PUT. */
+export interface LaminatingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  laminating: LaminatingBlockResponse | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */
