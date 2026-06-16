@@ -48,6 +48,7 @@ export default function useMenu() {
         { name: 'Guilhotina', href: '/maquinas/corte' },
         { name: 'Corte e Vinco', href: '/maquinas/corte-vinco' },
         { name: 'Serigrafia', href: '/maquinas/serigrafia' },
+        { name: 'Furadeira', href: '/maquinas/furadeira' },
       ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },

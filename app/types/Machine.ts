@@ -14,8 +14,8 @@ import type { FormattedDimension } from './FormattedDimension'
  *   preservar a precisão exigida pelo backend (BigDecimal).
  */
 
-export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING'
-export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING'
+export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING' | 'FINISHING'
+export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING' | 'HOLE_PUNCHING'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -345,6 +345,53 @@ export interface ScreenPrintingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   screenPrinting: ScreenPrintingBlockResponse | null
+}
+
+// ---------- Furadeira (HOLE_PUNCHING) ----------
+/**
+ * A furadeira se parece com a guilhotina: guarda os tempos unitários usados pelo orçamento. O
+ * setup do esquadro é aplicado 1x a cada furo; a descida da broca e o movimento de papel, 1x a
+ * cada descida. Possui alimentador (altura máxima da pilha). Sem margens/cores/quebra/rampa.
+ */
+export interface HolePunchingBlock {
+  /** Setup do esquadro (min) — 1x a cada furo. */
+  squareSetupMinutes: number
+  /** Tempo (s) de uma descida da broca — 1x a cada descida. */
+  drillDescentTimeSeconds: number
+  /** Tempo (s) de movimentação do papel na broca — 1x a cada descida. */
+  paperMovementTimeSeconds: number
+  /** Tempo (s) para carregar uma leva de papel de altura feedLoadIncrementMm na mesa. */
+  feedTimeSecondsPerLoad: number
+  /** Altura (mm) de cada leva de alimentação (ex.: 40 mm = 4 cm). */
+  feedLoadIncrementMm: number
+}
+
+/** Corpo de POST/PUT /hole-punching-machines. Sem margem da pinça; alimentador opcional. */
+export interface HolePunchingMachineRequest {
+  customerId: number
+  machineType: 'HOLE_PUNCHING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  holePunching: HolePunchingBlock
+}
+
+/** Máquina de furadeira devolvida por GET/{id}, POST e PUT. */
+export interface HolePunchingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  holePunching: HolePunchingBlock | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */

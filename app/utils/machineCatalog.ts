@@ -11,6 +11,7 @@ import type {
   DieCuttingBlockResponse,
   DieCuttingFeed,
   GuillotineBlock,
+  HolePunchingBlock,
   InkType,
   MachineType,
   OffsetBlock,
@@ -32,11 +33,15 @@ export const DIE_CUTTING_MACHINES_BASE = '/die-cutting-machines'
 /** Endpoint base da API de serigrafia. */
 export const SCREEN_PRINTING_MACHINES_BASE = '/screen-printing-machines'
 
+/** Endpoint base da API de furadeira. */
+export const HOLE_PUNCHING_MACHINES_BASE = '/hole-punching-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
   DIE_CUTTING: 'Corte e Vinco',
   SCREEN_PRINTING: 'Serigrafia',
+  HOLE_PUNCHING: 'Furadeira',
 }
 
 // ---------- Tipos de tinta ----------
@@ -201,6 +206,51 @@ export function validateGuillotine(block: GuillotineBlock): Record<string, strin
     'bladeDescentTimeSeconds',
     'paperMovementTimeSeconds',
     'measureSetupTimeSeconds',
+    'feedTimeSecondsPerLoad',
+  ]
+  for (const k of keys) {
+    if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  return errors
+}
+
+// ---------- Bloco furadeira (HOLE_PUNCHING) ----------
+
+/** Bloco furadeira vazio (tempos zerados; leva de alimentação de 40 mm = 4 cm). */
+export function defaultHolePunchingBlock(): HolePunchingBlock {
+  return {
+    squareSetupMinutes: 0,
+    drillDescentTimeSeconds: 0,
+    paperMovementTimeSeconds: 0,
+    feedTimeSecondsPerLoad: 0,
+    feedLoadIncrementMm: 40,
+  }
+}
+
+/** Normaliza o bloco furadeira vindo da API, garantindo todos os campos. */
+export function hydrateHolePunchingBlock(block: HolePunchingBlock | null): HolePunchingBlock {
+  const base = defaultHolePunchingBlock()
+  if (!block) return base
+  return {
+    squareSetupMinutes: block.squareSetupMinutes ?? 0,
+    drillDescentTimeSeconds: block.drillDescentTimeSeconds ?? 0,
+    paperMovementTimeSeconds: block.paperMovementTimeSeconds ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
+  }
+}
+
+/**
+ * Valida o bloco furadeira: setup do esquadro e tempos não-negativos; a altura de cada leva de
+ * alimentação (≥ 1 mm), igual à guilhotina.
+ */
+export function validateHolePunching(block: HolePunchingBlock): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const keys: (keyof HolePunchingBlock)[] = [
+    'squareSetupMinutes',
+    'drillDescentTimeSeconds',
+    'paperMovementTimeSeconds',
     'feedTimeSecondsPerLoad',
   ]
   for (const k of keys) {
