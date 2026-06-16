@@ -47,6 +47,7 @@ export default function useMenu() {
         { name: 'Impressão Offset', href: '/maquinas' },
         { name: 'Guilhotina', href: '/maquinas/corte' },
         { name: 'Corte e Vinco', href: '/maquinas/corte-vinco' },
+        { name: 'Serigrafia', href: '/maquinas/serigrafia' },
       ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },

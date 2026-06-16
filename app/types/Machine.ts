@@ -15,7 +15,7 @@ import type { FormattedDimension } from './FormattedDimension'
  */
 
 export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING'
-export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING'
+export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -259,6 +259,92 @@ export interface DieCuttingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   dieCutting: DieCuttingBlockResponse | null
+}
+
+// ---------- Serigrafia (SCREEN_PRINTING) ----------
+/**
+ * A serigrafia imprime por TELAS (uma por cor): sem número de cores fixo nem rampa por tinta.
+ * A velocidade vem de uma MATRIZ DE FORMATO (dois pontos: mínimo e máximo, com dimensões
+ * numéricas). Os setups (tela, lavagem) e a quebra são por tela. Hoje só a máquina MANUAL é
+ * suportada (sem alimentador).
+ */
+
+/** Ponto de calibração da matriz — request (dimensões em mm + velocidade). */
+export interface ScreenPrintingFormatPointRequest {
+  widthMm: number
+  lengthMm: number
+  sheetsPerHour: number
+}
+
+/** Bloco serigrafia — request (dimensões em mm, percentuais como string). */
+export interface ScreenPrintingBlockRequest {
+  /** Hoje sempre false (manual). */
+  automatic: boolean
+  /** Setup de esquadros Frontal e Lateral (min) — fixo. */
+  squareSetupMinutes: number
+  /** Tempo de setup de tela (min) — por tela. */
+  screenSetupMinutes: number
+  /** Lavagem por cor (min) — por tela. */
+  washMinutesPerColor: number
+  /** Quebra por cor (folhas) — por tela. */
+  wasteSheetsPerColor: number
+  minFormat: ScreenPrintingFormatPointRequest
+  maxFormat: ScreenPrintingFormatPointRequest
+  /** Redutor (%) p/ formatos menores que o mínimo. */
+  belowMinSpeedReducerPercent: string
+  /** Redutor (%) p/ formatos maiores que o máximo. */
+  aboveMaxSpeedReducerPercent: string
+}
+
+/** Ponto de calibração devolvido pela API (dimensões numéricas já formatadas). */
+export interface ScreenPrintingFormatPointResponse {
+  width: FormattedDimension
+  length: FormattedDimension
+  sheetsPerHour: number
+}
+
+/** Bloco serigrafia devolvido pela API. */
+export interface ScreenPrintingBlockResponse {
+  automatic: boolean
+  squareSetupMinutes: number
+  screenSetupMinutes: number
+  washMinutesPerColor: number
+  wasteSheetsPerColor: number
+  minFormat: ScreenPrintingFormatPointResponse
+  maxFormat: ScreenPrintingFormatPointResponse
+  belowMinSpeedReducerPercent: number
+  aboveMaxSpeedReducerPercent: number
+}
+
+/**
+ * Corpo de POST/PUT /screen-printing-machines. Tem os esquadros frontal e lateral (gripMm), mas
+ * NÃO há "limite máximo de mancha" nem alimentador (a máquina é manual).
+ */
+export interface ScreenPrintingMachineRequest {
+  customerId: number
+  machineType: 'SCREEN_PRINTING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  gripMm: number
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  screenPrinting: ScreenPrintingBlockRequest
+}
+
+/** Máquina de serigrafia devolvida por GET/{id}, POST e PUT. */
+export interface ScreenPrintingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  gripMm: number
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  screenPrinting: ScreenPrintingBlockResponse | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */
