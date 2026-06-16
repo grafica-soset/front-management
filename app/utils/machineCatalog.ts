@@ -16,6 +16,8 @@ import type {
   OffsetBlock,
   OffsetInkSetting,
   OffsetTier,
+  ScreenPrintingBlockRequest,
+  ScreenPrintingBlockResponse,
 } from '@/types/Machine'
 
 /** Endpoint base da API de impressão. */
@@ -27,10 +29,14 @@ export const CUTTING_MACHINES_BASE = '/cutting-machines'
 /** Endpoint base da API de corte e vinco. */
 export const DIE_CUTTING_MACHINES_BASE = '/die-cutting-machines'
 
+/** Endpoint base da API de serigrafia. */
+export const SCREEN_PRINTING_MACHINES_BASE = '/screen-printing-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
   DIE_CUTTING: 'Corte e Vinco',
+  SCREEN_PRINTING: 'Serigrafia',
 }
 
 // ---------- Tipos de tinta ----------
@@ -281,6 +287,74 @@ export function validateDieCutting(block: DieCuttingBlockRequest): Record<string
       if (!(f.feedLoadIncrementMm >= 1)) errors['feed.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
     }
   }
+
+  return errors
+}
+
+// ---------- Bloco serigrafia (SCREEN_PRINTING) ----------
+
+/** Bloco serigrafia vazio (manual; matriz com dimensões zeradas). */
+export function defaultScreenPrintingBlock(): ScreenPrintingBlockRequest {
+  return {
+    automatic: false,
+    squareSetupMinutes: 0,
+    screenSetupMinutes: 0,
+    washMinutesPerColor: 0,
+    wasteSheetsPerColor: 0,
+    minFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
+    maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
+    belowMinSpeedReducerPercent: '0',
+    aboveMaxSpeedReducerPercent: '0',
+  }
+}
+
+/** Normaliza o bloco serigrafia vindo da API para o formato de request (dimensões em mm + strings). */
+export function hydrateScreenPrintingBlock(block: ScreenPrintingBlockResponse | null): ScreenPrintingBlockRequest {
+  const base = defaultScreenPrintingBlock()
+  if (!block) return base
+  return {
+    automatic: block.automatic,
+    squareSetupMinutes: block.squareSetupMinutes ?? 0,
+    screenSetupMinutes: block.screenSetupMinutes ?? 0,
+    washMinutesPerColor: block.washMinutesPerColor ?? 0,
+    wasteSheetsPerColor: block.wasteSheetsPerColor ?? 0,
+    minFormat: {
+      widthMm: block.minFormat.width.millimeters,
+      lengthMm: block.minFormat.length.millimeters,
+      sheetsPerHour: block.minFormat.sheetsPerHour,
+    },
+    maxFormat: {
+      widthMm: block.maxFormat.width.millimeters,
+      lengthMm: block.maxFormat.length.millimeters,
+      sheetsPerHour: block.maxFormat.sheetsPerHour,
+    },
+    belowMinSpeedReducerPercent: String(block.belowMinSpeedReducerPercent),
+    aboveMaxSpeedReducerPercent: String(block.aboveMaxSpeedReducerPercent),
+  }
+}
+
+/**
+ * Valida o bloco serigrafia: setups e quebra ≥ 0; a matriz de formato (dois pontos) com
+ * dimensões e velocidade ≥ 1; redutores ≥ 0. (A regra "máximo ≥ mínimo" é validada no
+ * formulário pelo tamanho linear das dimensões; o backend também a reforça.)
+ */
+export function validateScreenPrinting(block: ScreenPrintingBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (!(block.squareSetupMinutes >= 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!(block.screenSetupMinutes >= 0)) errors['screenSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!(block.washMinutesPerColor >= 0)) errors['washMinutesPerColor'] = 'Valor mínimo: 0.'
+  if (!(block.wasteSheetsPerColor >= 0)) errors['wasteSheetsPerColor'] = 'Valor mínimo: 0.'
+
+  for (const which of ['minFormat', 'maxFormat'] as const) {
+    const p = block[which]
+    if (!(p.widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!(p.lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!(p.sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+  }
+
+  if (!isNonNegativeNumber(block.belowMinSpeedReducerPercent)) errors['belowMinSpeedReducerPercent'] = 'Percentual inválido.'
+  if (!isNonNegativeNumber(block.aboveMaxSpeedReducerPercent)) errors['aboveMaxSpeedReducerPercent'] = 'Percentual inválido.'
 
   return errors
 }
