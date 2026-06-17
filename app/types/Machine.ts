@@ -15,7 +15,14 @@ import type { FormattedDimension } from './FormattedDimension'
  */
 
 export type MachineCategory = 'PRINTING' | 'CUTTING' | 'DIE_CUTTING' | 'FINISHING'
-export type MachineType = 'OFFSET' | 'GUILLOTINE' | 'DIE_CUTTING' | 'SCREEN_PRINTING' | 'HOLE_PUNCHING' | 'LAMINATING'
+export type MachineType =
+  | 'OFFSET'
+  | 'GUILLOTINE'
+  | 'DIE_CUTTING'
+  | 'SCREEN_PRINTING'
+  | 'HOLE_PUNCHING'
+  | 'LAMINATING'
+  | 'FOLDING'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -447,6 +454,108 @@ export interface LaminatingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   laminating: LaminatingBlockResponse | null
+}
+
+// ---------- Dobradeira (FOLDING) ----------
+/**
+ * A dobradeira dobra o papel por BOLSAS (paralelas e cruzadas). A velocidade parte da máxima e é
+ * reduzida por bolsa usada, gramatura e formato fora do ideal, limitada à mínima. Tem alimentador,
+ * espessura máxima de papel, quebra de acerto e movimentação de saída por maço.
+ */
+
+/** Ponto do formato ideal — request (dimensões em mm). */
+export interface FoldingFormatPointRequest {
+  widthMm: number
+  lengthMm: number
+}
+
+/** Bloco dobradeira — request (dimensões em mm; percentuais como string). */
+export interface FoldingBlockRequest {
+  parallelPockets: number
+  crossPockets: number
+  /** Setup de bolsa (min) — por bolsa usada. */
+  pocketSetupMinutes: number
+  /** Redutor (%) de velocidade por bolsa usada. */
+  perPocketSpeedReducerPercent: string
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  /** Espessura máxima do papel que passa pelas bolsas (microns). */
+  maxPaperThicknessMicrons: number
+  idealWeightMinGsm: number
+  idealWeightMaxGsm: number
+  belowIdealWeightReducerPercent: string
+  aboveIdealWeightReducerPercent: string
+  minFormat: FoldingFormatPointRequest
+  maxFormat: FoldingFormatPointRequest
+  belowMinFormatReducerPercent: string
+  aboveMaxFormatReducerPercent: string
+  /** Quebra de acerto fixa (folhas). */
+  setupWasteSheets: number
+  /** Movimentação de saída (min) por maço. */
+  outputMovementMinutesPerBundle: number
+  outputBundleSheets: number
+}
+
+/** Ponto do formato ideal devolvido pela API (dimensões formatadas). */
+export interface FoldingFormatPointResponse {
+  width: FormattedDimension
+  length: FormattedDimension
+}
+
+/** Bloco dobradeira devolvido pela API (percentuais como número). */
+export interface FoldingBlockResponse {
+  parallelPockets: number
+  crossPockets: number
+  pocketSetupMinutes: number
+  perPocketSpeedReducerPercent: number
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  maxPaperThicknessMicrons: number
+  idealWeightMinGsm: number
+  idealWeightMaxGsm: number
+  belowIdealWeightReducerPercent: number
+  aboveIdealWeightReducerPercent: number
+  minFormat: FoldingFormatPointResponse
+  maxFormat: FoldingFormatPointResponse
+  belowMinFormatReducerPercent: number
+  aboveMaxFormatReducerPercent: number
+  setupWasteSheets: number
+  outputMovementMinutesPerBundle: number
+  outputBundleSheets: number
+}
+
+/** Corpo de POST/PUT /folding-machines. Sem margem da pinça; alimentador obrigatório. */
+export interface FoldingMachineRequest {
+  customerId: number
+  machineType: 'FOLDING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  folding: FoldingBlockRequest
+}
+
+/** Máquina de dobradeira devolvida por GET/{id}, POST e PUT. */
+export interface FoldingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  folding: FoldingBlockResponse | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */

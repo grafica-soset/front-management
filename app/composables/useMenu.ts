@@ -50,6 +50,7 @@ export default function useMenu() {
         { name: 'Serigrafia', href: '/maquinas/serigrafia' },
         { name: 'Furadeira', href: '/maquinas/furadeira' },
         { name: 'Plastificadora', href: '/maquinas/plastificadora' },
+        { name: 'Dobradeira', href: '/maquinas/dobradeira' },
       ],
     },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
