@@ -360,10 +360,8 @@ export interface HolePunchingBlock {
   drillDescentTimeSeconds: number
   /** Tempo (s) de movimentação do papel na broca — 1x a cada descida. */
   paperMovementTimeSeconds: number
-  /** Tempo (s) para carregar uma leva de papel de altura feedLoadIncrementMm na mesa. */
+  /** Tempo (s) para carregar a pilha de papel (uma alimentação). */
   feedTimeSecondsPerLoad: number
-  /** Altura (mm) de cada leva de alimentação (ex.: 40 mm = 4 cm). */
-  feedLoadIncrementMm: number
 }
 
 /** Corpo de POST/PUT /hole-punching-machines. Sem margem da pinça; alimentador opcional. */
@@ -407,13 +405,19 @@ export interface LaminatingBlock {
   speedMetersPerMinute: string
 }
 
-/** Corpo de POST/PUT /laminating-machines. Sem margem da pinça nem alimentador (manual). */
+/** Faixa de largura aceita (a plastificadora é contínua — não há comprimento). */
+export interface LaminatingWidthRangeRequest {
+  minWidthMm: number
+  maxWidthMm: number
+}
+
+/** Corpo de POST/PUT /laminating-machines. Máquina contínua (só largura), sem pinça nem alimentador. */
 export interface LaminatingMachineRequest {
   customerId: number
   machineType: 'LAMINATING'
   name: string
   active?: boolean
-  formatRange: FormatRangeRequest
+  widthRange: LaminatingWidthRangeRequest
   hourlyCost: string
   supplyTransportTimeMinutes: number
   laminating: LaminatingBlock
@@ -425,6 +429,12 @@ export interface LaminatingBlockResponse {
   speedMetersPerMinute: number
 }
 
+/** Faixa de largura devolvida pela API (a máquina é contínua — não há comprimento). */
+export interface LaminatingWidthRangeResponse {
+  minWidth: FormattedDimension
+  maxWidth: FormattedDimension
+}
+
 /** Máquina de plastificadora devolvida por GET/{id}, POST e PUT. */
 export interface LaminatingMachine {
   id: number
@@ -433,7 +443,7 @@ export interface LaminatingMachine {
   category: MachineCategory
   name: string
   active: boolean
-  formatRange: FormatRangeResponse
+  widthRange: LaminatingWidthRangeResponse
   hourlyCost: number
   supplyTransportTimeMinutes: number
   laminating: LaminatingBlockResponse | null

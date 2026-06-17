@@ -18,13 +18,14 @@ function validBlock(): HolePunchingBlock {
     drillDescentTimeSeconds: 10,
     paperMovementTimeSeconds: 45,
     feedTimeSecondsPerLoad: 7,
-    feedLoadIncrementMm: 40,
   }
 }
 
 describe('Cadastro FURADEIRA — catálogo', () => {
-  it('o bloco default tem leva de alimentação de 40 mm', () => {
-    expect(defaultHolePunchingBlock().feedLoadIncrementMm).toBe(40)
+  it('o bloco default zera os tempos (sem altura de alimentação)', () => {
+    const block = defaultHolePunchingBlock()
+    expect(block.feedTimeSecondsPerLoad).toBe(0)
+    expect('feedLoadIncrementMm' in block).toBe(false)
   })
 
   it('um bloco bem preenchido não tem erros', () => {
@@ -36,24 +37,18 @@ describe('Cadastro FURADEIRA — catálogo', () => {
     expect(validateHolePunching(block)['drillDescentTimeSeconds']).toBeTruthy()
   })
 
-  it('exige altura de alimentação ≥ 1', () => {
-    const block = { ...validBlock(), feedLoadIncrementMm: 0 }
-    expect(validateHolePunching(block)['feedLoadIncrementMm']).toBeTruthy()
-  })
-
   it('hidrata a response garantindo todos os campos', () => {
     const fromApi: HolePunchingBlock = {
       squareSetupMinutes: 12,
       drillDescentTimeSeconds: 10,
       paperMovementTimeSeconds: 45,
       feedTimeSecondsPerLoad: 7,
-      feedLoadIncrementMm: 40,
     }
     const hydrated = hydrateHolePunchingBlock(fromApi)
     expect(hydrated.squareSetupMinutes).toBe(12)
     expect(hydrated.drillDescentTimeSeconds).toBe(10)
     expect(hydrated.paperMovementTimeSeconds).toBe(45)
-    expect(hydrated.feedLoadIncrementMm).toBe(40)
+    expect(hydrated.feedTimeSecondsPerLoad).toBe(7)
   })
 
   it('hidrata um bloco nulo para o default', () => {

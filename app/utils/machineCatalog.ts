@@ -223,14 +223,13 @@ export function validateGuillotine(block: GuillotineBlock): Record<string, strin
 
 // ---------- Bloco furadeira (HOLE_PUNCHING) ----------
 
-/** Bloco furadeira vazio (tempos zerados; leva de alimentação de 40 mm = 4 cm). */
+/** Bloco furadeira vazio (tempos zerados). */
 export function defaultHolePunchingBlock(): HolePunchingBlock {
   return {
     squareSetupMinutes: 0,
     drillDescentTimeSeconds: 0,
     paperMovementTimeSeconds: 0,
     feedTimeSecondsPerLoad: 0,
-    feedLoadIncrementMm: 40,
   }
 }
 
@@ -243,14 +242,10 @@ export function hydrateHolePunchingBlock(block: HolePunchingBlock | null): HoleP
     drillDescentTimeSeconds: block.drillDescentTimeSeconds ?? 0,
     paperMovementTimeSeconds: block.paperMovementTimeSeconds ?? 0,
     feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
-    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
   }
 }
 
-/**
- * Valida o bloco furadeira: setup do esquadro e tempos não-negativos; a altura de cada leva de
- * alimentação (≥ 1 mm), igual à guilhotina.
- */
+/** Valida o bloco furadeira: setup do esquadro e tempos não-negativos. */
 export function validateHolePunching(block: HolePunchingBlock): Record<string, string> {
   const errors: Record<string, string> = {}
   const keys: (keyof HolePunchingBlock)[] = [
@@ -262,7 +257,6 @@ export function validateHolePunching(block: HolePunchingBlock): Record<string, s
   for (const k of keys) {
     if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
   return errors
 }
 
