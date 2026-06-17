@@ -10,6 +10,8 @@ import type {
   DieCuttingBlockRequest,
   DieCuttingBlockResponse,
   DieCuttingFeed,
+  FoldingBlockRequest,
+  FoldingBlockResponse,
   GuillotineBlock,
   HolePunchingBlock,
   InkType,
@@ -41,6 +43,9 @@ export const HOLE_PUNCHING_MACHINES_BASE = '/hole-punching-machines'
 /** Endpoint base da API de plastificadora. */
 export const LAMINATING_MACHINES_BASE = '/laminating-machines'
 
+/** Endpoint base da API de dobradeira. */
+export const FOLDING_MACHINES_BASE = '/folding-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
@@ -48,6 +53,7 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   SCREEN_PRINTING: 'Serigrafia',
   HOLE_PUNCHING: 'Furadeira',
   LAMINATING: 'Plastificadora',
+  FOLDING: 'Dobradeira',
 }
 
 // ---------- Tipos de tinta ----------
@@ -286,6 +292,101 @@ export function validateLaminating(block: LaminatingBlock): Record<string, strin
   if (!(block.setupMinutes >= 0)) errors['setupMinutes'] = 'Valor mínimo: 0.'
   const speed = Number(block.speedMetersPerMinute)
   if (!Number.isFinite(speed) || speed <= 0) errors['speedMetersPerMinute'] = 'Informe uma velocidade maior que zero.'
+  return errors
+}
+
+// ---------- Bloco dobradeira (FOLDING) ----------
+
+/** Bloco dobradeira default (4+4 bolsas; alimentação 40 mm; envelope 1000–10000). */
+export function defaultFoldingBlock(): FoldingBlockRequest {
+  return {
+    parallelPockets: 4,
+    crossPockets: 4,
+    pocketSetupMinutes: 0,
+    perPocketSpeedReducerPercent: '0',
+    paperFeedSetupMinutes: 0,
+    feedTimeSecondsPerLoad: 0,
+    feedLoadIncrementMm: 40,
+    minSpeedSheetsPerHour: 0,
+    maxSpeedSheetsPerHour: 0,
+    maxPaperThicknessMicrons: 0,
+    idealWeightMinGsm: 0,
+    idealWeightMaxGsm: 0,
+    belowIdealWeightReducerPercent: '0',
+    aboveIdealWeightReducerPercent: '0',
+    minFormat: { widthMm: 0, lengthMm: 0 },
+    maxFormat: { widthMm: 0, lengthMm: 0 },
+    belowMinFormatReducerPercent: '0',
+    aboveMaxFormatReducerPercent: '0',
+    setupWasteSheets: 0,
+    outputMovementMinutesPerBundle: 0,
+    outputBundleSheets: 100,
+  }
+}
+
+/** Normaliza o bloco dobradeira vindo da API para o formato de request (mm + strings). */
+export function hydrateFoldingBlock(block: FoldingBlockResponse | null): FoldingBlockRequest {
+  const base = defaultFoldingBlock()
+  if (!block) return base
+  return {
+    parallelPockets: block.parallelPockets ?? 0,
+    crossPockets: block.crossPockets ?? 0,
+    pocketSetupMinutes: block.pocketSetupMinutes ?? 0,
+    perPocketSpeedReducerPercent: String(block.perPocketSpeedReducerPercent),
+    paperFeedSetupMinutes: block.paperFeedSetupMinutes ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
+    minSpeedSheetsPerHour: block.minSpeedSheetsPerHour ?? 0,
+    maxSpeedSheetsPerHour: block.maxSpeedSheetsPerHour ?? 0,
+    maxPaperThicknessMicrons: block.maxPaperThicknessMicrons ?? 0,
+    idealWeightMinGsm: block.idealWeightMinGsm ?? 0,
+    idealWeightMaxGsm: block.idealWeightMaxGsm ?? 0,
+    belowIdealWeightReducerPercent: String(block.belowIdealWeightReducerPercent),
+    aboveIdealWeightReducerPercent: String(block.aboveIdealWeightReducerPercent),
+    minFormat: { widthMm: block.minFormat.width.millimeters, lengthMm: block.minFormat.length.millimeters },
+    maxFormat: { widthMm: block.maxFormat.width.millimeters, lengthMm: block.maxFormat.length.millimeters },
+    belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
+    aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
+    setupWasteSheets: block.setupWasteSheets ?? 0,
+    outputMovementMinutesPerBundle: block.outputMovementMinutesPerBundle ?? 0,
+    outputBundleSheets: block.outputBundleSheets ?? base.outputBundleSheets,
+  }
+}
+
+/**
+ * Valida o bloco dobradeira: ao menos uma bolsa; tempos e redutores ≥ 0; velocidade máx ≥ mín
+ * (> 0); gramatura ideal máx ≥ mín; formato ideal com dimensões ≥ 1; espessura e maço ≥ 1.
+ */
+export function validateFolding(block: FoldingBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const nonNeg: (keyof FoldingBlockRequest)[] = [
+    'parallelPockets', 'crossPockets', 'pocketSetupMinutes', 'paperFeedSetupMinutes',
+    'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'maxPaperThicknessMicrons',
+    'idealWeightMinGsm', 'idealWeightMaxGsm', 'setupWasteSheets', 'outputMovementMinutesPerBundle',
+  ]
+  for (const k of nonNeg) {
+    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  if (!(block.parallelPockets + block.crossPockets >= 1)) errors['parallelPockets'] = 'A máquina deve ter ao menos uma bolsa.'
+  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  if (!(block.maxPaperThicknessMicrons >= 1)) errors['maxPaperThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
+  if (!(block.idealWeightMaxGsm >= block.idealWeightMinGsm)) errors['idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
+  if (!(block.outputBundleSheets >= 1)) errors['outputBundleSheets'] = 'Valor mínimo: 1.'
+  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+
+  for (const which of ['minFormat', 'maxFormat'] as const) {
+    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+  }
+
+  const pcts: (keyof FoldingBlockRequest)[] = [
+    'perPocketSpeedReducerPercent', 'belowIdealWeightReducerPercent', 'aboveIdealWeightReducerPercent',
+    'belowMinFormatReducerPercent', 'aboveMaxFormatReducerPercent',
+  ]
+  for (const k of pcts) {
+    if (!isNonNegativeNumber(block[k] as string)) errors[k] = 'Percentual inválido.'
+  }
   return errors
 }
 
