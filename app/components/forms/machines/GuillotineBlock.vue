@@ -54,7 +54,10 @@ const inputClass = (err?: string) => [
           <input v-model.number="block.paperMovementTimeSeconds" type="number" min="0" step="1" :class="inputClass(errors.paperMovementTimeSeconds)" />
           <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">seg</span>
         </div>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">1x a cada descida (limpar/virar).</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Tempo para movimentar o papel dentro da máquina durante o uso — ex.: reposicionar/virar
+          a pilha de folhas para o próximo corte. Aplicado 1x a cada descida.
+        </p>
         <p v-if="errors.paperMovementTimeSeconds" class="mt-1 text-xs text-rose-600">{{ errors.paperMovementTimeSeconds }}</p>
       </div>
       <div>

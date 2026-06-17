@@ -37,7 +37,7 @@ const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 
 const form = reactive({
   name: '',
-  formatRange: { minWidth: 0, maxWidth: 0, minLength: 0, maxLength: 0 },
+  widthRange: { minWidth: 0, maxWidth: 0 },
   hourlyCost: '0',
   supplyTransportTimeMinutes: 0,
   active: true,
@@ -52,11 +52,9 @@ if (props.initial) hydrate(props.initial)
 
 function hydrate(machine: LaminatingMachine) {
   form.name = machine.name
-  form.formatRange = {
-    minWidth: fromMillimeters(machine.formatRange.minWidth.millimeters) ?? 0,
-    maxWidth: fromMillimeters(machine.formatRange.maxWidth.millimeters) ?? 0,
-    minLength: fromMillimeters(machine.formatRange.minLength.millimeters) ?? 0,
-    maxLength: fromMillimeters(machine.formatRange.maxLength.millimeters) ?? 0,
+  form.widthRange = {
+    minWidth: fromMillimeters(machine.widthRange.minWidth.millimeters) ?? 0,
+    maxWidth: fromMillimeters(machine.widthRange.maxWidth.millimeters) ?? 0,
   }
   form.hourlyCost = String(machine.hourlyCost)
   form.supplyTransportTimeMinutes = machine.supplyTransportTimeMinutes ?? 0
@@ -75,11 +73,9 @@ function validateCommon(): Record<string, string> {
   if (!name) e['name'] = 'Informe o nome.'
   else if (name.length > 150) e['name'] = 'Máximo de 150 caracteres.'
 
-  const fr = form.formatRange
-  if (fr.minWidth < 0) e['formatRange.minWidth'] = 'Valor mínimo: 0.'
-  if (fr.minLength < 0) e['formatRange.minLength'] = 'Valor mínimo: 0.'
-  if (fr.maxWidth < fr.minWidth) e['formatRange.maxWidth'] = 'Deve ser ≥ largura mínima.'
-  if (fr.maxLength < fr.minLength) e['formatRange.maxLength'] = 'Deve ser ≥ comprimento mínimo.'
+  const wr = form.widthRange
+  if (wr.minWidth < 0) e['widthRange.minWidth'] = 'Valor mínimo: 0.'
+  if (wr.maxWidth < wr.minWidth) e['widthRange.maxWidth'] = 'Deve ser ≥ largura mínima.'
 
   const cost = Number(form.hourlyCost)
   if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
@@ -98,11 +94,9 @@ const handleSubmit = () => {
     customerId: 0,
     machineType: 'LAMINATING',
     name: form.name.trim(),
-    formatRange: {
-      minWidthMm: toMillimeters(form.formatRange.minWidth) ?? 0,
-      maxWidthMm: toMillimeters(form.formatRange.maxWidth) ?? 0,
-      minLengthMm: toMillimeters(form.formatRange.minLength) ?? 0,
-      maxLengthMm: toMillimeters(form.formatRange.maxLength) ?? 0,
+    widthRange: {
+      minWidthMm: toMillimeters(form.widthRange.minWidth) ?? 0,
+      maxWidthMm: toMillimeters(form.widthRange.maxWidth) ?? 0,
     },
     hourlyCost: String(form.hourlyCost),
     supplyTransportTimeMinutes: form.supplyTransportTimeMinutes,
@@ -143,42 +137,28 @@ const handleSubmit = () => {
       </div>
     </div>
 
-    <!-- Formato de papel -->
+    <!-- Formato de papel: máquina contínua, só largura -->
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
-      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Formato de papel ({{ suffix }})</legend>
-      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Faixa de tamanho aceita — largura × comprimento.</p>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Largura do papel ({{ suffix }})</legend>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Faixa de largura aceita. A máquina é <strong>contínua</strong> — não há limite de comprimento.
+      </p>
+      <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura mín.</label>
           <div class="relative">
-            <input v-model.number="form.formatRange.minWidth" type="number" min="0" step="0.001" :class="[inputClass('formatRange.minWidth'), 'pr-12']" />
+            <input v-model.number="form.widthRange.minWidth" type="number" min="0" step="0.001" :class="[inputClass('widthRange.minWidth'), 'pr-12']" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
           </div>
-          <p v-if="commonErrors['formatRange.minWidth']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.minWidth'] }}</p>
+          <p v-if="commonErrors['widthRange.minWidth']" class="mt-1 text-xs text-rose-600">{{ commonErrors['widthRange.minWidth'] }}</p>
         </div>
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura máx.</label>
           <div class="relative">
-            <input v-model.number="form.formatRange.maxWidth" type="number" min="0" step="0.001" :class="[inputClass('formatRange.maxWidth'), 'pr-12']" />
+            <input v-model.number="form.widthRange.maxWidth" type="number" min="0" step="0.001" :class="[inputClass('widthRange.maxWidth'), 'pr-12']" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
           </div>
-          <p v-if="commonErrors['formatRange.maxWidth']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.maxWidth'] }}</p>
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento mín.</label>
-          <div class="relative">
-            <input v-model.number="form.formatRange.minLength" type="number" min="0" step="0.001" :class="[inputClass('formatRange.minLength'), 'pr-12']" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
-          </div>
-          <p v-if="commonErrors['formatRange.minLength']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.minLength'] }}</p>
-        </div>
-        <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Comprimento máx.</label>
-          <div class="relative">
-            <input v-model.number="form.formatRange.maxLength" type="number" min="0" step="0.001" :class="[inputClass('formatRange.maxLength'), 'pr-12']" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ suffix }}</span>
-          </div>
-          <p v-if="commonErrors['formatRange.maxLength']" class="mt-1 text-xs text-rose-600">{{ commonErrors['formatRange.maxLength'] }}</p>
+          <p v-if="commonErrors['widthRange.maxWidth']" class="mt-1 text-xs text-rose-600">{{ commonErrors['widthRange.maxWidth'] }}</p>
         </div>
       </div>
     </fieldset>
