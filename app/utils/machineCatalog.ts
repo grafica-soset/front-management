@@ -10,6 +10,9 @@ import type {
   DieCuttingBlockRequest,
   DieCuttingBlockResponse,
   DieCuttingFeed,
+  DigitalBlockRequest,
+  DigitalBlockResponse,
+  DigitalColorMode,
   FoldingBlockRequest,
   FoldingBlockResponse,
   GuillotineBlock,
@@ -46,6 +49,9 @@ export const LAMINATING_MACHINES_BASE = '/laminating-machines'
 /** Endpoint base da API de dobradeira. */
 export const FOLDING_MACHINES_BASE = '/folding-machines'
 
+/** Endpoint base da API de impressora digital. */
+export const DIGITAL_MACHINES_BASE = '/digital-machines'
+
 export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
@@ -54,6 +60,13 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   HOLE_PUNCHING: 'Furadeira',
   LAMINATING: 'Plastificadora',
   FOLDING: 'Dobradeira',
+  DIGITAL: 'Impressora Digital',
+}
+
+/** Rótulos PT-BR do modo de cor da impressora digital. */
+export const DIGITAL_COLOR_MODE_LABELS: Record<DigitalColorMode, string> = {
+  MONOCOLOR: 'Monocolor',
+  COLOR: 'Colorida',
 }
 
 // ---------- Tipos de tinta ----------
@@ -386,6 +399,102 @@ export function validateFolding(block: FoldingBlockRequest): Record<string, stri
   ]
   for (const k of pcts) {
     if (!isNonNegativeNumber(block[k] as string)) errors[k] = 'Percentual inválido.'
+  }
+  return errors
+}
+
+// ---------- Bloco impressora digital (DIGITAL) ----------
+
+/** Bloco digital default (colorida; envelope/limites a preencher; alimentação 40 mm). */
+export function defaultDigitalBlock(): DigitalBlockRequest {
+  return {
+    colorMode: 'COLOR',
+    setupMinutes: 0,
+    paperFeedSetupMinutes: 0,
+    feedTimeSecondsPerLoad: 0,
+    feedLoadIncrementMm: 40,
+    minSpeedSheetsPerHour: 0,
+    maxSpeedSheetsPerHour: 0,
+    minFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
+    maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
+    belowMinFormatReducerPercent: '0',
+    aboveMaxFormatReducerPercent: '0',
+    maxWeightGsm: 0,
+    maxThicknessMicrons: 0,
+    wasteSheets: 0,
+    lineCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
+    imageCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
+  }
+}
+
+/** Normaliza o bloco digital vindo da API para o formato de request (mm + strings). */
+export function hydrateDigitalBlock(block: DigitalBlockResponse | null): DigitalBlockRequest {
+  const base = defaultDigitalBlock()
+  if (!block) return base
+  return {
+    colorMode: block.colorMode,
+    setupMinutes: block.setupMinutes ?? 0,
+    paperFeedSetupMinutes: block.paperFeedSetupMinutes ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
+    minSpeedSheetsPerHour: block.minSpeedSheetsPerHour ?? 0,
+    maxSpeedSheetsPerHour: block.maxSpeedSheetsPerHour ?? 0,
+    minFormat: {
+      widthMm: block.minFormat.width.millimeters,
+      lengthMm: block.minFormat.length.millimeters,
+      sheetsPerHour: block.minFormat.sheetsPerHour,
+    },
+    maxFormat: {
+      widthMm: block.maxFormat.width.millimeters,
+      lengthMm: block.maxFormat.length.millimeters,
+      sheetsPerHour: block.maxFormat.sheetsPerHour,
+    },
+    belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
+    aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
+    maxWeightGsm: block.maxWeightGsm ?? 0,
+    maxThicknessMicrons: block.maxThicknessMicrons ?? 0,
+    wasteSheets: block.wasteSheets ?? 0,
+    lineCoverage: {
+      tonerGramsPerSquareMeterAt100: String(block.lineCoverage.tonerGramsPerSquareMeterAt100),
+      speedReducerPercentAt100: String(block.lineCoverage.speedReducerPercentAt100),
+    },
+    imageCoverage: {
+      tonerGramsPerSquareMeterAt100: String(block.imageCoverage.tonerGramsPerSquareMeterAt100),
+      speedReducerPercentAt100: String(block.imageCoverage.speedReducerPercentAt100),
+    },
+  }
+}
+
+/**
+ * Valida o bloco digital: tempos ≥ 0; velocidade máx ≥ mín (> 0); dimensões e velocidades da
+ * matriz ≥ 1; limites de gramatura/espessura ≥ 1; percentuais e consumo de toner ≥ 0.
+ */
+export function validateDigital(block: DigitalBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const nonNeg: (keyof DigitalBlockRequest)[] = [
+    'setupMinutes', 'paperFeedSetupMinutes', 'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'wasteSheets',
+  ]
+  for (const k of nonNeg) {
+    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  if (!(block.maxWeightGsm >= 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
+  if (!(block.maxThicknessMicrons >= 1)) errors['maxThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
+
+  for (const which of ['minFormat', 'maxFormat'] as const) {
+    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!(block[which].sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+  }
+
+  if (!isNonNegativeNumber(block.belowMinFormatReducerPercent)) errors['belowMinFormatReducerPercent'] = 'Percentual inválido.'
+  if (!isNonNegativeNumber(block.aboveMaxFormatReducerPercent)) errors['aboveMaxFormatReducerPercent'] = 'Percentual inválido.'
+
+  for (const which of ['lineCoverage', 'imageCoverage'] as const) {
+    if (!isNonNegativeNumber(block[which].tonerGramsPerSquareMeterAt100)) errors[`${which}.tonerGramsPerSquareMeterAt100`] = 'Valor inválido.'
+    if (!isNonNegativeNumber(block[which].speedReducerPercentAt100)) errors[`${which}.speedReducerPercentAt100`] = 'Percentual inválido.'
   }
   return errors
 }
