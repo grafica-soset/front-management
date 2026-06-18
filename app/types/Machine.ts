@@ -23,6 +23,7 @@ export type MachineType =
   | 'HOLE_PUNCHING'
   | 'LAMINATING'
   | 'FOLDING'
+  | 'DIGITAL'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -556,6 +557,113 @@ export interface FoldingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   folding: FoldingBlockResponse | null
+}
+
+// ---------- Impressora Digital (DIGITAL) ----------
+/**
+ * A digital tem velocidade da matriz de formato (rampa) limitada por um envelope mín/máx. No
+ * orçamento informam-se o tipo de impressão (traço/imagem) e a cobertura (%): cada tipo tem, a
+ * 100%, um consumo de toner (g/m²) e um redutor de velocidade (%). Tem borda neutra (gripMm),
+ * alimentador, limites de gramatura/espessura e quebra fixa.
+ */
+
+/** Modo de cor da máquina. */
+export type DigitalColorMode = 'MONOCOLOR' | 'COLOR'
+
+/** Ponto da matriz — request (dimensões em mm + velocidade). */
+export interface DigitalFormatPointRequest {
+  widthMm: number
+  lengthMm: number
+  sheetsPerHour: number
+}
+
+/** Cobertura por tipo de impressão — request (valores a 100%, como string). */
+export interface DigitalCoverageRequest {
+  tonerGramsPerSquareMeterAt100: string
+  speedReducerPercentAt100: string
+}
+
+/** Bloco digital — request (dimensões em mm; percentuais/consumo como string). */
+export interface DigitalBlockRequest {
+  colorMode: DigitalColorMode
+  setupMinutes: number
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  minFormat: DigitalFormatPointRequest
+  maxFormat: DigitalFormatPointRequest
+  belowMinFormatReducerPercent: string
+  aboveMaxFormatReducerPercent: string
+  maxWeightGsm: number
+  maxThicknessMicrons: number
+  wasteSheets: number
+  lineCoverage: DigitalCoverageRequest
+  imageCoverage: DigitalCoverageRequest
+}
+
+/** Ponto da matriz devolvido pela API. */
+export interface DigitalFormatPointResponse {
+  width: FormattedDimension
+  length: FormattedDimension
+  sheetsPerHour: number
+}
+
+/** Cobertura por tipo devolvida pela API (valores a 100%, como número). */
+export interface DigitalCoverageResponse {
+  tonerGramsPerSquareMeterAt100: number
+  speedReducerPercentAt100: number
+}
+
+/** Bloco digital devolvido pela API. */
+export interface DigitalBlockResponse {
+  colorMode: DigitalColorMode
+  setupMinutes: number
+  paperFeedSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  minFormat: DigitalFormatPointResponse
+  maxFormat: DigitalFormatPointResponse
+  belowMinFormatReducerPercent: number
+  aboveMaxFormatReducerPercent: number
+  maxWeightGsm: number
+  maxThicknessMicrons: number
+  wasteSheets: number
+  lineCoverage: DigitalCoverageResponse
+  imageCoverage: DigitalCoverageResponse
+}
+
+/** Corpo de POST/PUT /digital-machines. Tem borda neutra (gripMm); alimentador obrigatório. */
+export interface DigitalMachineRequest {
+  customerId: number
+  machineType: 'DIGITAL'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  gripMm: number
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  digital: DigitalBlockRequest
+}
+
+/** Máquina de impressora digital devolvida por GET/{id}, POST e PUT. */
+export interface DigitalMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  gripMm: number
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  digital: DigitalBlockResponse | null
 }
 
 /** Máquina completa devolvida por GET/{id}, POST e PUT. */
