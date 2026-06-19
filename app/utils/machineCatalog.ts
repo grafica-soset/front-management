@@ -419,6 +419,7 @@ export function defaultDigitalBlock(): DigitalBlockRequest {
     maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
     belowMinFormatReducerPercent: '0',
     aboveMaxFormatReducerPercent: '0',
+    minWeightGsm: 0,
     maxWeightGsm: 0,
     maxThicknessMicrons: 0,
     wasteSheets: 0,
@@ -451,6 +452,7 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
     },
     belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
     aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
+    minWeightGsm: block.minWeightGsm ?? 0,
     maxWeightGsm: block.maxWeightGsm ?? 0,
     maxThicknessMicrons: block.maxThicknessMicrons ?? 0,
     wasteSheets: block.wasteSheets ?? 0,
@@ -480,7 +482,9 @@ export function validateDigital(block: DigitalBlockRequest): Record<string, stri
   if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
   if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
   if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  if (!(block.minWeightGsm >= 0)) errors['minWeightGsm'] = 'Valor mínimo: 0.'
   if (!(block.maxWeightGsm >= 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
+  else if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mínima.'
   if (!(block.maxThicknessMicrons >= 1)) errors['maxThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {

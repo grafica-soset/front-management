@@ -596,6 +596,7 @@ export interface DigitalBlockRequest {
   maxFormat: DigitalFormatPointRequest
   belowMinFormatReducerPercent: string
   aboveMaxFormatReducerPercent: string
+  minWeightGsm: number
   maxWeightGsm: number
   maxThicknessMicrons: number
   wasteSheets: number
@@ -629,6 +630,7 @@ export interface DigitalBlockResponse {
   maxFormat: DigitalFormatPointResponse
   belowMinFormatReducerPercent: number
   aboveMaxFormatReducerPercent: number
+  minWeightGsm: number
   maxWeightGsm: number
   maxThicknessMicrons: number
   wasteSheets: number
