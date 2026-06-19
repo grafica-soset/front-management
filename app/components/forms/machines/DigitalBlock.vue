@@ -97,6 +97,14 @@ const covErr = (which: 'lineCoverage' | 'imageCoverage', field: 'tonerGramsPerSq
           <p v-if="errors.maxSpeedSheetsPerHour" class="mt-1 text-xs text-rose-600">{{ errors.maxSpeedSheetsPerHour }}</p>
         </div>
         <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Gramatura mín.</label>
+          <div class="relative">
+            <input v-model.number="block.minWeightGsm" type="number" min="0" step="1" :class="inputClass(errors.minWeightGsm)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
+          </div>
+          <p v-if="errors.minWeightGsm" class="mt-1 text-xs text-rose-600">{{ errors.minWeightGsm }}</p>
+        </div>
+        <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Gramatura máx.</label>
           <div class="relative">
             <input v-model.number="block.maxWeightGsm" type="number" min="0" step="1" :class="inputClass(errors.maxWeightGsm)" />

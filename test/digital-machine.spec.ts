@@ -24,6 +24,7 @@ function validBlock(): DigitalBlockRequest {
     maxFormat: { widthMm: 660, lengthMm: 960, sheetsPerHour: 9000 },
     belowMinFormatReducerPercent: '10',
     aboveMaxFormatReducerPercent: '20',
+    minWeightGsm: 60,
     maxWeightGsm: 300,
     maxThicknessMicrons: 400,
     wasteSheets: 4,
@@ -61,6 +62,11 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
     expect(errors['maxThicknessMicrons']).toBeTruthy()
   })
 
+  it('exige gramatura máxima ≥ mínima', () => {
+    const block = { ...validBlock(), minWeightGsm: 300, maxWeightGsm: 90 }
+    expect(validateDigital(block)['maxWeightGsm']).toBeTruthy()
+  })
+
   it('rejeita consumo de toner / percentual inválido na cobertura', () => {
     const block = validBlock()
     block.imageCoverage = { tonerGramsPerSquareMeterAt100: 'abc', speedReducerPercentAt100: '50' }
@@ -88,6 +94,7 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
       },
       belowMinFormatReducerPercent: 10,
       aboveMaxFormatReducerPercent: 20,
+      minWeightGsm: 60,
       maxWeightGsm: 300,
       maxThicknessMicrons: 400,
       wasteSheets: 4,
