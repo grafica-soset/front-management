@@ -24,6 +24,8 @@ import type {
   OffsetBlock,
   OffsetInkSetting,
   OffsetTier,
+  PerforatingBlockRequest,
+  PerforatingBlockResponse,
   ScreenPrintingBlockRequest,
   ScreenPrintingBlockResponse,
 } from '@/types/Machine'
@@ -49,6 +51,9 @@ export const LAMINATING_MACHINES_BASE = '/laminating-machines'
 /** Endpoint base da API de dobradeira. */
 export const FOLDING_MACHINES_BASE = '/folding-machines'
 
+/** Endpoint base da API de picotadeira / serrilhadeira. */
+export const PERFORATING_MACHINES_BASE = '/perforating-machines'
+
 /** Endpoint base da API de impressora digital. */
 export const DIGITAL_MACHINES_BASE = '/digital-machines'
 
@@ -60,6 +65,7 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   HOLE_PUNCHING: 'Furadeira',
   LAMINATING: 'Plastificadora',
   FOLDING: 'Dobradeira',
+  PERFORATING: 'Picotadeira',
   DIGITAL: 'Impressora Digital',
 }
 
@@ -395,6 +401,92 @@ export function validateFolding(block: FoldingBlockRequest): Record<string, stri
 
   const pcts: (keyof FoldingBlockRequest)[] = [
     'perPocketSpeedReducerPercent', 'belowIdealWeightReducerPercent', 'aboveIdealWeightReducerPercent',
+    'belowMinFormatReducerPercent', 'aboveMaxFormatReducerPercent',
+  ]
+  for (const k of pcts) {
+    if (!isNonNegativeNumber(block[k] as string)) errors[k] = 'Percentual inválido.'
+  }
+  return errors
+}
+
+// ---------- Bloco picotadeira (PERFORATING) ----------
+
+/** Bloco picotadeira default (5 ferramentas; alimentação 40 mm; envelope 1000–6000). */
+export function defaultPerforatingBlock(): PerforatingBlockRequest {
+  return {
+    toolCount: 5,
+    toolSetupMinutes: 0,
+    feedTimeSecondsPerLoad: 0,
+    feedLoadIncrementMm: 40,
+    minSpeedSheetsPerHour: 0,
+    maxSpeedSheetsPerHour: 0,
+    minWeightGsm: 0,
+    maxWeightGsm: 0,
+    idealWeightMinGsm: 0,
+    idealWeightMaxGsm: 0,
+    belowIdealWeightReducerPercent: '0',
+    aboveIdealWeightReducerPercent: '0',
+    minFormat: { widthMm: 0, lengthMm: 0 },
+    maxFormat: { widthMm: 0, lengthMm: 0 },
+    belowMinFormatReducerPercent: '0',
+    aboveMaxFormatReducerPercent: '0',
+    outputRemovalMinutesPer10Cm: 0,
+  }
+}
+
+/** Normaliza o bloco picotadeira vindo da API para o formato de request (mm + strings). */
+export function hydratePerforatingBlock(block: PerforatingBlockResponse | null): PerforatingBlockRequest {
+  const base = defaultPerforatingBlock()
+  if (!block) return base
+  return {
+    toolCount: block.toolCount ?? base.toolCount,
+    toolSetupMinutes: block.toolSetupMinutes ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
+    minSpeedSheetsPerHour: block.minSpeedSheetsPerHour ?? 0,
+    maxSpeedSheetsPerHour: block.maxSpeedSheetsPerHour ?? 0,
+    minWeightGsm: block.minWeightGsm ?? 0,
+    maxWeightGsm: block.maxWeightGsm ?? 0,
+    idealWeightMinGsm: block.idealWeightMinGsm ?? 0,
+    idealWeightMaxGsm: block.idealWeightMaxGsm ?? 0,
+    belowIdealWeightReducerPercent: String(block.belowIdealWeightReducerPercent),
+    aboveIdealWeightReducerPercent: String(block.aboveIdealWeightReducerPercent),
+    minFormat: { widthMm: block.minFormat.width.millimeters, lengthMm: block.minFormat.length.millimeters },
+    maxFormat: { widthMm: block.maxFormat.width.millimeters, lengthMm: block.maxFormat.length.millimeters },
+    belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
+    aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
+    outputRemovalMinutesPer10Cm: block.outputRemovalMinutesPer10Cm ?? 0,
+  }
+}
+
+/**
+ * Valida o bloco picotadeira: ao menos uma ferramenta; tempos e redutores ≥ 0; velocidade máx ≥
+ * mín (> 0); gramatura máx ≥ mín; gramatura ideal máx ≥ mín; formato ideal com dimensões ≥ 1.
+ */
+export function validatePerforating(block: PerforatingBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const nonNeg: (keyof PerforatingBlockRequest)[] = [
+    'toolSetupMinutes', 'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'minWeightGsm',
+    'maxWeightGsm', 'idealWeightMinGsm', 'idealWeightMaxGsm', 'outputRemovalMinutesPer10Cm',
+  ]
+  for (const k of nonNeg) {
+    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  if (!(block.toolCount >= 1)) errors['toolCount'] = 'A máquina deve ter ao menos uma ferramenta de picote.'
+  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
+  if (!(block.maxWeightGsm >= 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
+  if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mínima.'
+  if (!(block.idealWeightMaxGsm >= block.idealWeightMinGsm)) errors['idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
+  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+
+  for (const which of ['minFormat', 'maxFormat'] as const) {
+    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+  }
+
+  const pcts: (keyof PerforatingBlockRequest)[] = [
+    'belowIdealWeightReducerPercent', 'aboveIdealWeightReducerPercent',
     'belowMinFormatReducerPercent', 'aboveMaxFormatReducerPercent',
   ]
   for (const k of pcts) {
