@@ -23,6 +23,7 @@ export type MachineType =
   | 'HOLE_PUNCHING'
   | 'LAMINATING'
   | 'FOLDING'
+  | 'PERFORATING'
   | 'DIGITAL'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
@@ -557,6 +558,99 @@ export interface FoldingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   folding: FoldingBlockResponse | null
+}
+
+// ---------- Picotadeira / Serrilhadeira (PERFORATING) ----------
+/**
+ * A picotadeira faz PICOTES (serrilhas) no papel. Cada máquina tem uma quantidade de FERRAMENTAS
+ * de picote (toolCount) — cada picote usa uma ferramenta; no orçamento só se pode pedir até essa
+ * quantidade. A velocidade parte da máxima e é reduzida por gramatura e formato fora do ideal,
+ * limitada à mínima. Tem alimentador e retirada na mesa de saída por altura da pilha. Sem pinça.
+ */
+
+/** Ponto do formato ideal — request (dimensões em mm). */
+export interface PerforatingFormatPointRequest {
+  widthMm: number
+  lengthMm: number
+}
+
+/** Bloco picotadeira — request (dimensões em mm; percentuais como string). */
+export interface PerforatingBlockRequest {
+  /** Quantidade de ferramentas de picote (capacidade) — cada picote usa 1 ferramenta. */
+  toolCount: number
+  /** Setup de cada ferramenta (min) — por ferramenta/picote usado. */
+  toolSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  minWeightGsm: number
+  maxWeightGsm: number
+  idealWeightMinGsm: number
+  idealWeightMaxGsm: number
+  belowIdealWeightReducerPercent: string
+  aboveIdealWeightReducerPercent: string
+  minFormat: PerforatingFormatPointRequest
+  maxFormat: PerforatingFormatPointRequest
+  belowMinFormatReducerPercent: string
+  aboveMaxFormatReducerPercent: string
+  /** Retirada na mesa de saída (min) por cada 10 cm de altura da pilha. */
+  outputRemovalMinutesPer10Cm: number
+}
+
+/** Ponto do formato ideal devolvido pela API (dimensões formatadas). */
+export interface PerforatingFormatPointResponse {
+  width: FormattedDimension
+  length: FormattedDimension
+}
+
+/** Bloco picotadeira devolvido pela API (percentuais como número). */
+export interface PerforatingBlockResponse {
+  toolCount: number
+  toolSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  feedLoadIncrementMm: number
+  minSpeedSheetsPerHour: number
+  maxSpeedSheetsPerHour: number
+  minWeightGsm: number
+  maxWeightGsm: number
+  idealWeightMinGsm: number
+  idealWeightMaxGsm: number
+  belowIdealWeightReducerPercent: number
+  aboveIdealWeightReducerPercent: number
+  minFormat: PerforatingFormatPointResponse
+  maxFormat: PerforatingFormatPointResponse
+  belowMinFormatReducerPercent: number
+  aboveMaxFormatReducerPercent: number
+  outputRemovalMinutesPer10Cm: number
+}
+
+/** Corpo de POST/PUT /perforating-machines. Sem margem da pinça; alimentador obrigatório. */
+export interface PerforatingMachineRequest {
+  customerId: number
+  machineType: 'PERFORATING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  perforating: PerforatingBlockRequest
+}
+
+/** Máquina de picotadeira devolvida por GET/{id}, POST e PUT. */
+export interface PerforatingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  perforating: PerforatingBlockResponse | null
 }
 
 // ---------- Impressora Digital (DIGITAL) ----------

@@ -51,6 +51,7 @@ export default function useMenu() {
         { name: 'Furadeira', href: '/maquinas/furadeira' },
         { name: 'Plastificadora', href: '/maquinas/plastificadora' },
         { name: 'Dobradeira', href: '/maquinas/dobradeira' },
+        { name: 'Picotadeira', href: '/maquinas/picotadeira' },
         { name: 'Impressora Digital', href: '/maquinas/digital' },
       ],
     },
