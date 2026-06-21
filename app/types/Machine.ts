@@ -24,6 +24,7 @@ export type MachineType =
   | 'LAMINATING'
   | 'FOLDING'
   | 'PERFORATING'
+  | 'STITCHING'
   | 'DIGITAL'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
@@ -399,6 +400,73 @@ export interface HolePunchingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   holePunching: HolePunchingBlock | null
+}
+
+// ---------- Grampeadeira (STITCHING) ----------
+/**
+ * A grampeadeira (grampeação a arame) tem uma bancada com "área de manuseio" (largura útil) onde
+ * ficam os cabeçotes: quanto mais blocos cabem lado a lado, mais blocos são grampeados de uma vez,
+ * reduzindo o tempo. Pode ser manual ou automática. NÃO há rampa de velocidade (parece a furadeira).
+ */
+
+/** Bloco grampeadeira — request (área de manuseio em mm). */
+export interface StitchingBlockRequest {
+  automatic: boolean
+  /** Área de manuseio — largura útil da bancada (mm). */
+  handlingAreaWidthMm: number
+  /** Setup dos grampos (min) — fixo por trabalho. */
+  stapleSetupMinutes: number
+  /** Tempo (s) para carregar a bancada na largura máxima (1 bloco). */
+  feedTimeSecondsPerLoad: number
+  minWireThicknessMicrons: number
+  maxWireThicknessMicrons: number
+  /** Espessura máxima de grampeação - altura máxima do bloco (µm). */
+  maxStaplingThicknessMicrons: number
+  /** Quantidade de cabeçotes (1 a 4). */
+  headCount: number
+  /** Tempo (s) de uma descida do cabeçote. */
+  headDescentSeconds: number
+}
+
+/** Bloco grampeadeira devolvido pela API (área de manuseio como dimensão formatada). */
+export interface StitchingBlockResponse {
+  automatic: boolean
+  handlingAreaWidth: FormattedDimension
+  stapleSetupMinutes: number
+  feedTimeSecondsPerLoad: number
+  minWireThicknessMicrons: number
+  maxWireThicknessMicrons: number
+  maxStaplingThicknessMicrons: number
+  headCount: number
+  headDescentSeconds: number
+}
+
+/** Corpo de POST/PUT /stitching-machines. Sem margem da pinça; alimentador opcional. */
+export interface StitchingMachineRequest {
+  customerId: number
+  machineType: 'STITCHING'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder | null
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  stitching: StitchingBlockRequest
+}
+
+/** Máquina de grampeadeira devolvida por GET/{id}, POST e PUT. */
+export interface StitchingMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  stitching: StitchingBlockResponse | null
 }
 
 // ---------- Plastificadora / Laminadora (LAMINATING) ----------
