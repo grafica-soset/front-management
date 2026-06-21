@@ -28,6 +28,8 @@ import type {
   PerforatingBlockResponse,
   ScreenPrintingBlockRequest,
   ScreenPrintingBlockResponse,
+  StitchingBlockRequest,
+  StitchingBlockResponse,
 } from '@/types/Machine'
 
 /** Endpoint base da API de impressão. */
@@ -54,6 +56,9 @@ export const FOLDING_MACHINES_BASE = '/folding-machines'
 /** Endpoint base da API de picotadeira / serrilhadeira. */
 export const PERFORATING_MACHINES_BASE = '/perforating-machines'
 
+/** Endpoint base da API de grampeadeira. */
+export const STITCHING_MACHINES_BASE = '/stitching-machines'
+
 /** Endpoint base da API de impressora digital. */
 export const DIGITAL_MACHINES_BASE = '/digital-machines'
 
@@ -66,6 +71,7 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   LAMINATING: 'Plastificadora',
   FOLDING: 'Dobradeira',
   PERFORATING: 'Picotadeira',
+  STITCHING: 'Grampeadeira',
   DIGITAL: 'Impressora Digital',
 }
 
@@ -282,6 +288,60 @@ export function validateHolePunching(block: HolePunchingBlock): Record<string, s
   for (const k of keys) {
     if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
   }
+  return errors
+}
+
+// ---------- Bloco grampeadeira (STITCHING) ----------
+
+/** Bloco grampeadeira default (automática; 1 cabeçote; demais campos zerados). */
+export function defaultStitchingBlock(): StitchingBlockRequest {
+  return {
+    automatic: true,
+    handlingAreaWidthMm: 0,
+    stapleSetupMinutes: 0,
+    feedTimeSecondsPerLoad: 0,
+    minWireThicknessMicrons: 0,
+    maxWireThicknessMicrons: 0,
+    maxStaplingThicknessMicrons: 0,
+    headCount: 1,
+    headDescentSeconds: 0,
+  }
+}
+
+/** Normaliza o bloco grampeadeira vindo da API para o formato de request (mm + campos). */
+export function hydrateStitchingBlock(block: StitchingBlockResponse | null): StitchingBlockRequest {
+  const base = defaultStitchingBlock()
+  if (!block) return base
+  return {
+    automatic: block.automatic ?? base.automatic,
+    handlingAreaWidthMm: block.handlingAreaWidth.millimeters,
+    stapleSetupMinutes: block.stapleSetupMinutes ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+    minWireThicknessMicrons: block.minWireThicknessMicrons ?? 0,
+    maxWireThicknessMicrons: block.maxWireThicknessMicrons ?? 0,
+    maxStaplingThicknessMicrons: block.maxStaplingThicknessMicrons ?? 0,
+    headCount: block.headCount ?? base.headCount,
+    headDescentSeconds: block.headDescentSeconds ?? 0,
+  }
+}
+
+/**
+ * Valida o bloco grampeadeira: área de manuseio ≥ 1; tempos ≥ 0; arame máx ≥ mín (> 0); espessura
+ * de grampeação ≥ 1; cabeçotes entre 1 e 4.
+ */
+export function validateStitching(block: StitchingBlockRequest): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const nonNeg: (keyof StitchingBlockRequest)[] = [
+    'stapleSetupMinutes', 'feedTimeSecondsPerLoad', 'minWireThicknessMicrons', 'headDescentSeconds',
+  ]
+  for (const k of nonNeg) {
+    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+  }
+  if (!(block.handlingAreaWidthMm >= 1)) errors['handlingAreaWidthMm'] = 'Informe a área de manuseio (≥ 1).'
+  if (!(block.maxWireThicknessMicrons >= 1)) errors['maxWireThicknessMicrons'] = 'Informe a espessura máxima do arame (≥ 1).'
+  if (!(block.maxWireThicknessMicrons >= block.minWireThicknessMicrons)) errors['maxWireThicknessMicrons'] = 'Deve ser ≥ espessura mínima.'
+  if (!(block.maxStaplingThicknessMicrons >= 1)) errors['maxStaplingThicknessMicrons'] = 'Informe a espessura máxima de grampeação (≥ 1).'
+  if (!(block.headCount >= 1 && block.headCount <= 4)) errors['headCount'] = 'A máquina deve ter de 1 a 4 cabeçotes.'
   return errors
 }
 

@@ -52,6 +52,7 @@ export default function useMenu() {
         { name: 'Plastificadora', href: '/maquinas/plastificadora' },
         { name: 'Dobradeira', href: '/maquinas/dobradeira' },
         { name: 'Picotadeira', href: '/maquinas/picotadeira' },
+        { name: 'Grampeadeira', href: '/maquinas/grampeadeira' },
         { name: 'Impressora Digital', href: '/maquinas/digital' },
       ],
     },
