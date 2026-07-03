@@ -113,6 +113,7 @@ export function defaultOffsetBlock(): OffsetBlock {
     numberOfColors: 1,
     supportsNumbering: false,
     maxNumberingUnits: 0,
+    acceptedPlateTypes: [],
     setupTimes: {
       plateSetupMinutesPerColor: 0,
       colorMatchingMinutes: 0,
@@ -190,6 +191,7 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
     numberOfColors: block.numberOfColors,
     supportsNumbering: block.supportsNumbering,
     maxNumberingUnits: block.maxNumberingUnits,
+    acceptedPlateTypes: [...(block.acceptedPlateTypes ?? [])],
     setupTimes: { ...base.setupTimes, ...block.setupTimes },
     speedRamp: {
       minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,
@@ -302,7 +304,7 @@ export function defaultStitchingBlock(): StitchingBlockRequest {
     feedTimeSecondsPerLoad: 0,
     minWireThicknessMicrons: 0,
     maxWireThicknessMicrons: 0,
-    maxStaplingThicknessMicrons: 0,
+    maxStaplingThicknessMm: 0,
     headCount: 1,
     headDescentSeconds: 0,
   }
@@ -319,7 +321,7 @@ export function hydrateStitchingBlock(block: StitchingBlockResponse | null): Sti
     feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
     minWireThicknessMicrons: block.minWireThicknessMicrons ?? 0,
     maxWireThicknessMicrons: block.maxWireThicknessMicrons ?? 0,
-    maxStaplingThicknessMicrons: block.maxStaplingThicknessMicrons ?? 0,
+    maxStaplingThicknessMm: block.maxStaplingThickness?.millimeters ?? 0,
     headCount: block.headCount ?? base.headCount,
     headDescentSeconds: block.headDescentSeconds ?? 0,
   }
@@ -340,7 +342,7 @@ export function validateStitching(block: StitchingBlockRequest): Record<string, 
   if (!(block.handlingAreaWidthMm >= 1)) errors['handlingAreaWidthMm'] = 'Informe a área de manuseio (≥ 1).'
   if (!(block.maxWireThicknessMicrons >= 1)) errors['maxWireThicknessMicrons'] = 'Informe a espessura máxima do arame (≥ 1).'
   if (!(block.maxWireThicknessMicrons >= block.minWireThicknessMicrons)) errors['maxWireThicknessMicrons'] = 'Deve ser ≥ espessura mínima.'
-  if (!(block.maxStaplingThicknessMicrons >= 1)) errors['maxStaplingThicknessMicrons'] = 'Informe a espessura máxima de grampeação (≥ 1).'
+  if (!(block.maxStaplingThicknessMm >= 1)) errors['maxStaplingThicknessMm'] = 'Informe a espessura máxima de grampeamento (≥ 1).'
   if (!(block.headCount >= 1 && block.headCount <= 4)) errors['headCount'] = 'A máquina deve ter de 1 a 4 cabeçotes.'
   return errors
 }
@@ -865,6 +867,9 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
 
   if (!(block.numberOfColors >= 1)) errors['numberOfColors'] = 'Mínimo de 1 cor.'
   if (block.maxNumberingUnits < 0) errors['maxNumberingUnits'] = 'Valor mínimo: 0.'
+  if (!block.acceptedPlateTypes?.length) {
+    errors['acceptedPlateTypes'] = 'Selecione ao menos um tipo de matriz fotográfica (chapa).'
+  }
 
   const st = block.setupTimes
   const setupKeys: (keyof typeof st)[] = [

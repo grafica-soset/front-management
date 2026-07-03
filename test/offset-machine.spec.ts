@@ -38,6 +38,7 @@ function buildSakuraiOffset(): OffsetBlock {
     numberOfColors: 1,
     supportsNumbering: true,
     maxNumberingUnits: 20,
+    acceptedPlateTypes: ['CTP', 'FOTOLITO'],
     setupTimes: {
       plateSetupMinutesPerColor: 15,
       colorMatchingMinutes: 10,

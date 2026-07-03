@@ -40,6 +40,11 @@ export default function useMenu() {
       ],
     },
     {
+      name: 'Insumos',
+      icon: 'papers',
+      href: '/insumos',
+    },
+    {
       name: 'Máquinas',
       icon: 'machines',
       expanded: false,

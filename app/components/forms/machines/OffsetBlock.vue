@@ -11,13 +11,25 @@
  */
 import { computed } from 'vue'
 import type { InkType, OffsetBlock, OffsetTier } from '@/types/Machine'
+import type { PlateType } from '@/types/PlateType'
 import { INK_TYPES, INK_TYPE_LABELS, makeTier } from '@/utils/machineCatalog'
+import { PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
   block: OffsetBlock
   errors: Record<string, string>
 }>()
+
+/** Matriz Fotográfica: marca/desmarca um tipo de chapa aceito pela máquina (atividade 027). */
+const isPlateAccepted = (plate: PlateType) => props.block.acceptedPlateTypes.includes(plate)
+const togglePlate = (plate: PlateType) => {
+  if (isPlateAccepted(plate)) {
+    props.block.acceptedPlateTypes = props.block.acceptedPlateTypes.filter((p) => p !== plate)
+  } else {
+    props.block.acceptedPlateTypes = [...props.block.acceptedPlateTypes, plate]
+  }
+}
 
 const colorOptions = Array.from({ length: 10 }, (_, i) => i + 1)
 
@@ -158,6 +170,24 @@ const cellClass =
         <p v-if="errors['speedRamp.numberingMaxSheetsPerHour']" class="mt-1 text-xs text-rose-600">{{ errors['speedRamp.numberingMaxSheetsPerHour'] }}</p>
       </div>
     </div>
+
+    <!-- Matriz Fotográfica: tipos de chapa aceitos (atividade 027) -->
+    <fieldset class="rounded-lg border border-slate-200 p-3 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Matriz Fotográfica (chapas aceitas)</legend>
+      <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">Selecione um ou mais tipos de chapa que esta máquina aceita.</p>
+      <div class="flex flex-wrap gap-4">
+        <label v-for="plate in PLATE_TYPES" :key="plate" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input
+            type="checkbox"
+            :checked="isPlateAccepted(plate)"
+            @change="togglePlate(plate)"
+            class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+          />
+          {{ PLATE_TYPE_LABELS[plate] }}
+        </label>
+      </div>
+      <p v-if="errors['acceptedPlateTypes']" class="mt-2 text-xs text-rose-600">{{ errors['acceptedPlateTypes'] }}</p>
+    </fieldset>
 
     <!-- Tempos de setup -->
     <fieldset class="rounded-lg border border-slate-200 p-3 min-w-0 dark:border-slate-700">

@@ -4,8 +4,8 @@
  *
  * A grampeadeira tem uma bancada com "área de manuseio" (largura útil) onde ficam os cabeçotes:
  * quanto mais blocos cabem lado a lado, mais blocos são grampeados de uma vez, reduzindo o tempo.
- * Pode ser manual ou automática. NÃO há rampa de velocidade. A área de manuseio é editada na
- * unidade da empresa; arame e espessura de grampeação em µm; cabeçotes de 1 a 4.
+ * Pode ser manual ou automática. NÃO há rampa de velocidade. A área de manuseio e a espessura máx.
+ * de grampeamento são editadas na unidade da empresa; arame em µm; cabeçotes de 1 a 4.
  */
 import { computed } from 'vue'
 import type { StitchingBlockRequest } from '@/types/Machine'
@@ -21,6 +21,12 @@ const { suffix: lengthUnit, fromMillimeters, toMillimeters } = useUnitConverter(
 const handlingAreaWidth = computed<number>({
   get: () => fromMillimeters(props.block.handlingAreaWidthMm) ?? 0,
   set: (v) => (props.block.handlingAreaWidthMm = toMillimeters(v) ?? 0),
+})
+
+// Espessura máx. de grampeamento: editada/exibida na unidade da empresa; canônico em mm (atividade 027).
+const maxStaplingThickness = computed<number>({
+  get: () => fromMillimeters(props.block.maxStaplingThicknessMm) ?? 0,
+  set: (v) => (props.block.maxStaplingThicknessMm = toMillimeters(v) ?? 0),
 })
 
 const inputClass = (err?: string) => [
@@ -126,13 +132,13 @@ const inputClass = (err?: string) => [
           <p v-if="errors.maxWireThicknessMicrons" class="mt-1 text-xs text-rose-600">{{ errors.maxWireThicknessMicrons }}</p>
         </div>
         <div>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Espessura máx. de grampeação</label>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Espessura máx. de grampeamento</label>
           <div class="relative">
-            <input v-model.number="block.maxStaplingThicknessMicrons" type="number" min="0" step="1" :class="inputClass(errors.maxStaplingThicknessMicrons)" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">µm</span>
+            <input v-model.number="maxStaplingThickness" type="number" min="0" step="0.001" :class="inputClass(errors.maxStaplingThicknessMm)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
           </div>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Altura máxima do bloco.</p>
-          <p v-if="errors.maxStaplingThicknessMicrons" class="mt-1 text-xs text-rose-600">{{ errors.maxStaplingThicknessMicrons }}</p>
+          <p v-if="errors.maxStaplingThicknessMm" class="mt-1 text-xs text-rose-600">{{ errors.maxStaplingThicknessMm }}</p>
         </div>
       </div>
     </fieldset>

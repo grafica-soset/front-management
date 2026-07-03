@@ -1,4 +1,5 @@
 import type { FormattedDimension } from './FormattedDimension'
+import type { PlateType } from './PlateType'
 
 /**
  * Domínio de máquinas do parque fabril.
@@ -118,6 +119,8 @@ export interface OffsetBlock {
   numberOfColors: number
   supportsNumbering: boolean
   maxNumberingUnits: number
+  /** Matriz Fotográfica: tipos de chapa que a máquina aceita (1 ou mais). Atividade 027. */
+  acceptedPlateTypes: PlateType[]
   setupTimes: OffsetSetupTimes
   speedRamp: OffsetSpeedRamp
 }
@@ -420,8 +423,8 @@ export interface StitchingBlockRequest {
   feedTimeSecondsPerLoad: number
   minWireThicknessMicrons: number
   maxWireThicknessMicrons: number
-  /** Espessura máxima de grampeação - altura máxima do bloco (µm). */
-  maxStaplingThicknessMicrons: number
+  /** Espessura máxima de grampeamento - altura máxima do bloco, em mm (canônico). Atividade 027. */
+  maxStaplingThicknessMm: number
   /** Quantidade de cabeçotes (1 a 4). */
   headCount: number
   /** Tempo (s) de uma descida do cabeçote. */
@@ -436,7 +439,8 @@ export interface StitchingBlockResponse {
   feedTimeSecondsPerLoad: number
   minWireThicknessMicrons: number
   maxWireThicknessMicrons: number
-  maxStaplingThicknessMicrons: number
+  /** Espessura máxima de grampeamento já convertida para a unidade da empresa. */
+  maxStaplingThickness: FormattedDimension
   headCount: number
   headDescentSeconds: number
 }
