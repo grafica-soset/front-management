@@ -6,9 +6,10 @@
  *
  * Componente autocontido: recebe dados iniciais por prop e emite o payload validado por @submit.
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { CreateSupplyRequest, Supply, UpdateSupplyRequest } from '@/types/Supply'
 import type { PlateType } from '@/types/PlateType'
+import type { SupplyGroupKeyValue } from '@/types/SupplyGroup'
 import {
   SUPPLY_TYPES,
   SUPPLY_TYPE_SINGULAR,
@@ -17,6 +18,7 @@ import {
 } from '@/utils/supplyCatalog'
 import { PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { useSupplyGroups } from '@/composables/useSupplyGroups'
 
 const props = defineProps<{
   initial?: Supply | null
@@ -43,6 +45,8 @@ const form = reactive({
   unitCost: '0',
   description: '',
   active: true,
+  // Grupo de insumo (opcional) — atividade 028.
+  supplyGroupId: null as number | null,
   // Chapa (usado apenas quando type === 'PLATE').
   plateType: 'CTP' as PlateType,
   plateWidth: 0,
@@ -51,6 +55,16 @@ const form = reactive({
 })
 
 const errors = ref<Record<string, string>>({})
+
+// Grupos de insumo da empresa (para o seletor opcional).
+const groups = ref<SupplyGroupKeyValue[]>([])
+onMounted(async () => {
+  try {
+    groups.value = await useSupplyGroups().listKeyValues()
+  } catch {
+    groups.value = []
+  }
+})
 
 if (props.initial) hydrate(props.initial)
 
@@ -61,6 +75,7 @@ function hydrate(supply: Supply) {
   form.unitCost = String(supply.unitCost)
   form.description = supply.description ?? ''
   form.active = supply.active
+  form.supplyGroupId = supply.supplyGroupId ?? null
   if (supply.plate) {
     form.plateType = supply.plate.plateType
     form.plateWidth = fromMillimeters(supply.plate.width.millimeters) ?? 0
@@ -115,6 +130,7 @@ const handleSubmit = () => {
     unitOfMeasure: form.unitOfMeasure,
     unitCost: String(form.unitCost),
     description: form.description.trim() ? form.description.trim() : null,
+    supplyGroupId: form.supplyGroupId,
     plate: isPlate.value
       ? {
           plateType: form.plateType,
@@ -172,6 +188,16 @@ const handleSubmit = () => {
         <input v-model="form.unitCost" type="number" min="0" step="0.0001" :class="inputClass('unitCost')" />
         <p v-if="errors['unitCost']" class="mt-1 text-xs text-rose-600">{{ errors['unitCost'] }}</p>
       </div>
+    </div>
+
+    <!-- Grupo de insumo (opcional) -->
+    <div>
+      <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Grupo de insumo</label>
+      <select v-model="form.supplyGroupId" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+        <option :value="null">— Sem grupo —</option>
+        <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.value }}</option>
+      </select>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Agrupa insumos da mesma família (ex.: Grampos); usado pelas atividades.</p>
     </div>
 
     <!-- Bloco Chapa -->
