@@ -42,7 +42,20 @@ export default function useMenu() {
     {
       name: 'Insumos',
       icon: 'papers',
-      href: '/insumos',
+      expanded: false,
+      children: [
+        { name: 'Cadastro de Insumos', href: '/insumos' },
+        { name: 'Grupos de Insumo', href: '/insumos/grupos' },
+      ],
+    },
+    {
+      name: 'Produção',
+      icon: 'cadastros',
+      expanded: false,
+      children: [
+        { name: 'Atividades', href: '/atividades' },
+        { name: 'Modelos de Produto', href: '/modelos' },
+      ],
     },
     {
       name: 'Máquinas',

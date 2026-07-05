@@ -39,6 +39,7 @@ const prefill = computed<Supply>(() => ({
   description: null,
   active: true,
   plate: null,
+  supplyGroupId: null,
 }))
 
 const handleSubmit = async (payload: CreateSupplyRequest | UpdateSupplyRequest) => {

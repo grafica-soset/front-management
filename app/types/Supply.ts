@@ -46,6 +46,8 @@ export interface Supply {
   description: string | null
   active: boolean
   plate: PlateInfoResponse | null
+  /** Grupo de insumo (atividade 028) — opcional. */
+  supplyGroupId: number | null
 }
 
 /** Item da listagem leve (KeyValue). */
@@ -65,6 +67,7 @@ export interface SupplyPageItem {
   unitCost: number
   active: boolean
   plate: PlateInfoResponse | null
+  supplyGroupId: number | null
 }
 
 export interface SupplyPage {
@@ -84,6 +87,7 @@ export interface CreateSupplyRequest {
   unitCost: string
   description?: string | null
   plate?: PlateInfoRequest | null
+  supplyGroupId?: number | null
 }
 
 /** Corpo de PUT /supplies/{id}. */
