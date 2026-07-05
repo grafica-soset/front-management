@@ -4,10 +4,12 @@
  */
 import type {
   CreateSupplyGroupRequest,
+  SetSupplyGroupSuppliesRequest,
   SupplyGroup,
   SupplyGroupKeyValue,
   UpdateSupplyGroupRequest,
 } from '@/types/SupplyGroup'
+import type { SupplyKeyValue } from '@/types/Supply'
 import { useAuthStore } from '@/stores/auth'
 
 export function useSupplyGroups() {
@@ -41,5 +43,16 @@ export function useSupplyGroups() {
     await api(`/supply-groups/${id}`, { method: 'DELETE' })
   }
 
-  return { listKeyValues, getById, create, update, remove }
+  // Insumos atualmente vinculados ao grupo (para pré-marcar a seleção).
+  async function listSupplies(id: number): Promise<SupplyKeyValue[]> {
+    return await api<SupplyKeyValue[]>(`/supply-groups/${id}/supplies`)
+  }
+
+  // Substitui os insumos do grupo. Retorna o conjunto resultante.
+  async function setSupplies(id: number, supplyIds: number[]): Promise<SupplyKeyValue[]> {
+    const body: SetSupplyGroupSuppliesRequest = { supplyIds }
+    return await api<SupplyKeyValue[]>(`/supply-groups/${id}/supplies`, { method: 'PUT', body })
+  }
+
+  return { listKeyValues, getById, create, update, remove, listSupplies, setSupplies }
 }

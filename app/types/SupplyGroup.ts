@@ -26,3 +26,8 @@ export interface UpdateSupplyGroupRequest {
   name: string
   active: boolean
 }
+
+/** Define quais insumos pertencem ao grupo (substitui o vínculo atual). */
+export interface SetSupplyGroupSuppliesRequest {
+  supplyIds: number[]
+}
