@@ -26,9 +26,9 @@ export interface FinishingTaskConfigFields {
   packagingMinutesPerPackage?: number | null
   packagingPackageWeightKg?: number | string | null
   // SPIRAL_BINDING
-  spiralMinLengthCm?: number | null
+  spiralMinLengthMm?: number | null
   spiralMinTimeSeconds?: number | null
-  spiralMaxLengthCm?: number | null
+  spiralMaxLengthMm?: number | null
   spiralMaxTimeSeconds?: number | null
   // BLOCK_GLUING
   blockStackingTimeSeconds?: number | null

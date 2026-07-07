@@ -17,6 +17,7 @@ import {
   FINISHING_TASK_TYPE_HINTS,
   FINISHING_TASK_TYPE_LABELS,
 } from '@/utils/finishingTaskCatalog'
+import { useUnitConverter } from '@/composables/useUnitConverter'
 
 interface FieldDescriptor {
   key: string
@@ -26,7 +27,11 @@ interface FieldDescriptor {
   integer?: boolean
   /** valor decimal enviado como string (preserva precisão). */
   asString?: boolean
+  /** dimensão física: digitada/exibida na unidade da empresa, armazenada em mm. */
+  dimension?: boolean
 }
+
+const { fromMillimeters, toMillimeters, suffix } = useUnitConverter()
 
 // Campos de configuração por tipo de acabamento.
 const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
@@ -36,9 +41,9 @@ const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
     { key: 'packagingPackageWeightKg', label: 'Peso do pacote (kg)', min: 0.0001, asString: true },
   ],
   SPIRAL_BINDING: [
-    { key: 'spiralMinLengthCm', label: 'Tamanho mínimo (cm)', min: 1, integer: true },
+    { key: 'spiralMinLengthMm', label: 'Tamanho mínimo', min: 0.01, dimension: true },
     { key: 'spiralMinTimeSeconds', label: 'Tempo no tamanho mínimo (segundos)', min: 0, integer: true },
-    { key: 'spiralMaxLengthCm', label: 'Tamanho máximo (cm)', min: 1, integer: true },
+    { key: 'spiralMaxLengthMm', label: 'Tamanho máximo', min: 0.01, dimension: true },
     { key: 'spiralMaxTimeSeconds', label: 'Tempo no tamanho máximo (segundos)', min: 0, integer: true },
   ],
   BLOCK_GLUING: [
@@ -59,7 +64,9 @@ const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
   COLLATION: [],
 }
 
-const ALL_KEYS = Object.values(TYPE_FIELDS).flat().map((f) => f.key)
+const ALL_FIELDS = Object.values(TYPE_FIELDS).flat()
+const ALL_KEYS = ALL_FIELDS.map((f) => f.key)
+const DIMENSION_KEYS = new Set(ALL_FIELDS.filter((f) => f.dimension).map((f) => f.key))
 
 const props = defineProps<{
   initial?: FinishingTask | null
@@ -83,11 +90,14 @@ const form = reactive({
   active: props.initial?.active ?? true,
 })
 
-// Config como strings (vindas dos inputs); '' = vazio.
+// Config como strings (vindas dos inputs); '' = vazio. Dimensões vêm do backend em mm e são
+// exibidas na unidade da empresa.
 const config = reactive<Record<string, string>>(
   Object.fromEntries(ALL_KEYS.map((k) => {
     const v = (props.initial as Record<string, unknown> | null | undefined)?.[k]
-    return [k, v != null ? String(v) : '']
+    if (v == null) return [k, '']
+    if (DIMENSION_KEYS.has(k)) return [k, String(fromMillimeters(Number(v)) ?? '')]
+    return [k, String(v)]
   })),
 )
 
@@ -125,9 +135,9 @@ function validate(): Record<string, string> {
     }
   }
   // Regra específica do espiral: máximo ≥ mínimo.
-  if (form.type === 'SPIRAL_BINDING' && !e['spiralMaxLengthCm'] && !e['spiralMinLengthCm']) {
-    if (Number(config.spiralMaxLengthCm) < Number(config.spiralMinLengthCm)) {
-      e['spiralMaxLengthCm'] = 'O tamanho máximo deve ser ≥ o mínimo.'
+  if (form.type === 'SPIRAL_BINDING' && !e['spiralMaxLengthMm'] && !e['spiralMinLengthMm']) {
+    if (Number(config.spiralMaxLengthMm) < Number(config.spiralMinLengthMm)) {
+      e['spiralMaxLengthMm'] = 'O tamanho máximo deve ser ≥ o mínimo.'
     }
   }
   // Intercalação de Vias: ao menos uma posição, vias ≥ 2, tempo > 0, sem quantidades repetidas.
@@ -153,7 +163,8 @@ const handleSubmit = () => {
   const typeConfig: Record<string, unknown> = {}
   for (const f of currentFields.value) {
     const raw = config[f.key] ?? ''
-    typeConfig[f.key] = f.asString ? raw : Number(raw)
+    if (f.dimension) typeConfig[f.key] = toMillimeters(Number(raw)) ?? 0
+    else typeConfig[f.key] = f.asString ? raw : Number(raw)
   }
   if (isCollation.value) {
     typeConfig.collationTiers = tiers.value.map((t) => ({
@@ -200,8 +211,8 @@ watch(() => form.type, () => { errors.value = {} })
     <!-- Campos específicos do tipo (genéricos por descritor) -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div v-for="f in currentFields" :key="f.key">
-        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">{{ f.label }} <span class="text-rose-500">*</span></label>
-        <input v-model="config[f.key]" type="number" :min="f.min" :step="f.integer ? '1' : '0.01'" :class="inputClass(f.key)" />
+        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">{{ f.label }}<span v-if="f.dimension" class="font-normal text-slate-500"> ({{ suffix }})</span> <span class="text-rose-500">*</span></label>
+        <input v-model="config[f.key]" type="number" :min="f.min" :step="f.integer ? '1' : 'any'" :class="inputClass(f.key)" />
         <p v-if="errors[f.key]" class="mt-1 text-xs text-rose-600">{{ errors[f.key] }}</p>
       </div>
     </div>
