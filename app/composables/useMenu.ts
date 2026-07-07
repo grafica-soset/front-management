@@ -58,6 +58,15 @@ export default function useMenu() {
       ],
     },
     {
+      name: 'Acabamentos',
+      icon: 'cadastros',
+      expanded: false,
+      children: [
+        { name: 'Viragem de Dobras', href: '/acabamentos?type=FOLD_TURNING' },
+        { name: 'Empacotar', href: '/acabamentos?type=PACKAGING' },
+      ],
+    },
+    {
       name: 'Máquinas',
       icon: 'machines',
       expanded: false,
