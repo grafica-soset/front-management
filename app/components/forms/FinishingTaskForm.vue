@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * Formulário de TAREFA DE ACABAMENTO (atividade 029): tipo (imutável na edição) + nome + valor-hora
- * + campos específicos do tipo. Autocontido: recebe dados por prop e emite o payload validado.
+ * + campos específicos do tipo (descritos em TYPE_FIELDS). Autocontido: recebe dados por prop e
+ * emite o payload validado.
  */
 import { computed, reactive, ref, watch } from 'vue'
 import type {
@@ -16,10 +17,50 @@ import {
   FINISHING_TASK_TYPE_LABELS,
 } from '@/utils/finishingTaskCatalog'
 
+interface FieldDescriptor {
+  key: string
+  label: string
+  min: number
+  /** true = inteiro (step 1); false = decimal. */
+  integer?: boolean
+  /** valor decimal enviado como string (preserva precisão). */
+  asString?: boolean
+}
+
+// Campos de configuração por tipo de acabamento.
+const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
+  FOLD_TURNING: [{ key: 'foldTurnSecondsPerUnit', label: 'Tempo por unidade (segundos)', min: 1, integer: true }],
+  PACKAGING: [
+    { key: 'packagingMinutesPerPackage', label: 'Tempo por pacote (minutos)', min: 1, integer: true },
+    { key: 'packagingPackageWeightKg', label: 'Peso do pacote (kg)', min: 0.0001, asString: true },
+  ],
+  SPIRAL_BINDING: [
+    { key: 'spiralMinLengthCm', label: 'Tamanho mínimo (cm)', min: 1, integer: true },
+    { key: 'spiralMinTimeSeconds', label: 'Tempo no tamanho mínimo (segundos)', min: 0, integer: true },
+    { key: 'spiralMaxLengthCm', label: 'Tamanho máximo (cm)', min: 1, integer: true },
+    { key: 'spiralMaxTimeSeconds', label: 'Tempo no tamanho máximo (segundos)', min: 0, integer: true },
+  ],
+  BLOCK_GLUING: [
+    { key: 'blockStackingTimeSeconds', label: 'Tempo de empilhamento (segundos)', min: 0, integer: true },
+    { key: 'blockApplicationTimeSeconds', label: 'Tempo de aplicação (segundos)', min: 0, integer: true },
+  ],
+  BAG_APPLICATION: [
+    { key: 'bagFoldTurnSecondsPerUnit', label: 'Viragem da dobra por unidade (segundos)', min: 0, integer: true },
+    { key: 'bagGlueSecondsPerUnit', label: 'Aplicação de cola por unidade (segundos)', min: 0, integer: true },
+    { key: 'bagCloseSecondsPerUnit', label: 'Fechamento por unidade (segundos)', min: 0, integer: true },
+  ],
+  ENVELOPE_SEALING: [
+    { key: 'envelopeFoldTurnSecondsPerUnit', label: 'Viragem da dobra por unidade (segundos)', min: 0, integer: true },
+    { key: 'envelopeGlueSecondsPerUnit', label: 'Aplicação de cola por unidade (segundos)', min: 0, integer: true },
+    { key: 'envelopeCloseSecondsPerUnit', label: 'Fechamento por unidade (segundos)', min: 0, integer: true },
+  ],
+}
+
+const ALL_KEYS = Object.values(TYPE_FIELDS).flat().map((f) => f.key)
+
 const props = defineProps<{
   initial?: FinishingTask | null
   mode?: 'create' | 'edit'
-  /** Tipo pré-selecionado ao criar (vindo do menu). */
   presetType?: FinishingTaskType
   loading?: boolean
   serverError?: string | null
@@ -36,26 +77,19 @@ const form = reactive({
   type: (props.initial?.type ?? props.presetType ?? 'FOLD_TURNING') as FinishingTaskType,
   name: props.initial?.name ?? '',
   hourlyCost: props.initial?.hourlyCost != null ? String(props.initial.hourlyCost) : '0',
-  foldTurnSecondsPerUnit: props.initial?.foldTurnSecondsPerUnit ?? null,
-  packagingMinutesPerPackage: props.initial?.packagingMinutesPerPackage ?? null,
-  packagingPackageWeightKg:
-    props.initial?.packagingPackageWeightKg != null ? String(props.initial.packagingPackageWeightKg) : '',
   active: props.initial?.active ?? true,
 })
 
-const errors = ref<Record<string, string>>({})
-
-// Ao trocar o tipo (na criação), limpa os campos do outro tipo.
-watch(
-  () => form.type,
-  (t) => {
-    if (t !== 'FOLD_TURNING') form.foldTurnSecondsPerUnit = null
-    if (t !== 'PACKAGING') {
-      form.packagingMinutesPerPackage = null
-      form.packagingPackageWeightKg = ''
-    }
-  },
+// Config como strings (vindas dos inputs); '' = vazio.
+const config = reactive<Record<string, string>>(
+  Object.fromEntries(ALL_KEYS.map((k) => {
+    const v = (props.initial as Record<string, unknown> | null | undefined)?.[k]
+    return [k, v != null ? String(v) : '']
+  })),
 )
+
+const errors = ref<Record<string, string>>({})
+const currentFields = computed(() => TYPE_FIELDS[form.type])
 
 const inputClass = (errKey: string) => [
   'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full min-w-0 p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
@@ -67,15 +101,19 @@ function validate(): Record<string, string> {
   if (!form.name.trim()) e['name'] = 'Informe o nome.'
   const cost = Number(form.hourlyCost)
   if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe o valor-hora (≥ 0).'
-  if (form.type === 'FOLD_TURNING') {
-    if (!form.foldTurnSecondsPerUnit || form.foldTurnSecondsPerUnit <= 0)
-      e['foldTurnSecondsPerUnit'] = 'Informe o tempo por unidade (> 0).'
+
+  for (const f of currentFields.value) {
+    const raw = config[f.key]
+    const n = Number(raw)
+    if (raw === '' || !Number.isFinite(n) || n < f.min) {
+      e[f.key] = `Informe um valor válido (≥ ${f.min}).`
+    }
   }
-  if (form.type === 'PACKAGING') {
-    if (!form.packagingMinutesPerPackage || form.packagingMinutesPerPackage <= 0)
-      e['packagingMinutesPerPackage'] = 'Informe o tempo por pacote (> 0).'
-    const w = Number(form.packagingPackageWeightKg)
-    if (!Number.isFinite(w) || w <= 0) e['packagingPackageWeightKg'] = 'Informe o peso do pacote (> 0).'
+  // Regra específica do espiral: máximo ≥ mínimo.
+  if (form.type === 'SPIRAL_BINDING' && !e['spiralMaxLengthCm'] && !e['spiralMinLengthCm']) {
+    if (Number(config.spiralMaxLengthCm) < Number(config.spiralMinLengthCm)) {
+      e['spiralMaxLengthCm'] = 'O tamanho máximo deve ser ≥ o mínimo.'
+    }
   }
   return e
 }
@@ -84,26 +122,22 @@ const handleSubmit = () => {
   errors.value = validate()
   if (Object.keys(errors.value).length) return
 
-  const typeFields = {
-    foldTurnSecondsPerUnit: form.type === 'FOLD_TURNING' ? form.foldTurnSecondsPerUnit : null,
-    packagingMinutesPerPackage: form.type === 'PACKAGING' ? form.packagingMinutesPerPackage : null,
-    packagingPackageWeightKg: form.type === 'PACKAGING' ? form.packagingPackageWeightKg : null,
+  // Só os campos do tipo atual entram no payload (o backend rejeita vazamento de outros tipos).
+  const typeConfig: Record<string, number | string> = {}
+  for (const f of currentFields.value) {
+    const raw = config[f.key] ?? ''
+    typeConfig[f.key] = f.asString ? raw : Number(raw)
   }
 
   if (isEditing.value) {
-    emit(
-      'submit',
-      { customerId: 0, name: form.name.trim(), hourlyCost: form.hourlyCost, active: form.active, ...typeFields },
-      'update',
-    )
+    emit('submit', { customerId: 0, name: form.name.trim(), hourlyCost: form.hourlyCost, active: form.active, ...typeConfig }, 'update')
   } else {
-    emit(
-      'submit',
-      { customerId: 0, type: form.type, name: form.name.trim(), hourlyCost: form.hourlyCost, ...typeFields },
-      'create',
-    )
+    emit('submit', { customerId: 0, type: form.type, name: form.name.trim(), hourlyCost: form.hourlyCost, ...typeConfig }, 'create')
   }
 }
+
+// Ao trocar o tipo (na criação), limpa os erros dos campos que saíram de cena.
+watch(() => form.type, () => { errors.value = {} })
 </script>
 
 <template>
@@ -120,7 +154,7 @@ const handleSubmit = () => {
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="md:col-span-2">
         <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Nome <span class="text-rose-500">*</span></label>
-        <input v-model="form.name" type="text" maxlength="150" placeholder="Ex.: Viragem de Dobras" :class="inputClass('name')" />
+        <input v-model="form.name" type="text" maxlength="150" placeholder="Ex.: Aplicação de Espiral" :class="inputClass('name')" />
         <p v-if="errors['name']" class="mt-1 text-xs text-rose-600">{{ errors['name'] }}</p>
       </div>
       <div>
@@ -130,23 +164,12 @@ const handleSubmit = () => {
       </div>
     </div>
 
-    <!-- Campos específicos do tipo -->
-    <div v-if="form.type === 'FOLD_TURNING'">
-      <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Tempo por unidade (segundos) <span class="text-rose-500">*</span></label>
-      <input v-model.number="form.foldTurnSecondsPerUnit" type="number" min="1" step="1" :class="inputClass('foldTurnSecondsPerUnit')" />
-      <p v-if="errors['foldTurnSecondsPerUnit']" class="mt-1 text-xs text-rose-600">{{ errors['foldTurnSecondsPerUnit'] }}</p>
-    </div>
-
-    <div v-else-if="form.type === 'PACKAGING'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Tempo por pacote (minutos) <span class="text-rose-500">*</span></label>
-        <input v-model.number="form.packagingMinutesPerPackage" type="number" min="1" step="1" :class="inputClass('packagingMinutesPerPackage')" />
-        <p v-if="errors['packagingMinutesPerPackage']" class="mt-1 text-xs text-rose-600">{{ errors['packagingMinutesPerPackage'] }}</p>
-      </div>
-      <div>
-        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Peso do pacote (kg) <span class="text-rose-500">*</span></label>
-        <input v-model="form.packagingPackageWeightKg" type="number" min="0" step="0.01" :class="inputClass('packagingPackageWeightKg')" />
-        <p v-if="errors['packagingPackageWeightKg']" class="mt-1 text-xs text-rose-600">{{ errors['packagingPackageWeightKg'] }}</p>
+    <!-- Campos específicos do tipo (genéricos por descritor) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div v-for="f in currentFields" :key="f.key">
+        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">{{ f.label }} <span class="text-rose-500">*</span></label>
+        <input v-model="config[f.key]" type="number" :min="f.min" :step="f.integer ? '1' : '0.01'" :class="inputClass(f.key)" />
+        <p v-if="errors[f.key]" class="mt-1 text-xs text-rose-600">{{ errors[f.key] }}</p>
       </div>
     </div>
 

@@ -8,7 +8,7 @@ import { useFinishingTasks } from '@/composables/useFinishingTasks'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
-import { FINISHING_TASK_TYPE_LABELS } from '@/utils/finishingTaskCatalog'
+import { FINISHING_TASK_TYPES, FINISHING_TASK_TYPE_LABELS } from '@/utils/finishingTaskCatalog'
 import type {
   CreateFinishingTaskRequest,
   FinishingTask,
@@ -28,7 +28,9 @@ const { listKeyValues, getById, create, update, remove } = useFinishingTasks()
 
 const activeType = computed<FinishingTaskType | undefined>(() => {
   const t = route.query.type
-  return t === 'FOLD_TURNING' || t === 'PACKAGING' ? t : undefined
+  return typeof t === 'string' && (FINISHING_TASK_TYPES as string[]).includes(t)
+    ? (t as FinishingTaskType)
+    : undefined
 })
 const heading = computed(() =>
   activeType.value ? FINISHING_TASK_TYPE_LABELS[activeType.value] : 'Acabamentos',

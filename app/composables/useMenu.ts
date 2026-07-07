@@ -64,6 +64,10 @@ export default function useMenu() {
       children: [
         { name: 'Viragem de Dobras', href: '/acabamentos?type=FOLD_TURNING' },
         { name: 'Empacotar', href: '/acabamentos?type=PACKAGING' },
+        { name: 'Aplicação de Espiral', href: '/acabamentos?type=SPIRAL_BINDING' },
+        { name: 'Colagem de Blocos/Talões', href: '/acabamentos?type=BLOCK_GLUING' },
+        { name: 'Aplicação de Bolsa', href: '/acabamentos?type=BAG_APPLICATION' },
+        { name: 'Fechamento de Envelope', href: '/acabamentos?type=ENVELOPE_SEALING' },
       ],
     },
     {
