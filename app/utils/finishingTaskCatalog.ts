@@ -10,6 +10,7 @@ export const FINISHING_TASK_TYPES: FinishingTaskType[] = [
   'BLOCK_GLUING',
   'BAG_APPLICATION',
   'ENVELOPE_SEALING',
+  'COLLATION',
 ]
 
 export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
@@ -19,6 +20,7 @@ export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
   BLOCK_GLUING: 'Colagem de Blocos/Talões',
   BAG_APPLICATION: 'Aplicação de Bolsa',
   ENVELOPE_SEALING: 'Fechamento de Envelope',
+  COLLATION: 'Intercalação de Vias',
 }
 
 /** Descrição curta de cada tipo, exibida no formulário. */
@@ -29,4 +31,5 @@ export const FINISHING_TASK_TYPE_HINTS: Record<FinishingTaskType, string> = {
   BLOCK_GLUING: 'Empilha os blocos/talões e aplica a cola.',
   BAG_APPLICATION: 'Viragem da dobra + cola + fechamento da bolsa, por unidade.',
   ENVELOPE_SEALING: 'Viragem da dobra + cola + fechamento do envelope, por unidade.',
+  COLLATION: 'Organiza as vias (jogos) na ordem. Configure o tempo por jogo para cada quantidade de vias.',
 }

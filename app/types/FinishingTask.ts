@@ -10,6 +10,13 @@ export type FinishingTaskType =
   | 'BLOCK_GLUING'
   | 'BAG_APPLICATION'
   | 'ENVELOPE_SEALING'
+  | 'COLLATION'
+
+/** Posição da Intercalação de Vias: para `viaCount` vias, `secondsPerSet` segundos por jogo. */
+export interface CollationTier {
+  viaCount: number
+  secondsPerSet: number
+}
 
 /** Campos de configuração específicos por tipo (nulos quando não aplicáveis). */
 export interface FinishingTaskConfigFields {
@@ -34,6 +41,8 @@ export interface FinishingTaskConfigFields {
   envelopeFoldTurnSecondsPerUnit?: number | null
   envelopeGlueSecondsPerUnit?: number | null
   envelopeCloseSecondsPerUnit?: number | null
+  // COLLATION (Intercalação de Vias) — lista qtd de vias → tempo/jogo.
+  collationTiers?: CollationTier[]
 }
 
 export interface FinishingTask extends FinishingTaskConfigFields {

@@ -68,6 +68,7 @@ export default function useMenu() {
         { name: 'Colagem de Blocos/Talões', href: '/acabamentos?type=BLOCK_GLUING' },
         { name: 'Aplicação de Bolsa', href: '/acabamentos?type=BAG_APPLICATION' },
         { name: 'Fechamento de Envelope', href: '/acabamentos?type=ENVELOPE_SEALING' },
+        { name: 'Intercalação de Vias', href: '/acabamentos?type=COLLATION' },
       ],
     },
     {

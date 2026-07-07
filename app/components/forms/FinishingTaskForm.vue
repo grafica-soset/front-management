@@ -6,6 +6,7 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import type {
+  CollationTier,
   CreateFinishingTaskRequest,
   FinishingTask,
   FinishingTaskType,
@@ -54,6 +55,8 @@ const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
     { key: 'envelopeGlueSecondsPerUnit', label: 'Aplicação de cola por unidade (segundos)', min: 0, integer: true },
     { key: 'envelopeCloseSecondsPerUnit', label: 'Fechamento por unidade (segundos)', min: 0, integer: true },
   ],
+  // Intercalação de Vias não tem campos escalares — usa a lista de posições (collationTiers).
+  COLLATION: [],
 }
 
 const ALL_KEYS = Object.values(TYPE_FIELDS).flat().map((f) => f.key)
@@ -90,6 +93,18 @@ const config = reactive<Record<string, string>>(
 
 const errors = ref<Record<string, string>>({})
 const currentFields = computed(() => TYPE_FIELDS[form.type])
+const isCollation = computed(() => form.type === 'COLLATION')
+
+// Posições da Intercalação de Vias (qtd de vias → tempo/jogo por jogo).
+const tiers = ref<CollationTier[]>(
+  (props.initial?.collationTiers ?? []).map((t) => ({ viaCount: t.viaCount, secondsPerSet: t.secondsPerSet })),
+)
+
+const addTier = () => {
+  const nextVia = tiers.value.length ? Math.max(...tiers.value.map((t) => t.viaCount)) + 1 : 2
+  tiers.value.push({ viaCount: nextVia, secondsPerSet: 0 })
+}
+const removeTier = (i: number) => { tiers.value.splice(i, 1) }
 
 const inputClass = (errKey: string) => [
   'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full min-w-0 p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
@@ -115,6 +130,18 @@ function validate(): Record<string, string> {
       e['spiralMaxLengthCm'] = 'O tamanho máximo deve ser ≥ o mínimo.'
     }
   }
+  // Intercalação de Vias: ao menos uma posição, vias ≥ 2, tempo > 0, sem quantidades repetidas.
+  if (isCollation.value) {
+    if (tiers.value.length === 0) e['collationTiers'] = 'Adicione ao menos uma posição.'
+    else {
+      const counts = tiers.value.map((t) => Number(t.viaCount))
+      if (tiers.value.some((t) => Number(t.viaCount) < 2 || Number(t.secondsPerSet) <= 0)) {
+        e['collationTiers'] = 'Cada posição precisa de vias ≥ 2 e tempo > 0.'
+      } else if (counts.length !== new Set(counts).size) {
+        e['collationTiers'] = 'Não repita a mesma quantidade de vias.'
+      }
+    }
+  }
   return e
 }
 
@@ -123,10 +150,16 @@ const handleSubmit = () => {
   if (Object.keys(errors.value).length) return
 
   // Só os campos do tipo atual entram no payload (o backend rejeita vazamento de outros tipos).
-  const typeConfig: Record<string, number | string> = {}
+  const typeConfig: Record<string, unknown> = {}
   for (const f of currentFields.value) {
     const raw = config[f.key] ?? ''
     typeConfig[f.key] = f.asString ? raw : Number(raw)
+  }
+  if (isCollation.value) {
+    typeConfig.collationTiers = tiers.value.map((t) => ({
+      viaCount: Number(t.viaCount),
+      secondsPerSet: Number(t.secondsPerSet),
+    }))
   }
 
   if (isEditing.value) {
@@ -172,6 +205,32 @@ watch(() => form.type, () => { errors.value = {} })
         <p v-if="errors[f.key]" class="mt-1 text-xs text-rose-600">{{ errors[f.key] }}</p>
       </div>
     </div>
+
+    <!-- Intercalação de Vias: lista de posições (qtd de vias → tempo/jogo) -->
+    <fieldset v-if="isCollation" class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-2">
+        <legend class="text-sm font-semibold text-slate-700 dark:text-slate-200">Posições (vias → tempo por jogo)</legend>
+        <button type="button" @click="addTier" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-md hover:bg-indigo-100 dark:text-indigo-300 dark:bg-slate-700 dark:hover:bg-slate-600">
+          + Adicionar posição
+        </button>
+      </div>
+      <div v-if="tiers.length === 0" class="text-xs text-slate-500 dark:text-slate-400">Nenhuma posição — adicione ao menos uma.</div>
+      <div v-for="(t, i) in tiers" :key="i" class="flex items-end gap-3 py-1.5">
+        <div class="w-32">
+          <label class="block mb-1 text-xs font-medium text-slate-600 dark:text-slate-300">Qtd de vias</label>
+          <input v-model.number="t.viaCount" type="number" min="2" step="1"
+            class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg block w-full p-2 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+        </div>
+        <div class="flex-1">
+          <label class="block mb-1 text-xs font-medium text-slate-600 dark:text-slate-300">Tempo por jogo (segundos)</label>
+          <input v-model.number="t.secondsPerSet" type="number" min="1" step="1"
+            class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg block w-full p-2 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+        </div>
+        <button type="button" @click="removeTier(i)" class="px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-md dark:text-rose-300 dark:hover:bg-slate-700">Remover</button>
+      </div>
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">No orçamento, se a quantidade de vias pedida não tiver posição, usa-se a maior cadastrada.</p>
+      <p v-if="errors['collationTiers']" class="mt-1 text-xs text-rose-600">{{ errors['collationTiers'] }}</p>
+    </fieldset>
 
     <label v-if="isEditing" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
       <input v-model="form.active" type="checkbox" class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600" />
