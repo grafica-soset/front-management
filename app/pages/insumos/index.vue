@@ -23,7 +23,7 @@ definePageMeta({ middleware: 'auth' })
 
 const auth = useAuthStore()
 const toast = useToast()
-const { listPage, getById, update, remove } = useSupplies()
+const { listPage, getById, create, update, remove } = useSupplies()
 const { currentUnit } = useUnitConverter()
 const unitLabel = (u: SupplyPageItem['unitOfMeasure']) => supplyUnitLabel(u, currentUnit.value)
 
@@ -43,6 +43,12 @@ const editing = ref<Supply | null>(null)
 const editOpen = ref(false)
 const editLoading = ref(false)
 const editError = ref<string | null>(null)
+
+// Modal de duplicação (cadastra um novo insumo a partir de um existente).
+const duplicating = ref<Supply | null>(null)
+const createOpen = ref(false)
+const createLoading = ref(false)
+const createError = ref<string | null>(null)
 
 const hasCompany = computed(() => !!auth.activeCompanyId)
 const isPaperTab = computed(() => activeTab.value === 'PAPER')
@@ -121,6 +127,39 @@ const handleUpdate = async (payload: CreateSupplyRequest | UpdateSupplyRequest) 
     editError.value = extractApiError(err, 'Falha ao atualizar o insumo.')
   } finally {
     editLoading.value = false
+  }
+}
+
+const openDuplicate = async (item: SupplyPageItem) => {
+  createError.value = null
+  createLoading.value = false
+  try {
+    const source = await getById(item.id)
+    // Novo insumo a partir do original; nome ganha sufixo (o backend exige nome único).
+    duplicating.value = { ...source, name: `${source.name} (cópia)` }
+    createOpen.value = true
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível duplicar o insumo.'))
+  }
+}
+
+const closeCreate = () => {
+  createOpen.value = false
+  duplicating.value = null
+}
+
+const handleCreate = async (payload: CreateSupplyRequest | UpdateSupplyRequest) => {
+  createLoading.value = true
+  createError.value = null
+  try {
+    await create(payload as CreateSupplyRequest)
+    toast.success(`Insumo "${payload.name}" cadastrado.`)
+    closeCreate()
+    await refresh()
+  } catch (err) {
+    createError.value = extractApiError(err, 'Falha ao duplicar o insumo.')
+  } finally {
+    createLoading.value = false
   }
 }
 
@@ -236,6 +275,7 @@ const handleDelete = async (item: SupplyPageItem) => {
                   <td class="px-5 py-3 text-right">
                     <div class="inline-flex items-center gap-1">
                       <button type="button" @click="openEdit(item)" class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700">Editar</button>
+                      <button type="button" @click="openDuplicate(item)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-700">Duplicar</button>
                       <button
                         type="button"
                         :disabled="deletingId === item.id"
@@ -272,6 +312,19 @@ const handleDelete = async (item: SupplyPageItem) => {
         :server-error="editError"
         @submit="handleUpdate"
         @cancel="closeEdit"
+      />
+    </Modal>
+
+    <!-- Modal de duplicação (cadastro a partir de um existente) -->
+    <Modal :is-open="createOpen" title="Duplicar insumo" @close="closeCreate">
+      <SupplyForm
+        v-if="duplicating"
+        mode="create"
+        :initial="duplicating"
+        :loading="createLoading"
+        :server-error="createError"
+        @submit="handleCreate"
+        @cancel="closeCreate"
       />
     </Modal>
   </div>

@@ -9,6 +9,7 @@ import type { CreateSupplyGroupRequest, SupplyGroup, UpdateSupplyGroupRequest } 
 import type { SupplyKeyValue } from '@/types/Supply'
 import { useSupplies } from '@/composables/useSupplies'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
+import { useCustomerPapers } from '@/composables/useCustomerPapers'
 
 const props = defineProps<{
   initial?: SupplyGroup | null
@@ -23,6 +24,7 @@ const emit = defineEmits<{
     payload: CreateSupplyGroupRequest | UpdateSupplyGroupRequest,
     mode: 'create' | 'update',
     supplyIds: number[],
+    paperIds: number[],
   ): void
   (e: 'cancel'): void
 }>()
@@ -35,6 +37,11 @@ const error = ref<string | null>(null)
 const supplies = ref<SupplyKeyValue[]>([])
 const selectedIds = ref<Set<number>>(new Set())
 const loadingSupplies = ref(false)
+
+// Papéis da empresa (para grupos de embrulho — ex.: Empacotar) e o conjunto selecionado.
+const papers = ref<{ id: number; label: string }[]>([])
+const selectedPaperIds = ref<Set<number>>(new Set())
+const loadingPapers = ref(false)
 
 onMounted(async () => {
   loadingSupplies.value = true
@@ -50,6 +57,20 @@ onMounted(async () => {
   } finally {
     loadingSupplies.value = false
   }
+
+  loadingPapers.value = true
+  try {
+    const entries = await useCustomerPapers().listCustomerPapers({ onlyActive: true })
+    papers.value = entries.map((e) => ({ id: e.paper.id, label: `${e.paper.code} — ${e.paper.longName}` }))
+    if (isEditing.value && props.initial?.id) {
+      const groupPapers = await useSupplyGroups().listPapers(props.initial.id)
+      selectedPaperIds.value = new Set(groupPapers.map((p) => p.id))
+    }
+  } catch {
+    papers.value = []
+  } finally {
+    loadingPapers.value = false
+  }
 })
 
 const toggleSupply = (id: number) => {
@@ -59,7 +80,15 @@ const toggleSupply = (id: number) => {
   selectedIds.value = next
 }
 
+const togglePaper = (id: number) => {
+  const next = new Set(selectedPaperIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedPaperIds.value = next
+}
+
 const selectedCount = computed(() => selectedIds.value.size)
+const selectedPaperCount = computed(() => selectedPaperIds.value.size)
 
 const inputClass = computed(() => [
   'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full min-w-0 p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white',
@@ -72,10 +101,11 @@ const handleSubmit = () => {
   if (name.length > 120) { error.value = 'Máximo de 120 caracteres.'; return }
   error.value = null
   const supplyIds = Array.from(selectedIds.value)
+  const paperIds = Array.from(selectedPaperIds.value)
   if (isEditing.value) {
-    emit('submit', { customerId: 0, name, active: form.active }, 'update', supplyIds)
+    emit('submit', { customerId: 0, name, active: form.active }, 'update', supplyIds, paperIds)
   } else {
-    emit('submit', { customerId: 0, name }, 'create', supplyIds)
+    emit('submit', { customerId: 0, name }, 'create', supplyIds, paperIds)
   }
 }
 </script>
@@ -117,6 +147,37 @@ const handleSubmit = () => {
             class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
           />
           <span class="truncate">{{ s.value }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Papéis do grupo
+        <span v-if="selectedPaperCount" class="ml-1 text-xs font-normal text-slate-500 dark:text-slate-400">({{ selectedPaperCount }} selecionado{{ selectedPaperCount > 1 ? 's' : '' }})</span>
+      </legend>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Para grupos de <strong>embrulho</strong> (ex.: usados pelo acabamento Empacotar), marque os papéis
+        da empresa que fazem parte da família.
+      </p>
+
+      <div v-if="loadingPapers" class="text-sm text-slate-500 dark:text-slate-400">Carregando papéis...</div>
+      <div v-else-if="papers.length === 0" class="text-sm text-slate-500 dark:text-slate-400">
+        Nenhum papel cadastrado na empresa.
+      </div>
+      <div v-else class="space-y-1 max-h-56 overflow-y-auto pr-1">
+        <label
+          v-for="p in papers"
+          :key="p.id"
+          class="flex items-center gap-2 py-1.5 text-sm text-slate-800 cursor-pointer dark:text-slate-100"
+        >
+          <input
+            type="checkbox"
+            :checked="selectedPaperIds.has(p.id)"
+            @change="togglePaper(p.id)"
+            class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+          />
+          <span class="truncate">{{ p.label }}</span>
         </label>
       </div>
     </fieldset>

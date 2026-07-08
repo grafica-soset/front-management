@@ -4,9 +4,11 @@
  */
 import type {
   CreateSupplyGroupRequest,
+  SetSupplyGroupPapersRequest,
   SetSupplyGroupSuppliesRequest,
   SupplyGroup,
   SupplyGroupKeyValue,
+  SupplyGroupPaper,
   UpdateSupplyGroupRequest,
 } from '@/types/SupplyGroup'
 import type { SupplyKeyValue } from '@/types/Supply'
@@ -54,5 +56,16 @@ export function useSupplyGroups() {
     return await api<SupplyKeyValue[]>(`/supply-groups/${id}/supplies`, { method: 'PUT', body })
   }
 
-  return { listKeyValues, getById, create, update, remove, listSupplies, setSupplies }
+  // Papéis vinculados ao grupo (papel de embrulho etc.).
+  async function listPapers(id: number): Promise<SupplyGroupPaper[]> {
+    return await api<SupplyGroupPaper[]>(`/supply-groups/${id}/papers`)
+  }
+
+  // Substitui os papéis do grupo. Retorna o conjunto resultante.
+  async function setPapers(id: number, paperIds: number[]): Promise<SupplyGroupPaper[]> {
+    const body: SetSupplyGroupPapersRequest = { paperIds }
+    return await api<SupplyGroupPaper[]>(`/supply-groups/${id}/papers`, { method: 'PUT', body })
+  }
+
+  return { listKeyValues, getById, create, update, remove, listSupplies, setSupplies, listPapers, setPapers }
 }

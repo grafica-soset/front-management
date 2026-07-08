@@ -31,3 +31,14 @@ export interface UpdateSupplyGroupRequest {
 export interface SetSupplyGroupSuppliesRequest {
   supplyIds: number[]
 }
+
+/** Papel vinculado ao grupo (atividade 030): id do papel + "código — nome". */
+export interface SupplyGroupPaper {
+  id: number
+  value: string
+}
+
+/** Define quais papéis pertencem ao grupo (substitui o vínculo atual). */
+export interface SetSupplyGroupPapersRequest {
+  paperIds: number[]
+}
