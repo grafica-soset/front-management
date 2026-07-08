@@ -32,6 +32,19 @@ export const SUPPLY_UNITS: SupplyUnitOfMeasure[] = [
   'SHEET',
 ]
 
+/** Rótulos estáticos de unidade (para seletores simples, ex.: unidade do grupo de insumo). */
+export const SUPPLY_UNIT_LABELS: Record<SupplyUnitOfMeasure, string> = {
+  UNIT: 'Unitário',
+  KILOGRAM: 'Quilo (kg)',
+  GRAM: 'Grama (g)',
+  LITER: 'Litro (L)',
+  MILLILITER: 'Mililitro (mL)',
+  LINEAR: 'Linear',
+  AREA: 'Área',
+  VOLUME: 'Volume',
+  SHEET: 'Folha',
+}
+
 /** Rótulos fixos (unidades não-espaciais). */
 const FIXED_UNIT_LABELS: Partial<Record<SupplyUnitOfMeasure, string>> = {
   UNIT: 'Unitário',
