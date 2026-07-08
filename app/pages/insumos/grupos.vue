@@ -16,7 +16,7 @@ definePageMeta({ middleware: 'auth' })
 
 const auth = useAuthStore()
 const toast = useToast()
-const { listKeyValues, getById, create, update, remove, setSupplies } = useSupplyGroups()
+const { listKeyValues, getById, create, update, remove, setSupplies, setPapers } = useSupplyGroups()
 
 const items = ref<SupplyGroupKeyValue[]>([])
 const loading = ref(false)
@@ -61,18 +61,21 @@ const handleSubmit = async (
   payload: CreateSupplyGroupRequest | UpdateSupplyGroupRequest,
   _mode: 'create' | 'update',
   supplyIds: number[] = [],
+  paperIds: number[] = [],
 ) => {
   saving.value = true
   saveError.value = null
   try {
     if (editing.value) {
       await update(editing.value.id, payload as UpdateSupplyGroupRequest)
-      // Sempre sincroniza o vínculo na edição (lista vazia desvincula todos).
+      // Sempre sincroniza os vínculos na edição (lista vazia desvincula todos).
       await setSupplies(editing.value.id, supplyIds)
+      await setPapers(editing.value.id, paperIds)
       toast.success('Grupo atualizado.')
     } else {
       const created = await create(payload as CreateSupplyGroupRequest)
       if (supplyIds.length) await setSupplies(created.id, supplyIds)
+      if (paperIds.length) await setPapers(created.id, paperIds)
       toast.success('Grupo cadastrado.')
     }
     closeModal()
