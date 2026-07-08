@@ -6,9 +6,10 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { CreateSupplyGroupRequest, SupplyGroup, UpdateSupplyGroupRequest } from '@/types/SupplyGroup'
-import type { SupplyKeyValue } from '@/types/Supply'
+import type { SupplyKeyValue, SupplyUnitOfMeasure } from '@/types/Supply'
 import { useSupplies } from '@/composables/useSupplies'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
+import { SUPPLY_UNITS, SUPPLY_UNIT_LABELS } from '@/utils/supplyCatalog'
 
 const props = defineProps<{
   initial?: SupplyGroup | null
@@ -28,7 +29,11 @@ const emit = defineEmits<{
 }>()
 
 const isEditing = computed(() => props.mode === 'edit')
-const form = reactive({ name: props.initial?.name ?? '', active: props.initial?.active ?? true })
+const form = reactive({
+  name: props.initial?.name ?? '',
+  unitOfMeasure: (props.initial?.unitOfMeasure ?? 'UNIT') as SupplyUnitOfMeasure,
+  active: props.initial?.active ?? true,
+})
 const error = ref<string | null>(null)
 
 // Insumos elegíveis (tudo menos tinta) e o conjunto selecionado (IDs).
@@ -73,9 +78,9 @@ const handleSubmit = () => {
   error.value = null
   const supplyIds = Array.from(selectedIds.value)
   if (isEditing.value) {
-    emit('submit', { customerId: 0, name, active: form.active }, 'update', supplyIds)
+    emit('submit', { customerId: 0, name, unitOfMeasure: form.unitOfMeasure, active: form.active }, 'update', supplyIds)
   } else {
-    emit('submit', { customerId: 0, name }, 'create', supplyIds)
+    emit('submit', { customerId: 0, name, unitOfMeasure: form.unitOfMeasure }, 'create', supplyIds)
   }
 }
 </script>
@@ -88,6 +93,17 @@ const handleSubmit = () => {
       </label>
       <input v-model="form.name" type="text" maxlength="120" placeholder="Ex.: Grampos" :class="inputClass" />
       <p v-if="error" class="mt-1 text-xs text-rose-600">{{ error }}</p>
+    </div>
+
+    <div>
+      <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Unidade de medida do consumo <span class="text-rose-500">*</span>
+      </label>
+      <select v-model="form.unitOfMeasure"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+        <option v-for="u in SUPPLY_UNITS" :key="u" :value="u">{{ SUPPLY_UNIT_LABELS[u] }}</option>
+      </select>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Unidade em que a atividade informa quanto consome (ex.: Colas em grama, Grampos unitário).</p>
     </div>
 
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
