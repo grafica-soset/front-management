@@ -21,7 +21,7 @@ definePageMeta({ middleware: 'auth' })
 
 const auth = useAuthStore()
 const toast = useToast()
-const { listPage, getById, update, remove } = useActivities()
+const { listPage, getById, create, update, remove } = useActivities()
 
 const PAGE_SIZE = 20
 const items = ref<Activity[]>([])
@@ -41,6 +41,12 @@ const editing = ref<Activity | null>(null)
 const editOpen = ref(false)
 const editLoading = ref(false)
 const editError = ref<string | null>(null)
+
+// Modal de duplicação (cadastra uma nova atividade a partir de uma existente).
+const duplicating = ref<Activity | null>(null)
+const createOpen = ref(false)
+const createLoading = ref(false)
+const createError = ref<string | null>(null)
 
 const hasCompany = computed(() => !!auth.activeCompanyId)
 
@@ -112,6 +118,37 @@ const handleUpdate = async (payload: CreateActivityRequest | UpdateActivityReque
     editError.value = extractApiError(err, 'Falha ao atualizar a atividade.')
   } finally {
     editLoading.value = false
+  }
+}
+
+// Duplicar: abre o form em modo de criação já preenchido com a atividade de origem (tipo, máquina,
+// acabamento e consumo de insumo). O nome ganha sufixo porque é único por empresa.
+const openDuplicate = async (a: Activity) => {
+  createError.value = null
+  createLoading.value = false
+  try {
+    const source = await getById(a.id)
+    duplicating.value = { ...source, name: `${source.name} (cópia)` }
+    createOpen.value = true
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível duplicar a atividade.'))
+  }
+}
+
+const closeCreate = () => { createOpen.value = false; duplicating.value = null }
+
+const handleCreate = async (payload: CreateActivityRequest | UpdateActivityRequest) => {
+  createLoading.value = true
+  createError.value = null
+  try {
+    await create(payload as CreateActivityRequest)
+    toast.success(`Atividade "${payload.name}" cadastrada.`)
+    closeCreate()
+    await refresh()
+  } catch (err) {
+    createError.value = extractApiError(err, 'Falha ao duplicar a atividade.')
+  } finally {
+    createLoading.value = false
   }
 }
 
@@ -194,6 +231,7 @@ const handleDelete = async (a: Activity) => {
                 <td class="px-5 py-3 text-right">
                   <div class="inline-flex items-center gap-1">
                     <button type="button" @click="openEdit(a)" class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700">Editar</button>
+                    <button type="button" @click="openDuplicate(a)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-700">Duplicar</button>
                     <button type="button" :disabled="deletingId === a.id" @click="handleDelete(a)" class="px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-md disabled:opacity-50 dark:text-rose-300 dark:hover:bg-slate-700">Excluir</button>
                   </div>
                 </td>
@@ -214,6 +252,11 @@ const handleDelete = async (a: Activity) => {
 
     <Modal :is-open="editOpen" title="Editar atividade" @close="closeEdit">
       <ActivityForm v-if="editing" mode="edit" :initial="editing" :loading="editLoading" :server-error="editError" @submit="handleUpdate" @cancel="closeEdit" />
+    </Modal>
+
+    <!-- Modal de duplicação (cadastro a partir de uma existente) -->
+    <Modal :is-open="createOpen" title="Duplicar atividade" @close="closeCreate">
+      <ActivityForm v-if="duplicating" mode="create" :initial="duplicating" :loading="createLoading" :server-error="createError" @submit="handleCreate" @cancel="closeCreate" />
     </Modal>
 
     <BlockedDeleteDialog
