@@ -7,9 +7,10 @@ import { computed, ref } from 'vue'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { extractApiError } from '@/utils/apiError'
+import { apiErrorCode, extractApiError, extractApiErrorDetails } from '@/utils/apiError'
 import type { CreateSupplyGroupRequest, SupplyGroup, SupplyGroupKeyValue, UpdateSupplyGroupRequest } from '@/types/SupplyGroup'
 import Modal from '@/components/ui/Modal.vue'
+import BlockedDeleteDialog from '@/components/ui/BlockedDeleteDialog.vue'
 import SupplyGroupForm from '@/components/forms/SupplyGroupForm.vue'
 
 definePageMeta({ middleware: 'auth' })
@@ -87,15 +88,24 @@ const handleSubmit = async (
   }
 }
 
+// Exclusão bloqueada: atividades que consomem o grupo (vêm em ErrorResponse.details).
+const blocked = ref<{ groupName: string; activities: string[] } | null>(null)
+
 const handleDelete = async (item: SupplyGroupKeyValue) => {
-  if (!window.confirm(`Remover o grupo "${item.value}"?`)) return
+  // Insumos e papéis do grupo não impedem a exclusão — são apenas desvinculados.
+  if (!window.confirm(`Remover o grupo "${item.value}"? Os insumos e papéis do grupo não são excluídos, apenas ficam sem grupo.`)) return
   deletingId.value = item.id
   try {
     await remove(item.id)
     toast.success(`Grupo "${item.value}" removido.`)
     await refresh()
   } catch (err) {
-    toast.error(extractApiError(err, 'Não foi possível remover o grupo (pode estar em uso).'))
+    // Em uso por atividades: mostra quais são, em vez de um toast que some.
+    if (apiErrorCode(err) === 'SupplyGroupInUseException') {
+      blocked.value = { groupName: item.value, activities: extractApiErrorDetails(err) }
+    } else {
+      toast.error(extractApiError(err, 'Não foi possível remover o grupo.'))
+    }
   } finally {
     deletingId.value = null
   }
@@ -171,5 +181,14 @@ const handleDelete = async (item: SupplyGroupKeyValue) => {
         @cancel="closeModal"
       />
     </Modal>
+
+    <BlockedDeleteDialog
+      :is-open="!!blocked"
+      title="Não é possível excluir o grupo"
+      :message="`O grupo &quot;${blocked?.groupName}&quot; é usado pelas atividades abaixo, que dependem dele para calcular o consumo de insumo no orçamento:`"
+      hint="Ajuste ou exclua essas atividades primeiro e tente de novo. Nada foi excluído."
+      :items="blocked?.activities ?? []"
+      @close="blocked = null"
+    />
   </div>
 </template>

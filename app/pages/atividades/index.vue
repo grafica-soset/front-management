@@ -10,10 +10,11 @@ import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { extractApiError } from '@/utils/apiError'
+import { apiErrorCode, extractApiError, extractApiErrorDetails } from '@/utils/apiError'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import type { Activity, CreateActivityRequest, UpdateActivityRequest } from '@/types/Activity'
 import Modal from '@/components/ui/Modal.vue'
+import BlockedDeleteDialog from '@/components/ui/BlockedDeleteDialog.vue'
 import ActivityForm from '@/components/forms/ActivityForm.vue'
 
 definePageMeta({ middleware: 'auth' })
@@ -114,6 +115,9 @@ const handleUpdate = async (payload: CreateActivityRequest | UpdateActivityReque
   }
 }
 
+// Exclusão bloqueada: modelos de produto que usam a atividade (vêm em ErrorResponse.details).
+const blocked = ref<{ activityName: string; models: string[] } | null>(null)
+
 const handleDelete = async (a: Activity) => {
   if (!window.confirm(`Remover a atividade "${a.name}"?`)) return
   deletingId.value = a.id
@@ -123,7 +127,12 @@ const handleDelete = async (a: Activity) => {
     if (items.value.length === 1 && page.value > 0) page.value -= 1
     await refresh()
   } catch (err) {
-    toast.error(extractApiError(err, 'Não foi possível remover a atividade.'))
+    // Em uso por modelos: mostra quais são, em vez de um toast que some.
+    if (apiErrorCode(err) === 'ActivityInUseException') {
+      blocked.value = { activityName: a.name, models: extractApiErrorDetails(err) }
+    } else {
+      toast.error(extractApiError(err, 'Não foi possível remover a atividade.'))
+    }
   } finally {
     deletingId.value = null
   }
@@ -206,5 +215,14 @@ const handleDelete = async (a: Activity) => {
     <Modal :is-open="editOpen" title="Editar atividade" @close="closeEdit">
       <ActivityForm v-if="editing" mode="edit" :initial="editing" :loading="editLoading" :server-error="editError" @submit="handleUpdate" @cancel="closeEdit" />
     </Modal>
+
+    <BlockedDeleteDialog
+      :is-open="!!blocked"
+      title="Não é possível excluir a atividade"
+      :message="`A atividade &quot;${blocked?.activityName}&quot; faz parte dos modelos de produto abaixo:`"
+      hint="Tire a atividade desses modelos primeiro e tente de novo. Nada foi excluído."
+      :items="blocked?.models ?? []"
+      @close="blocked = null"
+    />
   </div>
 </template>
