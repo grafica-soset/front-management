@@ -11,6 +11,7 @@ export const FINISHING_TASK_TYPES: FinishingTaskType[] = [
   'BAG_APPLICATION',
   'ENVELOPE_SEALING',
   'COLLATION',
+  'MANUAL_COUNTING',
 ]
 
 export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
@@ -21,6 +22,7 @@ export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
   BAG_APPLICATION: 'Aplicação de Bolsa',
   ENVELOPE_SEALING: 'Fechamento de Envelope',
   COLLATION: 'Intercalação de Vias',
+  MANUAL_COUNTING: 'Contagem Manual de Vias',
 }
 
 /** Descrição curta de cada tipo, exibida no formulário. */
@@ -32,4 +34,5 @@ export const FINISHING_TASK_TYPE_HINTS: Record<FinishingTaskType, string> = {
   BAG_APPLICATION: 'Viragem da dobra + cola + fechamento da bolsa, por unidade.',
   ENVELOPE_SEALING: 'Viragem da dobra + cola + fechamento do envelope, por unidade.',
   COLLATION: 'Organiza as vias (jogos) na ordem. Configure o tempo por jogo para cada quantidade de vias.',
+  MANUAL_COUNTING: 'Conta as folhas à mão. Informe uma referência (quanto tempo leva para contar X folhas); o orçamento extrapola para a quantidade do pedido.',
 }

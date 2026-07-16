@@ -62,6 +62,10 @@ const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
   ],
   // Intercalação de Vias não tem campos escalares — usa a lista de posições (collationTiers).
   COLLATION: [],
+  MANUAL_COUNTING: [
+    { key: 'countingSheetCount', label: 'Quantidade de folhas', min: 1, integer: true },
+    { key: 'countingMinutes', label: 'Tempo para contar essas folhas (minutos)', min: 1, integer: true },
+  ],
 }
 
 const ALL_FIELDS = Object.values(TYPE_FIELDS).flat()
