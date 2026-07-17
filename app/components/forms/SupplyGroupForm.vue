@@ -15,6 +15,8 @@ import { SUPPLY_UNITS, SUPPLY_UNIT_LABELS } from '@/utils/supplyCatalog'
 const props = defineProps<{
   initial?: SupplyGroup | null
   mode?: 'create' | 'edit'
+  /** Papéis já marcados na criação — usado pela duplicação, que herda os papéis da origem. */
+  presetPaperIds?: number[]
   loading?: boolean
   serverError?: string | null
 }>()
@@ -70,6 +72,9 @@ onMounted(async () => {
     if (isEditing.value && props.initial?.id) {
       const groupPapers = await useSupplyGroups().listPapers(props.initial.id)
       selectedPaperIds.value = new Set(groupPapers.map((p) => p.id))
+    } else if (props.presetPaperIds?.length) {
+      // Duplicação: herda os papéis da origem (papel pode estar em vários grupos).
+      selectedPaperIds.value = new Set(props.presetPaperIds)
     }
   } catch {
     papers.value = []

@@ -21,6 +21,22 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   CredentialNotFoundException: 'Este usuário não possui credencial de senha cadastrada.',
 }
 
+/**
+ * Itens do campo `details` do ErrorResponse — usados quando o backend precisa listar coisas
+ * para o usuário, ex.: o que está bloqueando uma exclusão. Vazio quando não houver.
+ */
+export function extractApiErrorDetails(err: unknown): string[] {
+  const fetchErr = err as { data?: ErrorResponse }
+  const details = fetchErr?.data?.details
+  return Array.isArray(details) ? details : []
+}
+
+/** O `error` code do ErrorResponse (ex.: 'SupplyGroupInUseException'), quando houver. */
+export function apiErrorCode(err: unknown): string | null {
+  const fetchErr = err as { data?: ErrorResponse }
+  return fetchErr?.data?.error ?? null
+}
+
 export function extractApiError(err: unknown, fallback = 'Não foi possível concluir a operação.'): string {
   const fetchErr = err as { data?: ErrorResponse; statusCode?: number; status?: number }
   const data = fetchErr?.data

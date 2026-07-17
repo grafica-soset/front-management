@@ -16,7 +16,7 @@ definePageMeta({ middleware: 'auth' })
 
 const auth = useAuthStore()
 const toast = useToast()
-const { listPage, getById, update, remove } = useProductModels()
+const { listPage, getById, create, update, remove } = useProductModels()
 
 const PAGE_SIZE = 20
 const items = ref<ProductModel[]>([])
@@ -32,6 +32,12 @@ const editing = ref<ProductModel | null>(null)
 const editOpen = ref(false)
 const editLoading = ref(false)
 const editError = ref<string | null>(null)
+
+// Modal de duplicação (cadastra um novo modelo a partir de um existente).
+const duplicating = ref<ProductModel | null>(null)
+const createOpen = ref(false)
+const createLoading = ref(false)
+const createError = ref<string | null>(null)
 
 const hasCompany = computed(() => !!auth.activeCompanyId)
 
@@ -87,6 +93,38 @@ const handleUpdate = async (payload: CreateProductModelRequest | UpdateProductMo
     editError.value = extractApiError(err, 'Falha ao atualizar o modelo.')
   } finally {
     editLoading.value = false
+  }
+}
+
+// Duplicar: abre o form em modo de criação já preenchido com o modelo de origem, incluindo a lista de
+// atividades (fixas e complementares) — as atividades são compartilhadas, o original não muda.
+// O nome ganha sufixo porque é único por empresa.
+const openDuplicate = async (m: ProductModel) => {
+  createError.value = null
+  createLoading.value = false
+  try {
+    const source = await getById(m.id)
+    duplicating.value = { ...source, name: `${source.name} (cópia)` }
+    createOpen.value = true
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível duplicar o modelo.'))
+  }
+}
+
+const closeCreate = () => { createOpen.value = false; duplicating.value = null }
+
+const handleCreate = async (payload: CreateProductModelRequest | UpdateProductModelRequest) => {
+  createLoading.value = true
+  createError.value = null
+  try {
+    await create(payload as CreateProductModelRequest)
+    toast.success(`Modelo "${payload.name}" cadastrado.`)
+    closeCreate()
+    await refresh()
+  } catch (err) {
+    createError.value = extractApiError(err, 'Falha ao duplicar o modelo.')
+  } finally {
+    createLoading.value = false
   }
 }
 
@@ -157,6 +195,7 @@ const handleDelete = async (m: ProductModel) => {
                 <td class="px-5 py-3 text-right">
                   <div class="inline-flex items-center gap-1">
                     <button type="button" @click="openEdit(m)" class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700">Editar</button>
+                    <button type="button" @click="openDuplicate(m)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-700">Duplicar</button>
                     <button type="button" :disabled="deletingId === m.id" @click="handleDelete(m)" class="px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-md disabled:opacity-50 dark:text-rose-300 dark:hover:bg-slate-700">Excluir</button>
                   </div>
                 </td>
@@ -177,6 +216,11 @@ const handleDelete = async (m: ProductModel) => {
 
     <Modal :is-open="editOpen" title="Editar modelo" @close="closeEdit">
       <ProductModelForm v-if="editing" mode="edit" :initial="editing" :loading="editLoading" :server-error="editError" @submit="handleUpdate" @cancel="closeEdit" />
+    </Modal>
+
+    <!-- Modal de duplicação (cadastro a partir de um existente) -->
+    <Modal :is-open="createOpen" title="Duplicar modelo" @close="closeCreate">
+      <ProductModelForm v-if="duplicating" mode="create" :initial="duplicating" :loading="createLoading" :server-error="createError" @submit="handleCreate" @cancel="closeCreate" />
     </Modal>
   </div>
 </template>

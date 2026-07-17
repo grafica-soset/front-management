@@ -42,11 +42,19 @@ const listError = ref<string | null>(null)
 const deletingId = ref<number | null>(null)
 
 const modalOpen = ref(false)
+// Dados iniciais do form: o acabamento em edição ou a origem da duplicação. Quem manda no que o
+// submit faz é o modalMode — duplicar tem dados iniciais mas CRIA.
 const editing = ref<FinishingTask | null>(null)
+const modalMode = ref<'create' | 'edit'>('create')
+const editingId = ref<number | null>(null)
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 
 const hasCompany = computed(() => !!auth.activeCompanyId)
+const modalTitle = computed(() => {
+  if (modalMode.value === 'edit') return 'Editar acabamento'
+  return editing.value ? 'Duplicar acabamento' : 'Novo acabamento'
+})
 
 const refresh = async () => {
   if (!hasCompany.value) return
@@ -64,24 +72,49 @@ const refresh = async () => {
 onMounted(refresh)
 watch(activeType, refresh)
 
-const openCreate = () => { editing.value = null; saveError.value = null; modalOpen.value = true }
+const openCreate = () => {
+  modalMode.value = 'create'
+  editing.value = null
+  editingId.value = null
+  saveError.value = null
+  modalOpen.value = true
+}
+
 const openEdit = async (item: FinishingTaskKeyValue) => {
   saveError.value = null
   try {
     editing.value = await getById(item.id)
+    editingId.value = item.id
+    modalMode.value = 'edit'
     modalOpen.value = true
   } catch (err) {
     toast.error(extractApiError(err, 'Não foi possível abrir o acabamento.'))
   }
 }
-const closeModal = () => { modalOpen.value = false; editing.value = null }
+
+// Duplicar: abre o form em modo de CRIAÇÃO já preenchido com o acabamento de origem (config do tipo
+// e posições de intercalação incluídas). O nome ganha sufixo porque é único por empresa.
+const openDuplicate = async (item: FinishingTaskKeyValue) => {
+  saveError.value = null
+  try {
+    const source = await getById(item.id)
+    editing.value = { ...source, name: `${source.name} (cópia)` }
+    editingId.value = null
+    modalMode.value = 'create'
+    modalOpen.value = true
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível duplicar o acabamento.'))
+  }
+}
+
+const closeModal = () => { modalOpen.value = false; editing.value = null; editingId.value = null }
 
 const handleSubmit = async (payload: CreateFinishingTaskRequest | UpdateFinishingTaskRequest) => {
   saving.value = true
   saveError.value = null
   try {
-    if (editing.value) {
-      await update(editing.value.id, payload as UpdateFinishingTaskRequest)
+    if (modalMode.value === 'edit' && editingId.value) {
+      await update(editingId.value, payload as UpdateFinishingTaskRequest)
       toast.success('Acabamento atualizado.')
     } else {
       await create(payload as CreateFinishingTaskRequest)
@@ -159,6 +192,7 @@ const handleDelete = async (item: FinishingTaskKeyValue) => {
               <td class="px-5 py-3 text-right">
                 <div class="inline-flex items-center gap-1">
                   <button type="button" @click="openEdit(item)" class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700">Editar</button>
+                  <button type="button" @click="openDuplicate(item)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-700">Duplicar</button>
                   <button type="button" :disabled="deletingId === item.id" @click="handleDelete(item)" class="px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-md disabled:opacity-50 dark:text-rose-300 dark:hover:bg-slate-700">Excluir</button>
                 </div>
               </td>
@@ -168,10 +202,10 @@ const handleDelete = async (item: FinishingTaskKeyValue) => {
       </div>
     </div>
 
-    <Modal :is-open="modalOpen" :title="editing ? 'Editar acabamento' : 'Novo acabamento'" @close="closeModal">
+    <Modal :is-open="modalOpen" :title="modalTitle" @close="closeModal">
       <FinishingTaskForm
         :initial="editing"
-        :mode="editing ? 'edit' : 'create'"
+        :mode="modalMode"
         :preset-type="activeType"
         :loading="saving"
         :server-error="saveError"

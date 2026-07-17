@@ -11,6 +11,7 @@ export type FinishingTaskType =
   | 'BAG_APPLICATION'
   | 'ENVELOPE_SEALING'
   | 'COLLATION'
+  | 'MANUAL_COUNTING'
 
 /** Posição da Intercalação de Vias: para `viaCount` vias, `secondsPerSet` segundos por jogo. */
 export interface CollationTier {
@@ -41,6 +42,9 @@ export interface FinishingTaskConfigFields {
   envelopeFoldTurnSecondsPerUnit?: number | null
   envelopeGlueSecondsPerUnit?: number | null
   envelopeCloseSecondsPerUnit?: number | null
+  // MANUAL_COUNTING — par de referência: `countingMinutes` min para contar `countingSheetCount` folhas.
+  countingSheetCount?: number | null
+  countingMinutes?: number | null
   // COLLATION (Intercalação de Vias) — lista qtd de vias → tempo/jogo.
   collationTiers?: CollationTier[]
 }
