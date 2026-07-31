@@ -8,7 +8,9 @@
  */
 import { computed } from 'vue'
 import type { DigitalBlockRequest, DigitalColorMode } from '@/types/Machine'
+import type { InkColorType } from '@/types/Supply'
 import { DIGITAL_COLOR_MODE_LABELS } from '@/utils/machineCatalog'
+import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPES, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
@@ -40,6 +42,16 @@ const inputClass = (err?: string) => [
 const selectClass = 'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white'
 const fmtErr = (which: 'minFormat' | 'maxFormat', field: 'widthMm' | 'lengthMm' | 'sheetsPerHour') => props.errors[`${which}.${field}`]
 const covErr = (which: 'lineCoverage' | 'imageCoverage', field: 'tonerGramsPerSquareMeterAt100' | 'speedReducerPercentAt100') => props.errors[`${which}.${field}`]
+
+/** Tinta aceita: marca/desmarca um TIPO (CMYK/Pantone) — atividade 032 (ajuste 0001). */
+const isInkColorAccepted = (color: InkColorType) => props.block.acceptedInkColorTypes.includes(color)
+const toggleInkColor = (color: InkColorType) => {
+  if (isInkColorAccepted(color)) {
+    props.block.acceptedInkColorTypes = props.block.acceptedInkColorTypes.filter((c) => c !== color)
+  } else {
+    props.block.acceptedInkColorTypes = [...props.block.acceptedInkColorTypes, color]
+  }
+}
 </script>
 
 <template>
@@ -242,6 +254,39 @@ const covErr = (which: 'lineCoverage' | 'imageCoverage', field: 'tonerGramsPerSq
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
           </div>
           <p v-if="covErr('imageCoverage', 'speedReducerPercentAt100')" class="mt-1 text-xs text-rose-600">{{ covErr('imageCoverage', 'speedReducerPercentAt100') }}</p>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Tinta aceita pela máquina (atividade 032 — ajuste 0001) -->
+    <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Tinta da máquina</legend>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Quais tipos de tinta esta impressora aceita (pode ser os dois) e qual é o subtipo que ela usa.
+        É o que casa a máquina com o cadastro de tintas no orçamento.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <span class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Tipos aceitos</span>
+          <div class="flex flex-wrap gap-4">
+            <label v-for="color in INK_COLOR_TYPES" :key="color" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input
+                type="checkbox"
+                :checked="isInkColorAccepted(color)"
+                @change="toggleInkColor(color)"
+                class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+              />
+              {{ INK_COLOR_TYPE_LABELS[color] }}
+            </label>
+          </div>
+          <p v-if="errors['acceptedInkColorTypes']" class="mt-2 text-xs text-rose-600">{{ errors['acceptedInkColorTypes'] }}</p>
+        </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Subtipo</label>
+          <select v-model="block.inkSubtype" :class="selectClass">
+            <option v-for="st in INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Seleção única — ou toner, ou tinta offset.</p>
         </div>
       </div>
     </fieldset>

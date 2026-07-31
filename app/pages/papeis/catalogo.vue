@@ -216,6 +216,8 @@ const handlePaperTypeSubmit = async (payload: {
   weightPerM2Grams: number
   thicknessMicrometers: number
   bothSidesEqual: boolean
+  tonerAbsorptionGramsPerM2: number
+  offsetAbsorptionGramsPerM2: number
 }) => {
   paperTypeFormLoading.value = true
   paperTypeFormError.value = null
@@ -226,6 +228,8 @@ const handlePaperTypeSubmit = async (payload: {
       weightPerM2Grams: payload.weightPerM2Grams,
       thicknessMicrometers: payload.thicknessMicrometers,
       bothSidesEqual: payload.bothSidesEqual,
+      tonerAbsorptionGramsPerM2: payload.tonerAbsorptionGramsPerM2,
+      offsetAbsorptionGramsPerM2: payload.offsetAbsorptionGramsPerM2,
     })
     newPaperTypeId.value = created.id
     toast.success('Agrupamento de medidas cadastrado e selecionado no formulário.')

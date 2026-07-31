@@ -114,6 +114,9 @@ export function defaultOffsetBlock(): OffsetBlock {
     supportsNumbering: false,
     maxNumberingUnits: 0,
     acceptedPlateTypes: [],
+    // Tinta da máquina (atividade 032 — ajuste 0001): numa offset o subtipo é tinta offset.
+    acceptedInkColorTypes: [],
+    inkSubtype: 'OFFSET_INK',
     setupTimes: {
       plateSetupMinutesPerColor: 0,
       colorMatchingMinutes: 0,
@@ -192,6 +195,8 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
     supportsNumbering: block.supportsNumbering,
     maxNumberingUnits: block.maxNumberingUnits,
     acceptedPlateTypes: [...(block.acceptedPlateTypes ?? [])],
+    acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
+    inkSubtype: block.inkSubtype ?? base.inkSubtype,
     setupTimes: { ...base.setupTimes, ...block.setupTimes },
     speedRamp: {
       minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,
@@ -579,6 +584,9 @@ export function defaultDigitalBlock(): DigitalBlockRequest {
     wasteSheets: 0,
     lineCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
     imageCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
+    // Tinta da máquina (atividade 032 — ajuste 0001): numa digital o subtipo é toner.
+    acceptedInkColorTypes: [],
+    inkSubtype: 'TONER',
   }
 }
 
@@ -618,6 +626,8 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
       tonerGramsPerSquareMeterAt100: String(block.imageCoverage.tonerGramsPerSquareMeterAt100),
       speedReducerPercentAt100: String(block.imageCoverage.speedReducerPercentAt100),
     },
+    acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
+    inkSubtype: block.inkSubtype ?? base.inkSubtype,
   }
 }
 
@@ -653,6 +663,10 @@ export function validateDigital(block: DigitalBlockRequest): Record<string, stri
   for (const which of ['lineCoverage', 'imageCoverage'] as const) {
     if (!isNonNegativeNumber(block[which].tonerGramsPerSquareMeterAt100)) errors[`${which}.tonerGramsPerSquareMeterAt100`] = 'Valor inválido.'
     if (!isNonNegativeNumber(block[which].speedReducerPercentAt100)) errors[`${which}.speedReducerPercentAt100`] = 'Percentual inválido.'
+  }
+
+  if (!block.acceptedInkColorTypes?.length) {
+    errors['acceptedInkColorTypes'] = 'Selecione ao menos um tipo de tinta (CMYK ou Pantone).'
   }
   return errors
 }
@@ -869,6 +883,9 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
   if (block.maxNumberingUnits < 0) errors['maxNumberingUnits'] = 'Valor mínimo: 0.'
   if (!block.acceptedPlateTypes?.length) {
     errors['acceptedPlateTypes'] = 'Selecione ao menos um tipo de matriz fotográfica (chapa).'
+  }
+  if (!block.acceptedInkColorTypes?.length) {
+    errors['acceptedInkColorTypes'] = 'Selecione ao menos um tipo de tinta (CMYK ou Pantone).'
   }
 
   const st = block.setupTimes

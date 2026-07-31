@@ -71,6 +71,8 @@ const handleEditSubmit = async (payload: {
   weightPerM2Grams: number
   thicknessMicrometers: number
   bothSidesEqual: boolean
+  tonerAbsorptionGramsPerM2: number
+  offsetAbsorptionGramsPerM2: number
   active?: boolean
 }) => {
   const current = family.value
@@ -98,6 +100,8 @@ const handleEditSubmit = async (payload: {
       weightPerM2Grams: payload.weightPerM2Grams,
       thicknessMicrometers: payload.thicknessMicrometers,
       bothSidesEqual: payload.bothSidesEqual,
+      tonerAbsorptionGramsPerM2: payload.tonerAbsorptionGramsPerM2,
+      offsetAbsorptionGramsPerM2: payload.offsetAbsorptionGramsPerM2,
       active: payload.active ?? current.active,
     })
     toast.success('Agrupamento de medidas atualizado.')
@@ -169,6 +173,14 @@ const handleEditSubmit = async (payload: {
           <div>
             <dt class="text-xs text-slate-500 dark:text-slate-400">Lado do papel</dt>
             <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.bothSidesEqual ? '2 lados' : '1 lado' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500 dark:text-slate-400">Absorção — toner</dt>
+            <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.tonerAbsorptionGramsPerM2 }} g/m²</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500 dark:text-slate-400">Absorção — tinta offset</dt>
+            <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ family.offsetAbsorptionGramsPerM2 }} g/m²</dd>
           </div>
         </dl>
       </section>

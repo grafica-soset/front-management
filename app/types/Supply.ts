@@ -1,12 +1,29 @@
 /**
  * Tipos do módulo de Insumos (atividade 027).
  * Insumo = matéria-prima/consumível de uma empresa, com unidade de medida + custo. Classificado por
- * tipo fixo (INK/PLATE/OTHER) para a listagem "por tipo". Chapa (PLATE) guarda matriz + tamanho.
+ * tipo fixo (INK/PLATE/OTHER) para a listagem "por tipo". Chapa (PLATE) guarda matriz + tamanho;
+ * Tinta (INK) guarda tipo + subtipo (atividade 032 — ajuste 0001).
  */
 import type { FormattedDimension } from './FormattedDimension'
 import type { PlateType } from './PlateType'
 
 export type SupplyType = 'INK' | 'PLATE' | 'OTHER'
+
+/** TIPO da tinta: como a cor é formada. */
+export type InkColorType = 'CMYK' | 'PANTONE'
+
+/** SUBTIPO da tinta: a tecnologia do material. Seleção única. */
+export type InkSubtype = 'TONER' | 'OFFSET_INK'
+
+/**
+ * Bloco de tinta (envio e resposta têm o mesmo formato).
+ * Tintas cadastradas antes da atividade 032 (ajuste 0001) voltam com `ink: null` — a edição
+ * exige o preenchimento.
+ */
+export interface InkInfo {
+  colorType: InkColorType
+  subtype: InkSubtype
+}
 
 export type SupplyUnitOfMeasure =
   | 'UNIT'
@@ -46,6 +63,8 @@ export interface Supply {
   description: string | null
   active: boolean
   plate: PlateInfoResponse | null
+  /** Tipo e subtipo da tinta — só para type === 'INK'. */
+  ink: InkInfo | null
   /** Grupo de insumo (atividade 028) — opcional. */
   supplyGroupId: number | null
 }
@@ -67,6 +86,7 @@ export interface SupplyPageItem {
   unitCost: number
   active: boolean
   plate: PlateInfoResponse | null
+  ink: InkInfo | null
   supplyGroupId: number | null
 }
 
@@ -87,6 +107,7 @@ export interface CreateSupplyRequest {
   unitCost: string
   description?: string | null
   plate?: PlateInfoRequest | null
+  ink?: InkInfo | null
   supplyGroupId?: number | null
 }
 

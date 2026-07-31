@@ -1,5 +1,6 @@
 import type { FormattedDimension } from './FormattedDimension'
 import type { PlateType } from './PlateType'
+import type { InkColorType, InkSubtype } from './Supply'
 
 /**
  * Domínio de máquinas do parque fabril.
@@ -121,6 +122,10 @@ export interface OffsetBlock {
   maxNumberingUnits: number
   /** Matriz Fotográfica: tipos de chapa que a máquina aceita (1 ou mais). Atividade 027. */
   acceptedPlateTypes: PlateType[]
+  /** Tipos de tinta aceitos (1 ou mais). Atividade 032 (ajuste 0001). */
+  acceptedInkColorTypes: InkColorType[]
+  /** Subtipo da tinta da máquina — seleção única. */
+  inkSubtype: InkSubtype
   setupTimes: OffsetSetupTimes
   speedRamp: OffsetSpeedRamp
 }
@@ -768,6 +773,10 @@ export interface DigitalBlockRequest {
   wasteSheets: number
   lineCoverage: DigitalCoverageRequest
   imageCoverage: DigitalCoverageRequest
+  /** Tipos de tinta aceitos (1 ou mais). Atividade 032 (ajuste 0001). */
+  acceptedInkColorTypes: InkColorType[]
+  /** Subtipo da tinta da máquina — seleção única. */
+  inkSubtype: InkSubtype
 }
 
 /** Ponto da matriz devolvido pela API. */
@@ -802,6 +811,8 @@ export interface DigitalBlockResponse {
   wasteSheets: number
   lineCoverage: DigitalCoverageResponse
   imageCoverage: DigitalCoverageResponse
+  acceptedInkColorTypes: InkColorType[]
+  inkSubtype: InkSubtype
 }
 
 /** Corpo de POST/PUT /digital-machines. Tem borda neutra (gripMm); alimentador obrigatório. */
