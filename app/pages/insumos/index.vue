@@ -14,6 +14,7 @@ import {
   supplyUnitLabel,
 } from '@/utils/supplyCatalog'
 import { PLATE_TYPE_LABELS } from '@/utils/plateTypes'
+import { INK_COLOR_TYPE_SHORT, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import type { Supply, SupplyPageItem, SupplyType, UpdateSupplyRequest, CreateSupplyRequest } from '@/types/Supply'
 import Modal from '@/components/ui/Modal.vue'
@@ -96,6 +97,13 @@ const plateLabel = (item: SupplyPageItem): string => {
   const { plateType, width, height, thicknessMicrometers } = item.plate
   const u = width.unit === 'CENTIMETER' ? 'cm' : width.unit === 'METER' ? 'm' : 'mm'
   return `${PLATE_TYPE_LABELS[plateType]} · ${width.value}×${height.value} ${u} · ${thicknessMicrometers} µm`
+}
+
+// Classificação da tinta na grid (atividade 032 — ajuste 0001). Tintas cadastradas antes da
+// atividade não têm o bloco: mostramos um aviso para o usuário completar na edição.
+const inkLabel = (item: SupplyPageItem): string => {
+  if (!item.ink) return 'Não classificada'
+  return `${INK_COLOR_TYPE_SHORT[item.ink.colorType]} · ${INK_SUBTYPE_LABELS[item.ink.subtype]}`
 }
 
 const openEdit = async (item: SupplyPageItem) => {
@@ -252,6 +260,7 @@ const handleDelete = async (item: SupplyPageItem) => {
                   <th class="px-5 py-3 font-semibold">Unidade</th>
                   <th class="px-5 py-3 font-semibold">Custo</th>
                   <th v-if="activeTab === 'PLATE'" class="px-5 py-3 font-semibold">Matriz / Tamanho / Espessura</th>
+                  <th v-if="activeTab === 'INK'" class="px-5 py-3 font-semibold">Tipo / Subtipo</th>
                   <th class="px-5 py-3 font-semibold text-center">Status</th>
                   <th class="px-5 py-3 font-semibold text-right">Ações</th>
                 </tr>
@@ -262,6 +271,13 @@ const handleDelete = async (item: SupplyPageItem) => {
                   <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ unitLabel(item.unitOfMeasure) }}</td>
                   <td class="px-5 py-3 whitespace-nowrap">R$ {{ item.unitCost.toFixed(4) }}</td>
                   <td v-if="activeTab === 'PLATE'" class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ plateLabel(item) }}</td>
+                  <td
+                    v-if="activeTab === 'INK'"
+                    class="px-5 py-3"
+                    :class="item.ink ? 'text-slate-700 dark:text-slate-200' : 'text-amber-600 dark:text-amber-400'"
+                  >
+                    {{ inkLabel(item) }}
+                  </td>
                   <td class="px-5 py-3 text-center">
                     <span
                       class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"

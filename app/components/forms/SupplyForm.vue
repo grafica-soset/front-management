@@ -2,12 +2,13 @@
 /**
  * Formulário de INSUMO (atividade 027): tipo (Tinta/Chapa/Outro) + nome + unidade de medida + custo
  * + descrição. Para CHAPA, mostra o tipo de matriz fotográfica e o tamanho (largura × comprimento,
- * editado na unidade da empresa e convertido para mm no envio).
+ * editado na unidade da empresa e convertido para mm no envio). Para TINTA, mostra o tipo
+ * (CMYK/Pantone) e o subtipo (Toner/Tinta Offset) — atividade 032 (ajuste 0001).
  *
  * Componente autocontido: recebe dados iniciais por prop e emite o payload validado por @submit.
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import type { CreateSupplyRequest, Supply, UpdateSupplyRequest } from '@/types/Supply'
+import type { CreateSupplyRequest, InkColorType, InkSubtype, Supply, UpdateSupplyRequest } from '@/types/Supply'
 import type { PlateType } from '@/types/PlateType'
 import type { SupplyGroupKeyValue } from '@/types/SupplyGroup'
 import {
@@ -17,6 +18,7 @@ import {
   supplyUnitLabel,
 } from '@/utils/supplyCatalog'
 import { PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
+import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPES, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
 
@@ -52,6 +54,9 @@ const form = reactive({
   plateWidth: 0,
   plateHeight: 0,
   plateThicknessMicrometers: 0,
+  // Tinta (usado apenas quando type === 'INK') — atividade 032 (ajuste 0001).
+  inkColorType: 'CMYK' as InkColorType,
+  inkSubtype: 'OFFSET_INK' as InkSubtype,
 })
 
 const errors = ref<Record<string, string>>({})
@@ -82,9 +87,16 @@ function hydrate(supply: Supply) {
     form.plateHeight = fromMillimeters(supply.plate.height.millimeters) ?? 0
     form.plateThicknessMicrometers = supply.plate.thicknessMicrometers
   }
+  // Tintas cadastradas antes da 032 (ajuste 0001) vêm sem o bloco: mantemos o default e a
+  // validação obriga o usuário a confirmar a classificação ao salvar.
+  if (supply.ink) {
+    form.inkColorType = supply.ink.colorType
+    form.inkSubtype = supply.ink.subtype
+  }
 }
 
 const isPlate = computed(() => form.type === 'PLATE')
+const isInk = computed(() => form.type === 'INK')
 
 // Ao escolher um tipo que não seja chapa, zera os campos específicos de chapa.
 watch(() => form.type, (t) => {
@@ -139,6 +151,7 @@ const handleSubmit = () => {
           thicknessMicrometers: form.plateThicknessMicrometers,
         }
       : null,
+    ink: isInk.value ? { colorType: form.inkColorType, subtype: form.inkSubtype } : null,
   }
 
   if (isEditing.value) {
@@ -199,6 +212,35 @@ const handleSubmit = () => {
       </select>
       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Agrupa insumos da mesma família (ex.: Grampos); usado pelas atividades.</p>
     </div>
+
+    <!-- Bloco Tinta (atividade 032 — ajuste 0001) -->
+    <fieldset v-if="isInk" class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Classificação da tinta</legend>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">
+            Tipo <span class="text-rose-500">*</span>
+          </label>
+          <select v-model="form.inkColorType" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+            <option v-for="c in INK_COLOR_TYPES" :key="c" :value="c">{{ INK_COLOR_TYPE_LABELS[c] }}</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Como a cor é formada.</p>
+        </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">
+            Subtipo <span class="text-rose-500">*</span>
+          </label>
+          <select v-model="form.inkSubtype" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+            <option v-for="st in INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">A tecnologia do material — só uma das duas.</p>
+        </div>
+      </div>
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+        As impressoras declaram os mesmos dois eixos; é assim que o orçamento escolhe a tinta certa
+        para cada máquina.
+      </p>
+    </fieldset>
 
     <!-- Bloco Chapa -->
     <fieldset v-if="isPlate" class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">

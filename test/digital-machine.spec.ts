@@ -30,6 +30,9 @@ function validBlock(): DigitalBlockRequest {
     wasteSheets: 4,
     lineCoverage: { tonerGramsPerSquareMeterAt100: '4', speedReducerPercentAt100: '10' },
     imageCoverage: { tonerGramsPerSquareMeterAt100: '20', speedReducerPercentAt100: '50' },
+    // Tinta da máquina (atividade 032 — ajuste 0001): digital colorida a toner, só CMYK.
+    acceptedInkColorTypes: ['CMYK'],
+    inkSubtype: 'TONER',
   }
 }
 
@@ -100,11 +103,33 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
       wasteSheets: 4,
       lineCoverage: { tonerGramsPerSquareMeterAt100: 4, speedReducerPercentAt100: 10 },
       imageCoverage: { tonerGramsPerSquareMeterAt100: 20, speedReducerPercentAt100: 50 },
+      acceptedInkColorTypes: ['CMYK', 'PANTONE'],
+      inkSubtype: 'TONER',
     }
     const hydrated = hydrateDigitalBlock(fromApi)
     expect(hydrated.colorMode).toBe('MONOCOLOR')
     expect(hydrated.minFormat.widthMm).toBe(150)
     expect(hydrated.maxFormat.sheetsPerHour).toBe(9000)
     expect(hydrated.imageCoverage.speedReducerPercentAt100).toBe('50')
+    expect(hydrated.acceptedInkColorTypes).toEqual(['CMYK', 'PANTONE'])
+    expect(hydrated.inkSubtype).toBe('TONER')
+  })
+
+  // ---- Tinta da máquina (atividade 032 — ajuste 0001) ----
+
+  it('o bloco default da digital já nasce com subtipo TONER', () => {
+    expect(defaultDigitalBlock().inkSubtype).toBe('TONER')
+  })
+
+  it('exige ao menos um tipo de tinta aceito', () => {
+    const block = { ...validBlock(), acceptedInkColorTypes: [] }
+    expect(validateDigital(block)['acceptedInkColorTypes']).toBe(
+      'Selecione ao menos um tipo de tinta (CMYK ou Pantone).',
+    )
+  })
+
+  it('aceita uma digital que também imprime cor especial', () => {
+    const block = { ...validBlock(), acceptedInkColorTypes: ['CMYK', 'PANTONE'] as const }
+    expect(validateDigital({ ...block, acceptedInkColorTypes: [...block.acceptedInkColorTypes] })).toEqual({})
   })
 })

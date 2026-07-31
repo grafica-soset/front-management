@@ -3,9 +3,10 @@
  * Formulário reutilizável para criar/editar um Agrupamento de medidas (PaperType).
  *
  * O agrupamento define os atributos compartilhados por todos os seus papéis:
- * gramatura (g/m²), espessura (µm) e lado do papel (1 ou 2 lados). Sem chamadas
- * de API — a página chama o composable e dispara `@submit`. `active` só aparece
- * em edição.
+ * gramatura (g/m²), espessura (µm), lado do papel (1 ou 2 lados) e a taxa de
+ * absorção de tinta em g/m² — uma para toner e outra para tinta offset
+ * (atividade 032 — ajuste 0001). Sem chamadas de API — a página chama o
+ * composable e dispara `@submit`. `active` só aparece em edição.
  */
 import { reactive, ref, watch } from 'vue'
 import { z } from 'zod'
@@ -27,6 +28,8 @@ const emit = defineEmits<{
       weightPerM2Grams: number
       thicknessMicrometers: number
       bothSidesEqual: boolean
+      tonerAbsorptionGramsPerM2: number
+      offsetAbsorptionGramsPerM2: number
       active?: boolean
     },
   ): void
@@ -41,6 +44,8 @@ const form = reactive({
   weightPerM2Grams: props.initial?.weightPerM2Grams ?? 0,
   thicknessMicrometers: props.initial?.thicknessMicrometers ?? 0,
   bothSidesEqual: props.initial?.bothSidesEqual ?? true,
+  tonerAbsorptionGramsPerM2: props.initial?.tonerAbsorptionGramsPerM2 ?? 0,
+  offsetAbsorptionGramsPerM2: props.initial?.offsetAbsorptionGramsPerM2 ?? 0,
   active: props.initial?.active ?? true,
 })
 
@@ -52,6 +57,8 @@ watch(
     form.weightPerM2Grams = next?.weightPerM2Grams ?? 0
     form.thicknessMicrometers = next?.thicknessMicrometers ?? 0
     form.bothSidesEqual = next?.bothSidesEqual ?? true
+    form.tonerAbsorptionGramsPerM2 = next?.tonerAbsorptionGramsPerM2 ?? 0
+    form.offsetAbsorptionGramsPerM2 = next?.offsetAbsorptionGramsPerM2 ?? 0
     form.active = next?.active ?? true
   },
 )
@@ -64,6 +71,8 @@ const schema = z.object({
   weightPerM2Grams: z.number().int('Gramatura inválida.').min(1, 'Gramatura deve ser ≥ 1.'),
   thicknessMicrometers: z.number().int('Espessura inválida.').min(1, 'Espessura deve ser ≥ 1.'),
   bothSidesEqual: z.boolean(),
+  tonerAbsorptionGramsPerM2: z.number().min(0, 'A taxa de absorção não pode ser negativa.'),
+  offsetAbsorptionGramsPerM2: z.number().min(0, 'A taxa de absorção não pode ser negativa.'),
   active: z.boolean(),
 })
 
@@ -84,6 +93,8 @@ const handleSubmit = () => {
     weightPerM2Grams: data.weightPerM2Grams,
     thicknessMicrometers: data.thicknessMicrometers,
     bothSidesEqual: data.bothSidesEqual,
+    tonerAbsorptionGramsPerM2: data.tonerAbsorptionGramsPerM2,
+    offsetAbsorptionGramsPerM2: data.offsetAbsorptionGramsPerM2,
     ...(isEditing ? { active: data.active } : {}),
   })
 }
@@ -163,6 +174,54 @@ const handleSubmit = () => {
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">2 lados quando frente e verso são iguais (ex.: Couché Brilho); 1 lado quando são diferentes (ex.: cartão duplex).</p>
       </div>
     </div>
+
+    <!-- Taxa de absorção de tinta (atividade 032 — ajuste 0001) -->
+    <fieldset class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Taxa de absorção de tinta</legend>
+      <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Quantos gramas de tinta por metro quadrado impresso a superfície do papel absorve. O orçamento
+        usa para converter área impressa em gramas consumidas. Papel revestido (couché) absorve bem
+        menos que papel offset não revestido.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="paper-type-toner-absorption" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+            Toner (impressão digital)
+          </label>
+          <div class="relative">
+            <input
+              id="paper-type-toner-absorption"
+              v-model.number="form.tonerAbsorptionGramsPerM2"
+              type="number"
+              min="0"
+              step="0.001"
+              class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 pr-16 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+              :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.tonerAbsorptionGramsPerM2 }"
+            />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
+          </div>
+          <p v-if="errors.tonerAbsorptionGramsPerM2" class="mt-1 text-xs text-rose-600">{{ errors.tonerAbsorptionGramsPerM2 }}</p>
+        </div>
+        <div>
+          <label for="paper-type-offset-absorption" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+            Tinta offset
+          </label>
+          <div class="relative">
+            <input
+              id="paper-type-offset-absorption"
+              v-model.number="form.offsetAbsorptionGramsPerM2"
+              type="number"
+              min="0"
+              step="0.001"
+              class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 pr-16 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+              :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.offsetAbsorptionGramsPerM2 }"
+            />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
+          </div>
+          <p v-if="errors.offsetAbsorptionGramsPerM2" class="mt-1 text-xs text-rose-600">{{ errors.offsetAbsorptionGramsPerM2 }}</p>
+        </div>
+      </div>
+    </fieldset>
 
     <div>
       <label for="paper-type-description" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">

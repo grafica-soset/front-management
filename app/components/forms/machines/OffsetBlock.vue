@@ -12,8 +12,10 @@
 import { computed } from 'vue'
 import type { InkType, OffsetBlock, OffsetTier } from '@/types/Machine'
 import type { PlateType } from '@/types/PlateType'
+import type { InkColorType } from '@/types/Supply'
 import { INK_TYPES, INK_TYPE_LABELS, makeTier } from '@/utils/machineCatalog'
 import { PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
+import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPES, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
@@ -28,6 +30,16 @@ const togglePlate = (plate: PlateType) => {
     props.block.acceptedPlateTypes = props.block.acceptedPlateTypes.filter((p) => p !== plate)
   } else {
     props.block.acceptedPlateTypes = [...props.block.acceptedPlateTypes, plate]
+  }
+}
+
+/** Tinta aceita: marca/desmarca um TIPO (CMYK/Pantone) — atividade 032 (ajuste 0001). */
+const isInkColorAccepted = (color: InkColorType) => props.block.acceptedInkColorTypes.includes(color)
+const toggleInkColor = (color: InkColorType) => {
+  if (isInkColorAccepted(color)) {
+    props.block.acceptedInkColorTypes = props.block.acceptedInkColorTypes.filter((c) => c !== color)
+  } else {
+    props.block.acceptedInkColorTypes = [...props.block.acceptedInkColorTypes, color]
   }
 }
 
@@ -187,6 +199,39 @@ const cellClass =
         </label>
       </div>
       <p v-if="errors['acceptedPlateTypes']" class="mt-2 text-xs text-rose-600">{{ errors['acceptedPlateTypes'] }}</p>
+    </fieldset>
+
+    <!-- Tinta aceita pela máquina (atividade 032 — ajuste 0001) -->
+    <fieldset class="rounded-lg border border-slate-200 p-3 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Tinta da máquina</legend>
+      <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        Quais tipos de tinta esta impressora aceita (pode ser os dois) e qual é o subtipo que ela usa.
+        É o que casa a máquina com o cadastro de tintas no orçamento.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <span class="block mb-1.5 text-sm font-medium text-slate-900 dark:text-white">Tipos aceitos</span>
+          <div class="flex flex-wrap gap-4">
+            <label v-for="color in INK_COLOR_TYPES" :key="color" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input
+                type="checkbox"
+                :checked="isInkColorAccepted(color)"
+                @change="toggleInkColor(color)"
+                class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+              />
+              {{ INK_COLOR_TYPE_LABELS[color] }}
+            </label>
+          </div>
+          <p v-if="errors['acceptedInkColorTypes']" class="mt-2 text-xs text-rose-600">{{ errors['acceptedInkColorTypes'] }}</p>
+        </div>
+        <div>
+          <label class="block mb-1.5 text-sm font-medium text-slate-900 dark:text-white">Subtipo</label>
+          <select v-model="block.inkSubtype" :class="inputClass('inkSubtype')">
+            <option v-for="st in INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Seleção única — ou toner, ou tinta offset.</p>
+        </div>
+      </div>
     </fieldset>
 
     <!-- Tempos de setup -->

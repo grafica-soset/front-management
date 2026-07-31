@@ -39,6 +39,9 @@ function buildSakuraiOffset(): OffsetBlock {
     supportsNumbering: true,
     maxNumberingUnits: 20,
     acceptedPlateTypes: ['CTP', 'FOTOLITO'],
+    // Tinta da máquina (atividade 032 — ajuste 0001): aceita as duas seleções de cor, tinta offset.
+    acceptedInkColorTypes: ['CMYK', 'PANTONE'],
+    inkSubtype: 'OFFSET_INK',
     setupTimes: {
       plateSetupMinutesPerColor: 15,
       colorMatchingMinutes: 10,
@@ -157,6 +160,33 @@ describe('Cadastro OFFSET — Sakurai 58 Monocolor', () => {
     expect(line.map((t) => t.toQuantity)).toEqual([500, 1000, 2000, 3000, 5000, null])
     expect(line.every((t) => typeof t.wastePercent === 'string')).toBe(true)
     expect(validateOffset(hydrated)).toEqual({})
+  })
+})
+
+describe('Cadastro OFFSET — tinta da máquina (atividade 032, ajuste 0001)', () => {
+  it('exige ao menos um tipo de tinta aceito', () => {
+    const offset = buildSakuraiOffset()
+    offset.acceptedInkColorTypes = []
+    expect(validateOffset(offset)['acceptedInkColorTypes']).toBe(
+      'Selecione ao menos um tipo de tinta (CMYK ou Pantone).',
+    )
+  })
+
+  it('aceita uma máquina que só imprime CMYK', () => {
+    const offset = buildSakuraiOffset()
+    offset.acceptedInkColorTypes = ['CMYK']
+    expect(validateOffset(offset)).toEqual({})
+  })
+
+  it('hidrata preservando os tipos aceitos e o subtipo', () => {
+    const hydrated = hydrateOffsetBlock(buildSakuraiOffset())
+    expect(hydrated.acceptedInkColorTypes).toEqual(['CMYK', 'PANTONE'])
+    expect(hydrated.inkSubtype).toBe('OFFSET_INK')
+  })
+
+  it('assume tinta offset quando a API não devolve o subtipo (cadastro legado)', () => {
+    const legacy = { ...buildSakuraiOffset(), inkSubtype: undefined as never }
+    expect(hydrateOffsetBlock(legacy).inkSubtype).toBe('OFFSET_INK')
   })
 })
 
