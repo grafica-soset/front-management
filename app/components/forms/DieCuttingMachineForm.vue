@@ -18,6 +18,7 @@ import {
 } from '@/utils/machineCatalog'
 import DieCuttingBlockFields from '@/components/forms/machines/DieCuttingBlock.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { isBlank, isNumberAtLeast } from '@/utils/formNumbers'
 
 const props = defineProps<{
   /** Dados para pré-preencher o formulário (edição ou duplicação). */
@@ -93,9 +94,9 @@ function validateCommon(): Record<string, string> {
   if (dieCutting.automatic && !(form.maxStackHeight >= 0)) e['maxStackHeight'] = 'Valor mínimo: 0.'
 
   const cost = Number(form.hourlyCost)
-  if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
+  if (isBlank(form.hourlyCost) || !Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
 
-  if (!(form.supplyTransportTimeMinutes >= 0)) e['supplyTransportTimeMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(form.supplyTransportTimeMinutes, 0)) e['supplyTransportTimeMinutes'] = 'Valor mínimo: 0.'
   return e
 }
 

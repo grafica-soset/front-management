@@ -17,6 +17,7 @@ import {
 } from '@/utils/machineCatalog'
 import StitchingBlockFields from '@/components/forms/machines/StitchingBlock.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { isBlank, isNumberAtLeast } from '@/utils/formNumbers'
 
 const props = defineProps<{
   initial?: StitchingMachine | null
@@ -85,9 +86,9 @@ function validateCommon(): Record<string, string> {
   if (form.maxStackHeight < 0) e['maxStackHeight'] = 'Valor mínimo: 0.'
 
   const cost = Number(form.hourlyCost)
-  if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
+  if (isBlank(form.hourlyCost) || !Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe um custo-hora válido (≥ 0).'
 
-  if (!(form.supplyTransportTimeMinutes >= 0)) e['supplyTransportTimeMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(form.supplyTransportTimeMinutes, 0)) e['supplyTransportTimeMinutes'] = 'Valor mínimo: 0.'
   return e
 }
 

@@ -12,8 +12,12 @@ export type SupplyType = 'INK' | 'PLATE' | 'OTHER'
 /** TIPO da tinta: como a cor é formada. */
 export type InkColorType = 'CMYK' | 'PANTONE'
 
-/** SUBTIPO da tinta: a tecnologia do material. Seleção única. */
-export type InkSubtype = 'TONER' | 'OFFSET_INK'
+/**
+ * SUBTIPO da tinta: a tecnologia do material. Seleção única.
+ * `SCREEN_PRINTING_INK` (Tinta Serigráfica) é exclusiva da máquina serigráfica — atividade 032
+ * (ajuste 0003).
+ */
+export type InkSubtype = 'TONER' | 'OFFSET_INK' | 'SCREEN_PRINTING_INK'
 
 /**
  * Bloco de tinta (envio e resposta têm o mesmo formato).

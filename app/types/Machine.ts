@@ -312,6 +312,12 @@ export interface ScreenPrintingBlockRequest {
   belowMinSpeedReducerPercent: string
   /** Redutor (%) p/ formatos maiores que o máximo. */
   aboveMaxSpeedReducerPercent: string
+  /** Matriz Fotográfica: na serigrafia, só a Tela de Nylon (atividade 032 — ajuste 0003). */
+  acceptedPlateTypes: PlateType[]
+  /** Tipos de tinta aceitos (1+): CMYK e/ou Pantone. */
+  acceptedInkColorTypes: InkColorType[]
+  /** Subtipo da tinta da máquina — na serigrafia, sempre Tinta Serigráfica. */
+  inkSubtype: InkSubtype
 }
 
 /** Ponto de calibração devolvido pela API (dimensões numéricas já formatadas). */
@@ -332,6 +338,10 @@ export interface ScreenPrintingBlockResponse {
   maxFormat: ScreenPrintingFormatPointResponse
   belowMinSpeedReducerPercent: number
   aboveMaxSpeedReducerPercent: number
+  /** Máquinas cadastradas antes do ajuste 0003 podem vir sem estes campos. */
+  acceptedPlateTypes?: PlateType[]
+  acceptedInkColorTypes?: InkColorType[]
+  inkSubtype?: InkSubtype
 }
 
 /**
