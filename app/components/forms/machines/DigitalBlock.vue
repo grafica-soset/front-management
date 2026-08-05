@@ -10,7 +10,7 @@ import { computed } from 'vue'
 import type { DigitalBlockRequest, DigitalColorMode } from '@/types/Machine'
 import type { InkColorType } from '@/types/Supply'
 import { DIGITAL_COLOR_MODE_LABELS } from '@/utils/machineCatalog'
-import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPES, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
+import { CONVENTIONAL_INK_SUBTYPES, INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
@@ -284,7 +284,7 @@ const toggleInkColor = (color: InkColorType) => {
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Subtipo</label>
           <select v-model="block.inkSubtype" :class="selectClass">
-            <option v-for="st in INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
+            <option v-for="st in CONVENTIONAL_INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
           </select>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Seleção única — ou toner, ou tinta offset.</p>
         </div>

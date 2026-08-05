@@ -8,13 +8,36 @@
  * POR TELA — multiplicados pelo nº de telas no orçamento. A máquina é manual (sem alimentador).
  */
 import { computed } from 'vue'
+import type { InkColorType } from '@/types/Supply'
 import type { ScreenPrintingBlockRequest, ScreenPrintingFormatPointRequest } from '@/types/Machine'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { PLATE_TYPE_LABELS, SCREEN_PRINTING_PLATE_TYPES } from '@/utils/plateTypes'
+import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 
 const props = defineProps<{
   block: ScreenPrintingBlockRequest
   errors: Record<string, string>
 }>()
+
+// Matriz Fotográfica e subtipo da tinta são FIXOS na serigrafia (tela de nylon + tinta
+// serigráfica): mostrados como leitura, não como escolha. O usuário só marca os tipos de tinta.
+const plateLabel = computed(() =>
+  (props.block.acceptedPlateTypes.length ? props.block.acceptedPlateTypes : SCREEN_PRINTING_PLATE_TYPES)
+    .map((p) => PLATE_TYPE_LABELS[p])
+    .join(', '),
+)
+
+const inkSubtypeLabel = computed(() => INK_SUBTYPE_LABELS[props.block.inkSubtype])
+
+const isInkColorAccepted = (color: InkColorType) => props.block.acceptedInkColorTypes.includes(color)
+
+const toggleInkColor = (color: InkColorType) => {
+  if (isInkColorAccepted(color)) {
+    props.block.acceptedInkColorTypes = props.block.acceptedInkColorTypes.filter((c) => c !== color)
+  } else {
+    props.block.acceptedInkColorTypes = [...props.block.acceptedInkColorTypes, color]
+  }
+}
 
 const { suffix: lengthUnit, fromMillimeters, toMillimeters } = useUnitConverter()
 
@@ -62,6 +85,59 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof ScreenPrinting
       tempos de tela, a lavagem e a quebra são <strong>por tela</strong> — informados por tela aqui
       e multiplicados pelo número de telas no orçamento.
     </p>
+
+    <!-- Matriz Fotográfica e tinta da máquina (atividade 032 — ajuste 0003) -->
+    <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Matriz Fotográfica e tinta</legend>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Matriz Fotográfica</label>
+          <input
+            :value="plateLabel"
+            type="text"
+            readonly
+            tabindex="-1"
+            class="bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-lg block w-full p-3 cursor-not-allowed dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-300"
+          />
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Na serigrafia a matriz é a tela de nylon com gravação fotográfica — cadastrada em
+            Insumos como uma chapa do tipo Tela de Nylon.
+          </p>
+          <p v-if="errors.acceptedPlateTypes" class="mt-1 text-xs text-rose-600">{{ errors.acceptedPlateTypes }}</p>
+        </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Tinta da máquina</label>
+          <input
+            :value="inkSubtypeLabel"
+            type="text"
+            readonly
+            tabindex="-1"
+            class="bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-lg block w-full p-3 cursor-not-allowed dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-300"
+          />
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            A serigrafia só usa tinta serigráfica — o orçamento escolhe entre as tintas desse
+            subtipo.
+          </p>
+          <p v-if="errors.inkSubtype" class="mt-1 text-xs text-rose-600">{{ errors.inkSubtype }}</p>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <span class="block mb-1.5 text-sm text-slate-700 dark:text-slate-300">Tipos de tinta aceitos</span>
+        <div class="flex flex-wrap gap-4">
+          <label v-for="color in INK_COLOR_TYPES" :key="color" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              :checked="isInkColorAccepted(color)"
+              @change="toggleInkColor(color)"
+              class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+            />
+            {{ INK_COLOR_TYPE_LABELS[color] }}
+          </label>
+        </div>
+        <p v-if="errors.acceptedInkColorTypes" class="mt-1 text-xs text-rose-600">{{ errors.acceptedInkColorTypes }}</p>
+      </div>
+    </fieldset>
 
     <!-- Setups e por tela -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

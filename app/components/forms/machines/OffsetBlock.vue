@@ -14,8 +14,8 @@ import type { InkType, OffsetBlock, OffsetTier } from '@/types/Machine'
 import type { PlateType } from '@/types/PlateType'
 import type { InkColorType } from '@/types/Supply'
 import { INK_TYPES, INK_TYPE_LABELS, makeTier } from '@/utils/machineCatalog'
-import { PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
-import { INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPES, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
+import { OFFSET_PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
+import { CONVENTIONAL_INK_SUBTYPES, INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 const props = defineProps<{
@@ -188,7 +188,7 @@ const cellClass =
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Matriz Fotográfica (chapas aceitas)</legend>
       <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">Selecione um ou mais tipos de chapa que esta máquina aceita.</p>
       <div class="flex flex-wrap gap-4">
-        <label v-for="plate in PLATE_TYPES" :key="plate" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+        <label v-for="plate in OFFSET_PLATE_TYPES" :key="plate" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             :checked="isPlateAccepted(plate)"
@@ -227,7 +227,7 @@ const cellClass =
         <div>
           <label class="block mb-1.5 text-sm font-medium text-slate-900 dark:text-white">Subtipo</label>
           <select v-model="block.inkSubtype" :class="inputClass('inkSubtype')">
-            <option v-for="st in INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
+            <option v-for="st in CONVENTIONAL_INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
           </select>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Seleção única — ou toner, ou tinta offset.</p>
         </div>

@@ -31,6 +31,8 @@ import type {
   StitchingBlockRequest,
   StitchingBlockResponse,
 } from '@/types/Machine'
+import { SCREEN_PRINTING_PLATE_TYPES } from '@/utils/plateTypes'
+import { isBlank, isNumberAtLeast } from '@/utils/formNumbers'
 
 /** Endpoint base da API de impressão. */
 export const PRINTING_MACHINES_BASE = '/printing-machines'
@@ -66,7 +68,7 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   OFFSET: 'Impressora Offset',
   GUILLOTINE: 'Guilhotina',
   DIE_CUTTING: 'Corte e Vinco',
-  SCREEN_PRINTING: 'Serigrafia',
+  SCREEN_PRINTING: 'Impressora Serigráfica',
   HOLE_PUNCHING: 'Furadeira',
   LAMINATING: 'Plastificadora',
   FOLDING: 'Dobradeira',
@@ -253,9 +255,9 @@ export function validateGuillotine(block: GuillotineBlock): Record<string, strin
     'feedTimeSecondsPerLoad',
   ]
   for (const k of keys) {
-    if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k], 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(block.feedLoadIncrementMm, 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
   return errors
 }
 
@@ -293,7 +295,7 @@ export function validateHolePunching(block: HolePunchingBlock): Record<string, s
     'feedTimeSecondsPerLoad',
   ]
   for (const k of keys) {
-    if (!(block[k] >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k], 0)) errors[k] = 'Valor mínimo: 0.'
   }
   return errors
 }
@@ -342,12 +344,12 @@ export function validateStitching(block: StitchingBlockRequest): Record<string, 
     'stapleSetupMinutes', 'feedTimeSecondsPerLoad', 'minWireThicknessMicrons', 'headDescentSeconds',
   ]
   for (const k of nonNeg) {
-    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.handlingAreaWidthMm >= 1)) errors['handlingAreaWidthMm'] = 'Informe a área de manuseio (≥ 1).'
-  if (!(block.maxWireThicknessMicrons >= 1)) errors['maxWireThicknessMicrons'] = 'Informe a espessura máxima do arame (≥ 1).'
+  if (!isNumberAtLeast(block.handlingAreaWidthMm, 1)) errors['handlingAreaWidthMm'] = 'Informe a área de manuseio (≥ 1).'
+  if (!isNumberAtLeast(block.maxWireThicknessMicrons, 1)) errors['maxWireThicknessMicrons'] = 'Informe a espessura máxima do arame (≥ 1).'
   if (!(block.maxWireThicknessMicrons >= block.minWireThicknessMicrons)) errors['maxWireThicknessMicrons'] = 'Deve ser ≥ espessura mínima.'
-  if (!(block.maxStaplingThicknessMm >= 1)) errors['maxStaplingThicknessMm'] = 'Informe a espessura máxima de grampeamento (≥ 1).'
+  if (!isNumberAtLeast(block.maxStaplingThicknessMm, 1)) errors['maxStaplingThicknessMm'] = 'Informe a espessura máxima de grampeamento (≥ 1).'
   if (!(block.headCount >= 1 && block.headCount <= 4)) errors['headCount'] = 'A máquina deve ter de 1 a 4 cabeçotes.'
   return errors
 }
@@ -375,7 +377,7 @@ export function hydrateLaminatingBlock(block: LaminatingBlockResponse | null): L
 /** Valida o bloco plastificadora: setup ≥ 0 e velocidade (m/min) > 0. */
 export function validateLaminating(block: LaminatingBlock): Record<string, string> {
   const errors: Record<string, string> = {}
-  if (!(block.setupMinutes >= 0)) errors['setupMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.setupMinutes, 0)) errors['setupMinutes'] = 'Valor mínimo: 0.'
   const speed = Number(block.speedMetersPerMinute)
   if (!Number.isFinite(speed) || speed <= 0) errors['speedMetersPerMinute'] = 'Informe uma velocidade maior que zero.'
   return errors
@@ -451,19 +453,19 @@ export function validateFolding(block: FoldingBlockRequest): Record<string, stri
     'idealWeightMinGsm', 'idealWeightMaxGsm', 'setupWasteSheets', 'outputMovementMinutesPerBundle',
   ]
   for (const k of nonNeg) {
-    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.parallelPockets + block.crossPockets >= 1)) errors['parallelPockets'] = 'A máquina deve ter ao menos uma bolsa.'
-  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!isNumberAtLeast(block.parallelPockets + block.crossPockets, 1)) errors['parallelPockets'] = 'A máquina deve ter ao menos uma bolsa.'
+  if (!isNumberAtLeast(block.minSpeedSheetsPerHour, 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
   if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
-  if (!(block.maxPaperThicknessMicrons >= 1)) errors['maxPaperThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
+  if (!isNumberAtLeast(block.maxPaperThicknessMicrons, 1)) errors['maxPaperThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
   if (!(block.idealWeightMaxGsm >= block.idealWeightMinGsm)) errors['idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
-  if (!(block.outputBundleSheets >= 1)) errors['outputBundleSheets'] = 'Valor mínimo: 1.'
-  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(block.outputBundleSheets, 1)) errors['outputBundleSheets'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(block.feedLoadIncrementMm, 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
-    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
-    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!isNumberAtLeast(block[which].widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!isNumberAtLeast(block[which].lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
   }
 
   const pcts: (keyof FoldingBlockRequest)[] = [
@@ -537,19 +539,19 @@ export function validatePerforating(block: PerforatingBlockRequest): Record<stri
     'maxWeightGsm', 'idealWeightMinGsm', 'idealWeightMaxGsm', 'outputRemovalMinutesPer10Cm',
   ]
   for (const k of nonNeg) {
-    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.toolCount >= 1)) errors['toolCount'] = 'A máquina deve ter ao menos uma ferramenta de picote.'
-  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!isNumberAtLeast(block.toolCount, 1)) errors['toolCount'] = 'A máquina deve ter ao menos uma ferramenta de picote.'
+  if (!isNumberAtLeast(block.minSpeedSheetsPerHour, 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
   if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
-  if (!(block.maxWeightGsm >= 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
+  if (!isNumberAtLeast(block.maxWeightGsm, 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
   if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mínima.'
   if (!(block.idealWeightMaxGsm >= block.idealWeightMinGsm)) errors['idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
-  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(block.feedLoadIncrementMm, 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
-    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
-    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!isNumberAtLeast(block[which].widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!isNumberAtLeast(block[which].lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
   }
 
   const pcts: (keyof PerforatingBlockRequest)[] = [
@@ -641,20 +643,20 @@ export function validateDigital(block: DigitalBlockRequest): Record<string, stri
     'setupMinutes', 'paperFeedSetupMinutes', 'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'wasteSheets',
   ]
   for (const k of nonNeg) {
-    if (!((block[k] as number) >= 0)) errors[k] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
   }
-  if (!(block.feedLoadIncrementMm >= 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
-  if (!(block.minSpeedSheetsPerHour >= 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
+  if (!isNumberAtLeast(block.feedLoadIncrementMm, 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(block.minSpeedSheetsPerHour, 1)) errors['minSpeedSheetsPerHour'] = 'Informe a velocidade mínima (≥ 1).'
   if (!(block.maxSpeedSheetsPerHour >= block.minSpeedSheetsPerHour)) errors['maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
-  if (!(block.minWeightGsm >= 0)) errors['minWeightGsm'] = 'Valor mínimo: 0.'
-  if (!(block.maxWeightGsm >= 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
+  if (!isNumberAtLeast(block.minWeightGsm, 0)) errors['minWeightGsm'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.maxWeightGsm, 1)) errors['maxWeightGsm'] = 'Informe a gramatura máxima (≥ 1).'
   else if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mínima.'
-  if (!(block.maxThicknessMicrons >= 1)) errors['maxThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
+  if (!isNumberAtLeast(block.maxThicknessMicrons, 1)) errors['maxThicknessMicrons'] = 'Informe a espessura máxima (≥ 1).'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
-    if (!(block[which].widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
-    if (!(block[which].lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
-    if (!(block[which].sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+    if (!isNumberAtLeast(block[which].widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!isNumberAtLeast(block[which].lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!isNumberAtLeast(block[which].sheetsPerHour, 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
   }
 
   if (!isNonNegativeNumber(block.belowMinFormatReducerPercent)) errors['belowMinFormatReducerPercent'] = 'Percentual inválido.'
@@ -725,14 +727,14 @@ export function hydrateDieCuttingBlock(block: DieCuttingBlockResponse | null): D
 export function validateDieCutting(block: DieCuttingBlockRequest): Record<string, string> {
   const errors: Record<string, string> = {}
 
-  if (!(block.squareSetupMinutes >= 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.squareSetupMinutes, 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
     const p = block[which]
-    if (!(p.widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
-    if (!(p.lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
-    if (!(p.sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
-    if (!(p.dieSetupMinutes >= 0)) errors[`${which}.dieSetupMinutes`] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(p.widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!isNumberAtLeast(p.lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!isNumberAtLeast(p.sheetsPerHour, 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+    if (!isNumberAtLeast(p.dieSetupMinutes, 0)) errors[`${which}.dieSetupMinutes`] = 'Valor mínimo: 0.'
   }
 
   if (!isNonNegativeNumber(block.belowMinSpeedReducerPercent)) errors['belowMinSpeedReducerPercent'] = 'Percentual inválido.'
@@ -743,9 +745,9 @@ export function validateDieCutting(block: DieCuttingBlockRequest): Record<string
     if (!f) {
       errors['feed'] = 'Informe os dados de alimentação.'
     } else {
-      if (!(f.paperFeedSetupMinutes >= 0)) errors['feed.paperFeedSetupMinutes'] = 'Valor mínimo: 0.'
-      if (!(f.feedTimeSecondsPerLoad >= 0)) errors['feed.feedTimeSecondsPerLoad'] = 'Valor mínimo: 0.'
-      if (!(f.feedLoadIncrementMm >= 1)) errors['feed.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+      if (!isNumberAtLeast(f.paperFeedSetupMinutes, 0)) errors['feed.paperFeedSetupMinutes'] = 'Valor mínimo: 0.'
+      if (!isNumberAtLeast(f.feedTimeSecondsPerLoad, 0)) errors['feed.feedTimeSecondsPerLoad'] = 'Valor mínimo: 0.'
+      if (!isNumberAtLeast(f.feedLoadIncrementMm, 1)) errors['feed.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
     }
   }
 
@@ -754,7 +756,13 @@ export function validateDieCutting(block: DieCuttingBlockRequest): Record<string
 
 // ---------- Bloco serigrafia (SCREEN_PRINTING) ----------
 
-/** Bloco serigrafia vazio (manual; matriz com dimensões zeradas). */
+/**
+ * Bloco serigrafia vazio (manual; matriz com dimensões zeradas).
+ *
+ * Matriz e tinta (atividade 032 — ajuste 0003): a serigrafia imprime pela TELA DE NYLON e com
+ * TINTA SERIGRÁFICA — os dois são fixos (nenhuma outra opção é válida aqui) e já entram
+ * preenchidos. O que o usuário escolhe é só quais tipos de tinta a máquina aceita.
+ */
 export function defaultScreenPrintingBlock(): ScreenPrintingBlockRequest {
   return {
     automatic: false,
@@ -766,6 +774,9 @@ export function defaultScreenPrintingBlock(): ScreenPrintingBlockRequest {
     maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
     belowMinSpeedReducerPercent: '0',
     aboveMaxSpeedReducerPercent: '0',
+    acceptedPlateTypes: [...SCREEN_PRINTING_PLATE_TYPES],
+    acceptedInkColorTypes: [],
+    inkSubtype: 'SCREEN_PRINTING_INK',
   }
 }
 
@@ -791,6 +802,14 @@ export function hydrateScreenPrintingBlock(block: ScreenPrintingBlockResponse | 
     },
     belowMinSpeedReducerPercent: String(block.belowMinSpeedReducerPercent),
     aboveMaxSpeedReducerPercent: String(block.aboveMaxSpeedReducerPercent),
+    // Máquinas cadastradas antes do ajuste 0003 voltam sem estes campos: a matriz e o subtipo
+    // caem no default (tela + tinta serigráfica, os únicos válidos) e os tipos de tinta ficam
+    // vazios para o usuário marcar.
+    acceptedPlateTypes: block.acceptedPlateTypes?.length
+      ? [...block.acceptedPlateTypes]
+      : [...SCREEN_PRINTING_PLATE_TYPES],
+    acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
+    inkSubtype: block.inkSubtype ?? 'SCREEN_PRINTING_INK',
   }
 }
 
@@ -802,28 +821,47 @@ export function hydrateScreenPrintingBlock(block: ScreenPrintingBlockResponse | 
 export function validateScreenPrinting(block: ScreenPrintingBlockRequest): Record<string, string> {
   const errors: Record<string, string> = {}
 
-  if (!(block.squareSetupMinutes >= 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
-  if (!(block.screenSetupMinutes >= 0)) errors['screenSetupMinutes'] = 'Valor mínimo: 0.'
-  if (!(block.washMinutesPerColor >= 0)) errors['washMinutesPerColor'] = 'Valor mínimo: 0.'
-  if (!(block.wasteSheetsPerColor >= 0)) errors['wasteSheetsPerColor'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.squareSetupMinutes, 0)) errors['squareSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.screenSetupMinutes, 0)) errors['screenSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.washMinutesPerColor, 0)) errors['washMinutesPerColor'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.wasteSheetsPerColor, 0)) errors['wasteSheetsPerColor'] = 'Valor mínimo: 0.'
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
     const p = block[which]
-    if (!(p.widthMm >= 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
-    if (!(p.lengthMm >= 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
-    if (!(p.sheetsPerHour >= 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
+    if (!isNumberAtLeast(p.widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
+    if (!isNumberAtLeast(p.lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
+    if (!isNumberAtLeast(p.sheetsPerHour, 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
   }
 
   if (!isNonNegativeNumber(block.belowMinSpeedReducerPercent)) errors['belowMinSpeedReducerPercent'] = 'Percentual inválido.'
   if (!isNonNegativeNumber(block.aboveMaxSpeedReducerPercent)) errors['aboveMaxSpeedReducerPercent'] = 'Percentual inválido.'
+
+  // Matriz e tinta (atividade 032 — ajuste 0003): a matriz é sempre a tela e o subtipo é sempre
+  // tinta serigráfica (a UI não deixa escolher outro) — só os tipos de tinta são do usuário.
+  if (!block.acceptedPlateTypes.length || block.acceptedPlateTypes.some((p) => !SCREEN_PRINTING_PLATE_TYPES.includes(p))) {
+    errors['acceptedPlateTypes'] = 'A serigrafia só aceita a Tela de Nylon como matriz fotográfica.'
+  }
+  if (!block.acceptedInkColorTypes.length) {
+    errors['acceptedInkColorTypes'] = 'Selecione ao menos um tipo de tinta.'
+  }
+  if (block.inkSubtype !== 'SCREEN_PRINTING_INK') {
+    errors['inkSubtype'] = 'A máquina de serigrafia só usa tinta serigráfica.'
+  }
 
   return errors
 }
 
 // ---------- Validação ----------
 
-/** `true` se o texto representa um número finito ≥ 0. */
+/**
+ * `true` se o texto representa um número finito ≥ 0.
+ *
+ * Campo VAZIO é inválido: `Number('')` é 0, e sem esta guarda um percentual apagado passaria
+ * pela validação e seria enviado como `""` — o backend responderia 400 ("JSON inválido ou campo
+ * obrigatório ausente"), sem indicar o campo culpado.
+ */
 function isNonNegativeNumber(value: string | number): boolean {
+  if (isBlank(value)) return false
   const num = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(num) && num >= 0
 }
@@ -847,7 +885,7 @@ function validateInkTiers(
     const isLast = i === tiers.length - 1
     const pos = i + 1
 
-    if (!(t.fromQuantity >= 0)) return `Faixa ${pos}: "de" inválido.`
+    if (!isNumberAtLeast(t.fromQuantity, 0)) return `Faixa ${pos}: "de" inválido.`
 
     if (t.toQuantity === null) {
       if (!isLast) return 'Apenas a última faixa pode ser aberta (sem "até").'
@@ -863,7 +901,7 @@ function validateInkTiers(
       }
     }
 
-    if (!(t.sheetsPerHour >= 1)) return `Faixa ${pos}: informe a velocidade (folhas/h).`
+    if (!isNumberAtLeast(t.sheetsPerHour, 1)) return `Faixa ${pos}: informe a velocidade (folhas/h).`
     if (envelopeOk && (t.sheetsPerHour < minSpeed || t.sheetsPerHour > maxSpeed)) {
       return `Faixa ${pos}: a velocidade (folhas/h) deve estar entre ${minSpeed} e ${maxSpeed} (envelope da máquina).`
     }
@@ -879,7 +917,7 @@ function validateInkTiers(
 export function validateOffset(block: OffsetBlock): Record<string, string> {
   const errors: Record<string, string> = {}
 
-  if (!(block.numberOfColors >= 1)) errors['numberOfColors'] = 'Mínimo de 1 cor.'
+  if (!isNumberAtLeast(block.numberOfColors, 1)) errors['numberOfColors'] = 'Mínimo de 1 cor.'
   if (block.maxNumberingUnits < 0) errors['maxNumberingUnits'] = 'Valor mínimo: 0.'
   if (!block.acceptedPlateTypes?.length) {
     errors['acceptedPlateTypes'] = 'Selecione ao menos um tipo de matriz fotográfica (chapa).'
@@ -898,23 +936,23 @@ export function validateOffset(block: OffsetBlock): Record<string, string> {
     'washMinutesPerColor',
   ]
   for (const k of setupKeys) {
-    if (!(st[k] >= 0)) errors[`setupTimes.${k}`] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(st[k], 0)) errors[`setupTimes.${k}`] = 'Valor mínimo: 0.'
   }
-  if (!(st.feedLoadIncrementMm >= 1)) errors['setupTimes.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(st.feedLoadIncrementMm, 1)) errors['setupTimes.feedLoadIncrementMm'] = 'Valor mínimo: 1.'
 
   const sr = block.speedRamp
 
   // Envelope de velocidade.
-  if (!(sr.minSpeedSheetsPerHour >= 1)) errors['speedRamp.minSpeedSheetsPerHour'] = 'Valor mínimo: 1.'
+  if (!isNumberAtLeast(sr.minSpeedSheetsPerHour, 1)) errors['speedRamp.minSpeedSheetsPerHour'] = 'Valor mínimo: 1.'
   if (!(sr.maxSpeedSheetsPerHour >= sr.minSpeedSheetsPerHour)) {
     errors['speedRamp.maxSpeedSheetsPerHour'] = 'Deve ser ≥ velocidade mínima.'
   }
   // Teto com numeração (único da máquina). Só exigido quando há numeração.
-  if (block.supportsNumbering && !(sr.numberingMaxSheetsPerHour >= 1)) {
+  if (block.supportsNumbering && !isNumberAtLeast(sr.numberingMaxSheetsPerHour, 1)) {
     errors['speedRamp.numberingMaxSheetsPerHour'] = 'Valor mínimo: 1.'
   }
 
-  if (!(sr.idealWeightMinGsm >= 0)) errors['speedRamp.idealWeightMinGsm'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(sr.idealWeightMinGsm, 0)) errors['speedRamp.idealWeightMinGsm'] = 'Valor mínimo: 0.'
   if (sr.idealWeightMaxGsm < sr.idealWeightMinGsm) {
     errors['speedRamp.idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
   }

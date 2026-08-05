@@ -18,6 +18,7 @@ import {
   FINISHING_TASK_TYPE_LABELS,
 } from '@/utils/finishingTaskCatalog'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { isBlank } from '@/utils/formNumbers'
 
 interface FieldDescriptor {
   key: string
@@ -129,7 +130,7 @@ function validate(): Record<string, string> {
   const e: Record<string, string> = {}
   if (!form.name.trim()) e['name'] = 'Informe o nome.'
   const cost = Number(form.hourlyCost)
-  if (!Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe o valor-hora (≥ 0).'
+  if (isBlank(form.hourlyCost) || !Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe o valor-hora (≥ 0).'
 
   for (const f of currentFields.value) {
     const raw = config[f.key]
