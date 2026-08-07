@@ -5,8 +5,9 @@
  * O TIPO decide o que aparece — e é isso que faz o orçamento só perguntar tinta quando existe
  * impressão de verdade no produto:
  *  - MANUAL     custo hora-homem.
- *  - PRINTING   tipo de tinta + as impressoras (1+). Sem insumo: a tinta de cada face é
- *               informada no ORÇAMENTO.
+ *  - PRINTING   tipo de tinta + taxa de cobertura + as impressoras (1+). Sem insumo: a tinta de
+ *               cada face é informada no ORÇAMENTO — a cobertura, não: fica aqui para não ser
+ *               perguntada a cada impressão.
  *  - CUTTING    as guilhotinas que fazem o corte (1+). Sem insumo.
  *  - FINISHING  subtipo (manual / acabamento cadastrado / máquina) + insumo opcional.
  *  - PACKAGING  família de papéis do pacote (o mesmo cadastro de /papeis) + a tarefa Empacotar.
@@ -65,6 +66,7 @@ const form = reactive({
   machineIds: [] as number[],
   laborHourlyCost: '0',
   printingInkKind: 'CMYK' as PrintingInkKind,
+  printingCoveragePercent: '',
   finishingSubtype: 'FINISHING_TASK' as ActivityFinishingSubtype,
   finishingTaskId: null as number | null,
   paperTypeId: null as number | null,
@@ -95,6 +97,7 @@ function hydrate(a: Activity) {
   form.machineIds = [...(a.machineIds ?? [])]
   form.laborHourlyCost = a.laborHourlyCost != null ? String(a.laborHourlyCost) : '0'
   form.printingInkKind = a.printingInkKind ?? 'CMYK'
+  form.printingCoveragePercent = a.printingCoveragePercent != null ? String(a.printingCoveragePercent) : ''
   form.finishingSubtype = a.finishingSubtype ?? 'FINISHING_TASK'
   form.finishingTaskId = a.finishingTaskId
   form.paperTypeId = a.paperTypeId
@@ -175,6 +178,7 @@ const selectedGroupUnit = computed(() => {
 
 // Ao trocar de tipo, zera o que não se aplica — evita enviar resto de outro tipo.
 watch(() => form.type, () => {
+  form.printingCoveragePercent = ''
   form.machineIds = []
   form.finishingTaskId = null
   form.paperTypeId = null
@@ -226,7 +230,13 @@ function validate(): Record<string, string> {
     }
   }
   if (usesSingleMachine.value && !form.machineIds.length) e['machineIds'] = 'Selecione a máquina.'
-  if (isPrinting.value && !form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma impressora.'
+  if (isPrinting.value) {
+    const coverage = Number(form.printingCoveragePercent)
+    if (isBlank(form.printingCoveragePercent) || !Number.isFinite(coverage) || coverage <= 0 || coverage > 100) {
+      e['printingCoveragePercent'] = 'Informe a cobertura (maior que 0 e até 100).'
+    }
+    if (!form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma impressora.'
+  }
   if (isCutting.value && !form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma máquina de corte.'
   if (usesFinishingTask.value && !form.finishingTaskId) {
     e['finishingTaskId'] = 'Selecione o acabamento.'
@@ -256,6 +266,7 @@ const handleSubmit = () => {
     machineIds: form.machineIds,
     laborHourlyCost: usesLaborCost.value ? String(form.laborHourlyCost) : null,
     printingInkKind: isPrinting.value ? form.printingInkKind : null,
+    printingCoveragePercent: isPrinting.value ? String(form.printingCoveragePercent) : null,
     finishingSubtype: isFinishing.value ? form.finishingSubtype : null,
     finishingTaskId: usesFinishingTask.value || isPackaging.value ? form.finishingTaskId : null,
     paperTypeId: isPackaging.value ? form.paperTypeId : null,
@@ -309,6 +320,27 @@ const handleSubmit = () => {
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
             A <strong>quantidade</strong> de tinta de cada face é informada no orçamento, não aqui.
           </p>
+
+          <label class="block mt-4 mb-2 text-sm font-medium text-slate-900 dark:text-white">
+            Taxa de cobertura <span class="text-rose-500">*</span>
+          </label>
+          <div class="relative">
+            <input
+              v-model="form.printingCoveragePercent"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              placeholder="Ex.: 35"
+              :class="[inputClass('printingCoveragePercent'), 'pr-10']"
+            />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Quanto da área impressa recebe tinta — <strong>100% é chapado</strong>. Fica no cadastro
+            para o orçamento não perguntar isso a cada impressão.
+          </p>
+          <p v-if="errors['printingCoveragePercent']" class="mt-1 text-xs text-rose-600">{{ errors['printingCoveragePercent'] }}</p>
         </div>
         <div>
           <span class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
