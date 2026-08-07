@@ -111,16 +111,33 @@ const usesFinishingTask = computed(() => isFinishing.value && form.finishingSubt
 const usesSingleMachine = computed(() => isCutting.value || (isFinishing.value && form.finishingSubtype === 'AUTOMATED'))
 const consumesSupply = computed(() => isFinishing.value && form.supplyGroupId != null)
 
-// Máquinas oferecidas conforme o tipo. Serigrafia só imprime com tinta serigráfica (e vice-versa),
-// então a lista de impressoras acompanha o tipo de tinta escolhido.
+// Máquinas oferecidas conforme o tipo. Na impressão a lista acompanha a TINTA escolhida: além da
+// família (serigrafia × offset/digital), a impressora precisa declarar aquele tipo de tinta na
+// "Tinta da máquina" — senão o usuário escolheria uma máquina que o servidor recusa ao salvar.
 const machineOptions = computed<MachineKeyValue[]>(() => {
   if (isCutting.value) return machines.value.filter((m) => m.machineType === 'GUILLOTINE')
   if (isPrinting.value) {
-    return form.printingInkKind === 'SCREEN_PRINTING'
-      ? machines.value.filter((m) => m.machineType === 'SCREEN_PRINTING')
-      : machines.value.filter((m) => m.machineType === 'OFFSET' || m.machineType === 'DIGITAL')
+    if (form.printingInkKind === 'SCREEN_PRINTING') {
+      return machines.value.filter((m) => m.machineType === 'SCREEN_PRINTING')
+    }
+    return machines.value.filter(
+      (m) =>
+        (m.machineType === 'OFFSET' || m.machineType === 'DIGITAL') &&
+        (m.acceptedInkColorTypes ?? []).includes(form.printingInkKind),
+    )
   }
   return machines.value
+})
+
+// Impressoras da família certa que ficaram de fora só por não aceitarem a tinta — o usuário
+// precisa saber que elas existem e onde arrumar, senão a lista vazia parece bug.
+const printersWithoutInk = computed<MachineKeyValue[]>(() => {
+  if (!isPrinting.value || form.printingInkKind === 'SCREEN_PRINTING') return []
+  return machines.value.filter(
+    (m) =>
+      (m.machineType === 'OFFSET' || m.machineType === 'DIGITAL') &&
+      !(m.acceptedInkColorTypes ?? []).includes(form.printingInkKind),
+  )
 })
 
 // Empacotar tem tipo próprio de atividade: fica fora da lista do acabamento comum, e o
@@ -304,7 +321,12 @@ const handleSubmit = () => {
             </label>
           </div>
           <p v-else class="text-xs text-amber-700 dark:text-amber-300">
-            Nenhuma impressora cadastrada para esse tipo de tinta.
+            Nenhuma impressora aceita esse tipo de tinta.
+          </p>
+          <p v-if="printersWithoutInk.length" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Fora da lista por não aceitarem {{ PRINTING_INK_KIND_LABELS[form.printingInkKind] }}:
+            {{ printersWithoutInk.map((m) => m.value).join(', ') }}. Ajuste em
+            <strong>Máquinas → Tinta da máquina</strong>.
           </p>
           <p v-if="errors['machineIds']" class="mt-1 text-xs text-rose-600">{{ errors['machineIds'] }}</p>
         </div>
