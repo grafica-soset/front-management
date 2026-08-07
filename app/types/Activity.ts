@@ -1,10 +1,23 @@
 /**
- * Atividade (atividades 028/029): etapa reutilizável de execução.
- * Fonte de custo por tipo: MANUAL (custo hora-homem), AUTOMATED (máquina), FINISHING (tarefa de
- * acabamento, podendo ter máquina junto). Pode consumir um grupo de insumo, informando a quantidade
- * (na unidade do grupo) e a base geométrica de cobrança.
+ * Atividade (028/029; tipos reestruturados na 032 — ajuste 0004): etapa reutilizável de execução.
+ *
+ * O TIPO diz a natureza da etapa e decide o que o orçamento vai perguntar — nem todo produto
+ * imprime (às vezes é só cortar o papel), então a tinta saiu do cadastro e só é perguntada no
+ * orçamento quando há uma atividade de IMPRESSÃO ativa:
+ *
+ *   MANUAL     nome + custo hora-homem (o orçamento pergunta as horas)
+ *   PRINTING   tipo de tinta + 1..N impressoras (a tinta de cada face sai no orçamento)
+ *   CUTTING    uma guilhotina
+ *   FINISHING  subtipo (manual / acabamento / automatizada) + insumo opcional
+ *   PACKAGING  grupo de papéis do pacote + tarefa de acabamento Empacotar
  */
-export type ActivityType = 'MANUAL' | 'AUTOMATED' | 'FINISHING'
+export type ActivityType = 'MANUAL' | 'PRINTING' | 'CUTTING' | 'FINISHING' | 'PACKAGING'
+
+/** Subtipo do acabamento — de onde vem o custo. Era o "tipo" da atividade antes do ajuste 0004. */
+export type ActivityFinishingSubtype = 'MANUAL' | 'FINISHING_TASK' | 'AUTOMATED'
+
+/** Tipo de tinta da atividade de impressão. */
+export type PrintingInkKind = 'CMYK' | 'PANTONE' | 'SCREEN_PRINTING'
 
 /** Base geométrica do consumo de insumo: como a quantidade escala no orçamento. */
 export type ConsumptionBasis = 'UNIT' | 'AREA_M2' | 'LINEAR_M'
@@ -14,8 +27,11 @@ export interface Activity {
   customerId: number
   name: string
   type: ActivityType
-  machineId: number | null
+  /** Máquinas da atividade: 1 no corte/acabamento automatizado, 1+ na impressão. */
+  machineIds: number[]
   laborHourlyCost: number | null
+  printingInkKind: PrintingInkKind | null
+  finishingSubtype: ActivityFinishingSubtype | null
   finishingTaskId: number | null
   supplyGroupId: number | null
   supplyConsumptionQuantity: number | null
@@ -44,8 +60,10 @@ export interface CreateActivityRequest {
   customerId: number
   name: string
   type: ActivityType
-  machineId?: number | null
+  machineIds?: number[]
   laborHourlyCost?: string | null
+  printingInkKind?: PrintingInkKind | null
+  finishingSubtype?: ActivityFinishingSubtype | null
   finishingTaskId?: number | null
   supplyGroupId?: number | null
   supplyConsumptionQuantity?: string | null

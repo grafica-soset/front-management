@@ -152,10 +152,32 @@ onUnmounted(() => {
               <!-- Submenu transition -->
               <ul class="py-2 space-y-1" v-show="item.expanded">
                 <li v-for="subItem in item.children" :key="subItem.name">
-                  <NuxtLink :to="subItem.href" class="flex items-center py-2 px-4 pl-11 w-full text-sm font-medium text-slate-600 rounded-lg transition-colors duration-75 group hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white">
+                  <!-- Link simples -->
+                  <NuxtLink v-if="!subItem.children" :to="subItem.href || '#'" class="flex items-center py-2 px-4 pl-11 w-full text-sm font-medium text-slate-600 rounded-lg transition-colors duration-75 group hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white">
                     <span class="w-1.5 h-1.5 mr-3 bg-slate-300 rounded-full group-hover:bg-indigo-500 dark:bg-slate-600 dark:group-hover:bg-indigo-400"></span>
                     {{ subItem.name }}
                   </NuxtLink>
+
+                  <!-- Subgrupo (3º nível): ex. Produção > Atividades > Corte -->
+                  <template v-else>
+                    <button
+                      type="button"
+                      @click="subItem.expanded = !subItem.expanded"
+                      class="flex items-center py-2 px-4 pl-11 w-full text-sm font-medium text-slate-600 rounded-lg transition-colors duration-75 group hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+                    >
+                      <span class="w-1.5 h-1.5 mr-3 bg-slate-300 rounded-full group-hover:bg-indigo-500 dark:bg-slate-600 dark:group-hover:bg-indigo-400"></span>
+                      <span class="flex-1 text-left">{{ subItem.name }}</span>
+                      <svg class="w-4 h-4 transition-transform text-slate-400" :class="[subItem.expanded ? 'rotate-180' : '']" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <ul class="space-y-1" v-show="subItem.expanded">
+                      <li v-for="leaf in subItem.children" :key="leaf.name">
+                        <NuxtLink :to="leaf.href" class="flex items-center py-1.5 px-4 pl-16 w-full text-sm text-slate-600 rounded-lg transition-colors duration-75 group hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white">
+                          <span class="w-1 h-1 mr-3 bg-slate-300 rounded-full group-hover:bg-indigo-500 dark:bg-slate-600 dark:group-hover:bg-indigo-400"></span>
+                          {{ leaf.name }}
+                        </NuxtLink>
+                      </li>
+                    </ul>
+                  </template>
                 </li>
               </ul>
             </template>
