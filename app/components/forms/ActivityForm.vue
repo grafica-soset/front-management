@@ -9,7 +9,7 @@
  *               informada no ORÇAMENTO.
  *  - CUTTING    uma guilhotina. Sem insumo.
  *  - FINISHING  subtipo (manual / acabamento cadastrado / máquina) + insumo opcional.
- *  - PACKAGING  grupo de papéis do pacote + a tarefa Empacotar.
+ *  - PACKAGING  família de papéis do pacote (o mesmo cadastro de /papeis) + a tarefa Empacotar.
  *
  * Autocontido (props + emit).
  */
@@ -25,6 +25,7 @@ import type {
 import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyGroupKeyValue } from '@/types/SupplyGroup'
 import type { FinishingTaskKeyValue } from '@/types/FinishingTask'
+import type { PaperType } from '@/types/PaperType'
 import {
   ACTIVITY_FINISHING_SUBTYPES,
   ACTIVITY_FINISHING_SUBTYPE_HINTS,
@@ -41,6 +42,7 @@ import {
 import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
 import { useFinishingTasks } from '@/composables/useFinishingTasks'
+import { usePaperTypes } from '@/composables/usePaperTypes'
 import { isBlank } from '@/utils/formNumbers'
 
 const props = defineProps<{
@@ -65,6 +67,7 @@ const form = reactive({
   printingInkKind: 'CMYK' as PrintingInkKind,
   finishingSubtype: 'FINISHING_TASK' as ActivityFinishingSubtype,
   finishingTaskId: null as number | null,
+  paperTypeId: null as number | null,
   supplyGroupId: null as number | null,
   supplyConsumptionQuantity: '',
   supplyConsumptionBasis: null as ConsumptionBasis | null,
@@ -75,11 +78,13 @@ const errors = ref<Record<string, string>>({})
 const machines = ref<MachineKeyValue[]>([])
 const groups = ref<SupplyGroupKeyValue[]>([])
 const finishingTasks = ref<FinishingTaskKeyValue[]>([])
+const paperTypes = ref<PaperType[]>([])
 
 onMounted(async () => {
   try { machines.value = await useMachineCatalog().listAll() } catch { machines.value = [] }
   try { groups.value = await useSupplyGroups().listKeyValues() } catch { groups.value = [] }
   try { finishingTasks.value = await useFinishingTasks().listKeyValues() } catch { finishingTasks.value = [] }
+  try { paperTypes.value = await usePaperTypes().listPaperTypes() } catch { paperTypes.value = [] }
 })
 
 if (props.initial) hydrate(props.initial)
@@ -92,6 +97,7 @@ function hydrate(a: Activity) {
   form.printingInkKind = a.printingInkKind ?? 'CMYK'
   form.finishingSubtype = a.finishingSubtype ?? 'FINISHING_TASK'
   form.finishingTaskId = a.finishingTaskId
+  form.paperTypeId = a.paperTypeId
   form.supplyGroupId = a.supplyGroupId
   form.supplyConsumptionQuantity = a.supplyConsumptionQuantity != null ? String(a.supplyConsumptionQuantity) : ''
   form.supplyConsumptionBasis = a.supplyConsumptionBasis
@@ -171,6 +177,7 @@ const selectedGroupUnit = computed(() => {
 watch(() => form.type, () => {
   form.machineIds = []
   form.finishingTaskId = null
+  form.paperTypeId = null
   form.supplyGroupId = null
   form.supplyConsumptionQuantity = ''
   form.supplyConsumptionBasis = null
@@ -229,7 +236,7 @@ function validate(): Record<string, string> {
   }
   if (isPackaging.value) {
     if (!form.finishingTaskId) e['finishingTaskId'] = 'Selecione a tarefa de empacotar.'
-    if (!form.supplyGroupId) e['supplyGroupId'] = 'Selecione o grupo de papéis do pacote.'
+    if (!form.paperTypeId) e['paperTypeId'] = 'Selecione a família de papéis do pacote.'
   }
   if (consumesSupply.value) {
     const q = Number(form.supplyConsumptionQuantity)
@@ -254,7 +261,8 @@ const handleSubmit = () => {
     printingInkKind: isPrinting.value ? form.printingInkKind : null,
     finishingSubtype: isFinishing.value ? form.finishingSubtype : null,
     finishingTaskId: usesFinishingTask.value || isPackaging.value ? form.finishingTaskId : null,
-    supplyGroupId: isFinishing.value || isPackaging.value ? form.supplyGroupId : null,
+    paperTypeId: isPackaging.value ? form.paperTypeId : null,
+    supplyGroupId: isFinishing.value ? form.supplyGroupId : null,
     supplyConsumptionQuantity: consumesSupply.value ? String(form.supplyConsumptionQuantity) : null,
     supplyConsumptionBasis: consumesSupply.value ? form.supplyConsumptionBasis : null,
   }
@@ -381,13 +389,17 @@ const handleSubmit = () => {
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Empacotamento</legend>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Grupo de papéis do pacote <span class="text-rose-500">*</span></label>
-          <select v-model="form.supplyGroupId" :class="inputClass('supplyGroupId')">
+          <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Papel do pacote <span class="text-rose-500">*</span></label>
+          <select v-model="form.paperTypeId" :class="inputClass('paperTypeId')">
             <option :value="null">— Selecione —</option>
-            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.value }}</option>
+            <option v-for="pt in paperTypes" :key="pt.id" :value="pt.id">
+              {{ pt.name }}<span v-if="pt.weightPerM2Grams"> — {{ pt.weightPerM2Grams }}g</span>
+            </option>
           </select>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">O papel usado para empacotar; a quantidade sai do peso do pacote.</p>
-          <p v-if="errors['supplyGroupId']" class="mt-1 text-xs text-rose-600">{{ errors['supplyGroupId'] }}</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Família de papéis do cadastro de papéis (ex.: Papel Kraft); a quantidade sai do peso do pacote.
+          </p>
+          <p v-if="errors['paperTypeId']" class="mt-1 text-xs text-rose-600">{{ errors['paperTypeId'] }}</p>
         </div>
         <div>
           <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Tarefa de empacotar <span class="text-rose-500">*</span></label>

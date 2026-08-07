@@ -9,7 +9,7 @@
  *   PRINTING   tipo de tinta + 1..N impressoras (a tinta de cada face sai no orçamento)
  *   CUTTING    uma guilhotina
  *   FINISHING  subtipo (manual / acabamento / automatizada) + insumo opcional
- *   PACKAGING  grupo de papéis do pacote + tarefa de acabamento Empacotar
+ *   PACKAGING  família de papéis do pacote (/paper-types) + tarefa de acabamento Empacotar
  */
 export type ActivityType = 'MANUAL' | 'PRINTING' | 'CUTTING' | 'FINISHING' | 'PACKAGING'
 
@@ -33,6 +33,8 @@ export interface Activity {
   printingInkKind: PrintingInkKind | null
   finishingSubtype: ActivityFinishingSubtype | null
   finishingTaskId: number | null
+  /** Família de papéis usada para empacotar — só no tipo PACKAGING. */
+  paperTypeId: number | null
   supplyGroupId: number | null
   supplyConsumptionQuantity: number | null
   supplyConsumptionBasis: ConsumptionBasis | null
@@ -65,6 +67,7 @@ export interface CreateActivityRequest {
   printingInkKind?: PrintingInkKind | null
   finishingSubtype?: ActivityFinishingSubtype | null
   finishingTaskId?: number | null
+  paperTypeId?: number | null
   supplyGroupId?: number | null
   supplyConsumptionQuantity?: string | null
   supplyConsumptionBasis?: ConsumptionBasis | null

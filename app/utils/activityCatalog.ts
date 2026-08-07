@@ -25,7 +25,7 @@ export const ACTIVITY_TYPE_HINTS: Record<ActivityType, string> = {
   PRINTING: 'A tinta de cada face é informada no orçamento — aqui entram o tipo de tinta e as impressoras que fazem a atividade.',
   CUTTING: 'Executada por uma guilhotina. Não consome insumo.',
   FINISHING: 'Feita à mão, por um acabamento cadastrado ou por uma máquina. Pode consumir um insumo.',
-  PACKAGING: 'Usa o grupo de papéis do pacote e a tarefa de acabamento Empacotar.',
+  PACKAGING: 'Usa a família de papéis do pacote (a mesma do cadastro de papéis) e a tarefa de acabamento Empacotar.',
 }
 
 /** Subtipo do acabamento — o antigo "tipo" da atividade. */
