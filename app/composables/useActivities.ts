@@ -6,6 +6,7 @@ import type {
   Activity,
   ActivityKeyValue,
   ActivityPage,
+  ActivityType,
   CreateActivityRequest,
   UpdateActivityRequest,
 } from '@/types/Activity'
@@ -15,6 +16,8 @@ interface PageOptions {
   onlyActive?: boolean
   page?: number
   size?: number
+  /** Filtra por tipo de atividade (Impressão, Corte, ...) — alimenta os menus por tipo. */
+  type?: ActivityType | null
 }
 
 export function useActivities() {
@@ -28,8 +31,10 @@ export function useActivities() {
     return payload
   }
 
-  async function listKeyValues(onlyActive = true): Promise<ActivityKeyValue[]> {
-    return await api<ActivityKeyValue[]>('/activities', { query: { onlyActive } })
+  async function listKeyValues(onlyActive = true, type?: ActivityType | null): Promise<ActivityKeyValue[]> {
+    const query: Record<string, string | number | boolean> = { onlyActive }
+    if (type) query.type = type
+    return await api<ActivityKeyValue[]>('/activities', { query })
   }
 
   async function listPage(options: PageOptions = {}): Promise<ActivityPage> {
@@ -37,6 +42,7 @@ export function useActivities() {
     if (options.onlyActive !== undefined) query.onlyActive = options.onlyActive
     if (options.page !== undefined) query.page = options.page
     if (options.size !== undefined) query.size = options.size
+    if (options.type) query.type = options.type
     return await api<ActivityPage>('/activities/page', { query })
   }
 

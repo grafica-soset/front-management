@@ -1,12 +1,29 @@
 import { ref } from 'vue'
 
+/** Folha do menu: sempre leva a uma rota. */
+export interface MenuLink {
+  name: string
+  href: string
+}
+
+/**
+ * Item de submenu: ou é um link direto, ou um subgrupo que abre mais um nível
+ * (ex.: Produção > Atividades > Corte).
+ */
+export interface MenuSubItem {
+  name: string
+  href?: string
+  expanded?: boolean
+  children?: MenuLink[]
+}
+
 export interface MenuItem {
   name: string
   href?: string
   icon?: string
   current?: boolean
   expanded?: boolean
-  children?: { name: string; href: string }[]
+  children?: MenuSubItem[]
 }
 
 export default function useMenu() {
@@ -53,12 +70,25 @@ export default function useMenu() {
       icon: 'cadastros',
       expanded: false,
       children: [
-        { name: 'Atividades', href: '/atividades' },
+        {
+          // Um item por TIPO de atividade: é o filtro pronto, sem o usuário ter que procurar
+          // na grid (a página lê o ?type=).
+          name: 'Atividades',
+          expanded: false,
+          children: [
+            { name: 'Todas', href: '/atividades' },
+            { name: 'Manual', href: '/atividades?type=MANUAL' },
+            { name: 'Impressão', href: '/atividades?type=PRINTING' },
+            { name: 'Corte', href: '/atividades?type=CUTTING' },
+            { name: 'Acabamento', href: '/atividades?type=FINISHING' },
+            { name: 'Empacotamento', href: '/atividades?type=PACKAGING' },
+          ],
+        },
         { name: 'Modelos de Produto', href: '/modelos' },
       ],
     },
     {
-      name: 'Acabamentos',
+      name: 'Configuração de Acabamentos',
       icon: 'cadastros',
       expanded: false,
       children: [

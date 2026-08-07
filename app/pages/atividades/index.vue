@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * Listagem paginada de Atividades (atividade 028). Mostra tipo, máquina/custo e grupo de insumo.
- * Máquina e grupo são resolvidos por nome via os catálogos GET /machines e GET /supply-groups.
- * Edição em modal; cadastro em página (/atividades/novo).
+ * Listagem paginada de Atividades (028; tipos reestruturados na 032 — ajuste 0004). Mostra tipo,
+ * máquina(s)/custo e grupo de insumo. Máquinas e grupo são resolvidos por nome via os catálogos
+ * GET /machines e GET /supply-groups. Edição em modal; cadastro em página (/atividades/novo).
+ *
+ * `?type=` filtra por tipo de atividade — é o que os itens do menu Produção > Atividades usam.
  */
 import { computed, ref } from 'vue'
 import { useActivities } from '@/composables/useActivities'
@@ -11,8 +13,8 @@ import { useSupplyGroups } from '@/composables/useSupplyGroups'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { apiErrorCode, extractApiError, extractApiErrorDetails } from '@/utils/apiError'
-import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
-import type { Activity, CreateActivityRequest, UpdateActivityRequest } from '@/types/Activity'
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
+import type { Activity, ActivityType, CreateActivityRequest, UpdateActivityRequest } from '@/types/Activity'
 import Modal from '@/components/ui/Modal.vue'
 import BlockedDeleteDialog from '@/components/ui/BlockedDeleteDialog.vue'
 import ActivityForm from '@/components/forms/ActivityForm.vue'
@@ -21,7 +23,15 @@ definePageMeta({ middleware: 'auth' })
 
 const auth = useAuthStore()
 const toast = useToast()
+const route = useRoute()
 const { listPage, getById, create, update, remove } = useActivities()
+
+// Tipo vindo da URL (?type=CUTTING). Valor inválido é ignorado: mostra tudo.
+const typeFilter = computed<ActivityType | null>(() => {
+  const t = route.query.type
+  const value = Array.isArray(t) ? t[0] : t
+  return ACTIVITY_TYPES.includes(value as ActivityType) ? (value as ActivityType) : null
+})
 
 const PAGE_SIZE = 20
 const items = ref<Activity[]>([])
@@ -66,7 +76,12 @@ const refresh = async () => {
   loading.value = true
   listError.value = null
   try {
-    const res = await listPage({ page: page.value, size: PAGE_SIZE, onlyActive: onlyActive.value })
+    const res = await listPage({
+      page: page.value,
+      size: PAGE_SIZE,
+      onlyActive: onlyActive.value,
+      type: typeFilter.value,
+    })
     items.value = res.items
     totalItems.value = res.totalItems
     totalPages.value = res.totalPages
@@ -80,6 +95,8 @@ const refresh = async () => {
 onMounted(async () => { await loadCatalogs(); await refresh() })
 
 watch(onlyActive, () => { page.value = 0; refresh() })
+// Trocar de item no menu (Corte -> Empacotamento) não remonta a página: recarrega na mudança.
+watch(typeFilter, () => { page.value = 0; refresh() })
 
 const goToPage = (next: number) => {
   if (next < 0 || next >= totalPages.value) return
@@ -87,9 +104,11 @@ const goToPage = (next: number) => {
   refresh()
 }
 
+// Coluna "Custo / Máquina": mostra o hora-homem quando existe, senão as máquinas da atividade.
 const costLabel = (a: Activity): string => {
-  if (a.type === 'AUTOMATED') return a.machineId ? (machineNames.value[a.machineId] ?? `Máquina #${a.machineId}`) : '—'
-  return a.laborHourlyCost != null ? `R$ ${a.laborHourlyCost.toFixed(2)}/h` : '—'
+  if (a.laborHourlyCost != null) return `R$ ${a.laborHourlyCost.toFixed(2)}/h`
+  const names = (a.machineIds ?? []).map((id) => machineNames.value[id] ?? `Máquina #${id}`)
+  return names.length ? names.join(', ') : '—'
 }
 const groupLabel = (a: Activity): string =>
   a.supplyGroupId ? (groupNames.value[a.supplyGroupId] ?? `Grupo #${a.supplyGroupId}`) : '—'
@@ -180,7 +199,9 @@ const handleDelete = async (a: Activity) => {
   <div class="space-y-6">
     <header class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Atividades</h1>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
+          Atividades<span v-if="typeFilter"> — {{ ACTIVITY_TYPE_LABELS[typeFilter] }}</span>
+        </h1>
         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Etapas de execução de <span class="font-medium">{{ auth.activeCompany?.value ?? '—' }}</span>.</p>
       </div>
       <NuxtLink v-if="hasCompany" to="/atividades/novo" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300">

@@ -909,4 +909,10 @@ export interface MachineKeyValue {
   value: string
   machineType: MachineType
   active: boolean
+  /**
+   * Tintas que a máquina aceita — vazio para quem não imprime. É o que permite ao seletor da
+   * atividade de impressão oferecer só as impressoras capazes daquela tinta.
+   */
+  acceptedInkColorTypes?: InkColorType[]
+  inkSubtype?: InkSubtype
 }
