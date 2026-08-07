@@ -22,7 +22,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
 /** Uma frase por tipo, mostrada abaixo do seletor para orientar quem cadastra. */
 export const ACTIVITY_TYPE_HINTS: Record<ActivityType, string> = {
   MANUAL: 'Só nome e custo por hora. O orçamento pergunta quantas horas serão usadas.',
-  PRINTING: 'A tinta de cada face é informada no orçamento — aqui entram o tipo de tinta e as impressoras que fazem a atividade.',
+  PRINTING: 'A tinta de cada face é informada no orçamento — aqui entram o tipo de tinta, a taxa de cobertura e as impressoras que fazem a atividade.',
   CUTTING: 'Executada por guilhotina — marque todas que fazem o corte e o orçamento escolhe a de melhor preço. Não consome insumo.',
   FINISHING: 'Feita à mão, por um acabamento cadastrado ou por uma máquina. Pode consumir um insumo.',
   PACKAGING: 'Usa a família de papéis do pacote (a mesma do cadastro de papéis) e a tarefa de acabamento Empacotar.',

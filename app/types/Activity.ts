@@ -6,7 +6,7 @@
  * orçamento quando há uma atividade de IMPRESSÃO ativa:
  *
  *   MANUAL     nome + custo hora-homem (o orçamento pergunta as horas)
- *   PRINTING   tipo de tinta + 1..N impressoras (a tinta de cada face sai no orçamento)
+ *   PRINTING   tipo de tinta + taxa de cobertura + 1..N impressoras (a tinta de cada face sai no orçamento)
  *   CUTTING    as guilhotinas do corte (1+; o orçamento escolhe a de melhor preço)
  *   FINISHING  subtipo (manual / acabamento / automatizada) + insumo opcional
  *   PACKAGING  família de papéis do pacote (/paper-types) + tarefa de acabamento Empacotar
@@ -31,6 +31,8 @@ export interface Activity {
   machineIds: number[]
   laborHourlyCost: number | null
   printingInkKind: PrintingInkKind | null
+  /** Taxa de cobertura da impressão em % (100 = chapado). Só no tipo PRINTING. */
+  printingCoveragePercent: number | null
   finishingSubtype: ActivityFinishingSubtype | null
   finishingTaskId: number | null
   /** Família de papéis usada para empacotar — só no tipo PACKAGING. */
@@ -65,6 +67,7 @@ export interface CreateActivityRequest {
   machineIds?: number[]
   laborHourlyCost?: string | null
   printingInkKind?: PrintingInkKind | null
+  printingCoveragePercent?: string | null
   finishingSubtype?: ActivityFinishingSubtype | null
   finishingTaskId?: number | null
   paperTypeId?: number | null
