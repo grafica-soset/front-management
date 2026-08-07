@@ -7,7 +7,7 @@
  *  - MANUAL     custo hora-homem.
  *  - PRINTING   tipo de tinta + as impressoras (1+). Sem insumo: a tinta de cada face é
  *               informada no ORÇAMENTO.
- *  - CUTTING    uma guilhotina. Sem insumo.
+ *  - CUTTING    as guilhotinas que fazem o corte (1+). Sem insumo.
  *  - FINISHING  subtipo (manual / acabamento cadastrado / máquina) + insumo opcional.
  *  - PACKAGING  família de papéis do pacote (o mesmo cadastro de /papeis) + a tarefa Empacotar.
  *
@@ -113,8 +113,8 @@ const isPackaging = computed(() => form.type === 'PACKAGING')
 // Cobra hora-homem: no tipo Manual e no acabamento de subtipo manual.
 const usesLaborCost = computed(() => isManual.value || (isFinishing.value && form.finishingSubtype === 'MANUAL'))
 const usesFinishingTask = computed(() => isFinishing.value && form.finishingSubtype === 'FINISHING_TASK')
-// Uma única máquina: corte e acabamento automatizado.
-const usesSingleMachine = computed(() => isCutting.value || (isFinishing.value && form.finishingSubtype === 'AUTOMATED'))
+// Uma única máquina: só o acabamento automatizado.
+const usesSingleMachine = computed(() => isFinishing.value && form.finishingSubtype === 'AUTOMATED')
 const consumesSupply = computed(() => isFinishing.value && form.supplyGroupId != null)
 
 // Máquinas oferecidas conforme o tipo. Na impressão a lista acompanha a TINTA escolhida: além da
@@ -225,12 +225,9 @@ function validate(): Record<string, string> {
       e['laborHourlyCost'] = 'Informe o custo hora-homem (≥ 0).'
     }
   }
-  if (usesSingleMachine.value && !form.machineIds.length) {
-    e['machineIds'] = isCutting.value ? 'Selecione a máquina de corte.' : 'Selecione a máquina.'
-  }
-  if (isPrinting.value && !form.machineIds.length) {
-    e['machineIds'] = 'Selecione ao menos uma impressora.'
-  }
+  if (usesSingleMachine.value && !form.machineIds.length) e['machineIds'] = 'Selecione a máquina.'
+  if (isPrinting.value && !form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma impressora.'
+  if (isCutting.value && !form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma máquina de corte.'
   if (usesFinishingTask.value && !form.finishingTaskId) {
     e['finishingTaskId'] = 'Selecione o acabamento.'
   }
@@ -367,19 +364,39 @@ const handleSubmit = () => {
       </div>
     </fieldset>
 
-    <!-- CORTE / ACABAMENTO AUTOMATIZADO: máquina única -->
+    <!-- CORTE: uma ou mais guilhotinas -->
+    <fieldset v-if="isCutting" class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Corte</legend>
+      <span class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Máquinas de corte <span class="text-rose-500">*</span>
+      </span>
+      <div v-if="machineOptions.length" class="space-y-2 max-h-44 overflow-y-auto pr-1">
+        <label v-for="m in machineOptions" :key="m.id" class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input
+            type="checkbox"
+            :checked="isMachineSelected(m.id)"
+            @change="toggleMachine(m.id)"
+            class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 dark:bg-slate-700 dark:border-slate-600"
+          />
+          {{ m.value }}
+        </label>
+      </div>
+      <p v-else class="text-xs text-amber-700 dark:text-amber-300">Nenhuma guilhotina cadastrada.</p>
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        Marque todas as guilhotinas que fazem este corte — o orçamento escolhe a de melhor preço.
+      </p>
+      <p v-if="errors['machineIds']" class="mt-1 text-xs text-rose-600">{{ errors['machineIds'] }}</p>
+    </fieldset>
+
+    <!-- ACABAMENTO AUTOMATIZADO: máquina única -->
     <div v-if="usesSingleMachine" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-          {{ isCutting ? 'Máquina de corte' : 'Máquina' }} <span class="text-rose-500">*</span>
-        </label>
+        <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Máquina <span class="text-rose-500">*</span></label>
         <select v-model="singleMachineId" :class="inputClass('machineIds')">
           <option :value="null">— Selecione —</option>
           <option v-for="m in machineOptions" :key="m.id" :value="m.id">{{ m.value }}</option>
         </select>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {{ isCutting ? 'O corte é feito na guilhotina; o custo vem dela.' : 'O custo da atividade vem do custo-hora da máquina.' }}
-        </p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">O custo da atividade vem do custo-hora da máquina.</p>
         <p v-if="errors['machineIds']" class="mt-1 text-xs text-rose-600">{{ errors['machineIds'] }}</p>
       </div>
     </div>

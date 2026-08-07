@@ -7,7 +7,7 @@
  *
  *   MANUAL     nome + custo hora-homem (o orçamento pergunta as horas)
  *   PRINTING   tipo de tinta + 1..N impressoras (a tinta de cada face sai no orçamento)
- *   CUTTING    uma guilhotina
+ *   CUTTING    as guilhotinas do corte (1+; o orçamento escolhe a de melhor preço)
  *   FINISHING  subtipo (manual / acabamento / automatizada) + insumo opcional
  *   PACKAGING  família de papéis do pacote (/paper-types) + tarefa de acabamento Empacotar
  */
@@ -27,7 +27,7 @@ export interface Activity {
   customerId: number
   name: string
   type: ActivityType
-  /** Máquinas da atividade: 1 no corte/acabamento automatizado, 1+ na impressão. */
+  /** Máquinas da atividade: 1+ na impressão e no corte, exatamente 1 no acabamento automatizado. */
   machineIds: number[]
   laborHourlyCost: number | null
   printingInkKind: PrintingInkKind | null
