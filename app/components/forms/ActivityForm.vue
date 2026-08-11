@@ -1,16 +1,20 @@
 <script setup lang="ts">
 /**
- * Formulário de ATIVIDADE (028/029; tipos reestruturados na 032 — ajuste 0004).
+ * Formulário de ATIVIDADE (028/029; tipos reestruturados na 032 — ajustes 0004 e 0006).
  *
  * O TIPO decide o que aparece — e é isso que faz o orçamento só perguntar tinta quando existe
  * impressão de verdade no produto:
  *  - MANUAL     custo hora-homem.
- *  - PRINTING   tipo de tinta + taxa de cobertura + as impressoras (1+). Sem insumo: a tinta de
- *               cada face é informada no ORÇAMENTO — a cobertura, não: fica aqui para não ser
- *               perguntada a cada impressão.
+ *  - PRINTING   tipo de tinta + as impressoras (1+). Sem insumo: a tinta de cada face e a taxa de
+ *               cobertura são informadas no ORÇAMENTO (cobertura é característica do trabalho, não
+ *               da etapa).
  *  - CUTTING    as guilhotinas que fazem o corte (1+). Sem insumo.
- *  - FINISHING  subtipo (manual / acabamento cadastrado / máquina) + insumo opcional.
+ *  - FINISHING  subtipo (manual / acabamento cadastrado / máquina) + itens de insumo opcionais.
  *  - PACKAGING  família de papéis do pacote (o mesmo cadastro de /papeis) + a tarefa Empacotar.
+ *
+ * CONSUMO DE INSUMO (032 — ajuste 0006): uma lista de itens, cada um adicionado pelo modal
+ * ActivitySupplyPickerModal (grupo de insumos OU item do estoque). Sem quantidade e sem base de
+ * cobrança: COMO se consome vem da unidade de medida do próprio grupo/insumo.
  *
  * Autocontido (props + emit).
  */
@@ -18,33 +22,35 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type {
   Activity,
   ActivityFinishingSubtype,
-  ConsumptionBasis,
+  ActivitySupply,
   CreateActivityRequest,
   PrintingInkKind,
   UpdateActivityRequest,
 } from '@/types/Activity'
 import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyGroupKeyValue } from '@/types/SupplyGroup'
+import type { SupplyKeyValue } from '@/types/Supply'
 import type { FinishingTaskKeyValue } from '@/types/FinishingTask'
 import type { PaperType } from '@/types/PaperType'
 import {
   ACTIVITY_FINISHING_SUBTYPES,
   ACTIVITY_FINISHING_SUBTYPE_HINTS,
   ACTIVITY_FINISHING_SUBTYPE_LABELS,
+  ACTIVITY_SUPPLY_SOURCE_LABELS,
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_HINTS,
   ACTIVITY_TYPE_LABELS,
-  CONSUMPTION_BASES,
-  CONSUMPTION_BASIS_LABELS,
   PRINTING_INK_KINDS,
   PRINTING_INK_KIND_LABELS,
   SUPPLY_UNIT_SHORT_LABELS,
 } from '@/utils/activityCatalog'
 import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
+import { useSupplies } from '@/composables/useSupplies'
 import { useFinishingTasks } from '@/composables/useFinishingTasks'
 import { usePaperTypes } from '@/composables/usePaperTypes'
 import { isBlank } from '@/utils/formNumbers'
+import ActivitySupplyPickerModal from '@/components/forms/ActivitySupplyPickerModal.vue'
 
 const props = defineProps<{
   initial?: Activity | null
@@ -66,25 +72,25 @@ const form = reactive({
   machineIds: [] as number[],
   laborHourlyCost: '0',
   printingInkKind: 'CMYK' as PrintingInkKind,
-  printingCoveragePercent: '',
   finishingSubtype: 'FINISHING_TASK' as ActivityFinishingSubtype,
   finishingTaskId: null as number | null,
   paperTypeId: null as number | null,
-  supplyGroupId: null as number | null,
-  supplyConsumptionQuantity: '',
-  supplyConsumptionBasis: null as ConsumptionBasis | null,
+  supplies: [] as ActivitySupply[],
   active: true,
 })
 
 const errors = ref<Record<string, string>>({})
 const machines = ref<MachineKeyValue[]>([])
 const groups = ref<SupplyGroupKeyValue[]>([])
+const supplies = ref<SupplyKeyValue[]>([])
 const finishingTasks = ref<FinishingTaskKeyValue[]>([])
 const paperTypes = ref<PaperType[]>([])
+const supplyPickerOpen = ref(false)
 
 onMounted(async () => {
   try { machines.value = await useMachineCatalog().listAll() } catch { machines.value = [] }
   try { groups.value = await useSupplyGroups().listKeyValues() } catch { groups.value = [] }
+  try { supplies.value = await useSupplies().listKeyValues() } catch { supplies.value = [] }
   try { finishingTasks.value = await useFinishingTasks().listKeyValues() } catch { finishingTasks.value = [] }
   try { paperTypes.value = await usePaperTypes().listPaperTypes() } catch { paperTypes.value = [] }
 })
@@ -97,13 +103,10 @@ function hydrate(a: Activity) {
   form.machineIds = [...(a.machineIds ?? [])]
   form.laborHourlyCost = a.laborHourlyCost != null ? String(a.laborHourlyCost) : '0'
   form.printingInkKind = a.printingInkKind ?? 'CMYK'
-  form.printingCoveragePercent = a.printingCoveragePercent != null ? String(a.printingCoveragePercent) : ''
   form.finishingSubtype = a.finishingSubtype ?? 'FINISHING_TASK'
   form.finishingTaskId = a.finishingTaskId
   form.paperTypeId = a.paperTypeId
-  form.supplyGroupId = a.supplyGroupId
-  form.supplyConsumptionQuantity = a.supplyConsumptionQuantity != null ? String(a.supplyConsumptionQuantity) : ''
-  form.supplyConsumptionBasis = a.supplyConsumptionBasis
+  form.supplies = (a.supplies ?? []).map((i) => ({ ...i }))
   form.active = a.active
 }
 
@@ -118,7 +121,6 @@ const usesLaborCost = computed(() => isManual.value || (isFinishing.value && for
 const usesFinishingTask = computed(() => isFinishing.value && form.finishingSubtype === 'FINISHING_TASK')
 // Uma única máquina: só o acabamento automatizado.
 const usesSingleMachine = computed(() => isFinishing.value && form.finishingSubtype === 'AUTOMATED')
-const consumesSupply = computed(() => isFinishing.value && form.supplyGroupId != null)
 
 // Máquinas oferecidas conforme o tipo. Na impressão a lista acompanha a TINTA escolhida: além da
 // família (serigrafia × offset/digital), a impressora precisa declarar aquele tipo de tinta na
@@ -170,21 +172,39 @@ const toggleMachine = (id: number) => {
     : [...form.machineIds, id]
 }
 
-// Unidade do grupo selecionado, para exibir ao lado da quantidade de consumo.
-const selectedGroupUnit = computed(() => {
-  const g = groups.value.find((x) => x.id === form.supplyGroupId)
-  return g ? SUPPLY_UNIT_SHORT_LABELS[g.unitOfMeasure] : ''
-})
+// Nome e unidade de cada item de consumo, resolvidos pelos catálogos. A unidade é a informação
+// central da linha: é ela que diz COMO o item é consumido, já que a atividade não pergunta mais.
+const supplyRows = computed(() =>
+  form.supplies.map((item) => {
+    const entry =
+      item.source === 'SUPPLY_GROUP'
+        ? groups.value.find((g) => g.id === item.supplyGroupId)
+        : supplies.value.find((s) => s.id === item.supplyId)
+    const fallbackId = item.supplyGroupId ?? item.supplyId
+    return {
+      item,
+      sourceLabel: ACTIVITY_SUPPLY_SOURCE_LABELS[item.source],
+      name: entry?.value ?? `#${fallbackId}`,
+      unit: entry ? SUPPLY_UNIT_SHORT_LABELS[entry.unitOfMeasure] : '',
+    }
+  }),
+)
+
+const addSupply = (item: ActivitySupply) => {
+  form.supplies = [...form.supplies, item]
+  supplyPickerOpen.value = false
+}
+
+const removeSupply = (index: number) => {
+  form.supplies = form.supplies.filter((_, i) => i !== index)
+}
 
 // Ao trocar de tipo, zera o que não se aplica — evita enviar resto de outro tipo.
 watch(() => form.type, () => {
-  form.printingCoveragePercent = ''
   form.machineIds = []
   form.finishingTaskId = null
   form.paperTypeId = null
-  form.supplyGroupId = null
-  form.supplyConsumptionQuantity = ''
-  form.supplyConsumptionBasis = null
+  form.supplies = []
   if (!usesLaborCost.value) form.laborHourlyCost = '0'
 })
 
@@ -198,16 +218,6 @@ watch(() => form.finishingSubtype, () => {
 // Serigrafia e offset/digital não compartilham impressora: ao trocar a tinta, a seleção cai.
 watch(() => form.printingInkKind, () => {
   if (isPrinting.value) form.machineIds = []
-})
-
-// Consumo só existe quando há grupo; ao escolher um grupo, sugere base "Por unidade".
-watch(() => form.supplyGroupId, (g) => {
-  if (g == null) {
-    form.supplyConsumptionQuantity = ''
-    form.supplyConsumptionBasis = null
-  } else if (form.supplyConsumptionBasis == null && isFinishing.value) {
-    form.supplyConsumptionBasis = 'UNIT'
-  }
 })
 
 const inputClass = (errKey: string) => [
@@ -230,12 +240,8 @@ function validate(): Record<string, string> {
     }
   }
   if (usesSingleMachine.value && !form.machineIds.length) e['machineIds'] = 'Selecione a máquina.'
-  if (isPrinting.value) {
-    const coverage = Number(form.printingCoveragePercent)
-    if (isBlank(form.printingCoveragePercent) || !Number.isFinite(coverage) || coverage <= 0 || coverage > 100) {
-      e['printingCoveragePercent'] = 'Informe a cobertura (maior que 0 e até 100).'
-    }
-    if (!form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma impressora.'
+  if (isPrinting.value && !form.machineIds.length) {
+    e['machineIds'] = 'Selecione ao menos uma impressora.'
   }
   if (isCutting.value && !form.machineIds.length) e['machineIds'] = 'Selecione ao menos uma máquina de corte.'
   if (usesFinishingTask.value && !form.finishingTaskId) {
@@ -244,13 +250,6 @@ function validate(): Record<string, string> {
   if (isPackaging.value) {
     if (!form.finishingTaskId) e['finishingTaskId'] = 'Selecione a tarefa de empacotar.'
     if (!form.paperTypeId) e['paperTypeId'] = 'Selecione a família de papéis do pacote.'
-  }
-  if (consumesSupply.value) {
-    const q = Number(form.supplyConsumptionQuantity)
-    if (isBlank(form.supplyConsumptionQuantity) || !Number.isFinite(q) || q <= 0) {
-      e['supplyConsumptionQuantity'] = 'Informe a quantidade (> 0).'
-    }
-    if (!form.supplyConsumptionBasis) e['supplyConsumptionBasis'] = 'Selecione a base de cobrança.'
   }
   return e
 }
@@ -266,13 +265,10 @@ const handleSubmit = () => {
     machineIds: form.machineIds,
     laborHourlyCost: usesLaborCost.value ? String(form.laborHourlyCost) : null,
     printingInkKind: isPrinting.value ? form.printingInkKind : null,
-    printingCoveragePercent: isPrinting.value ? String(form.printingCoveragePercent) : null,
     finishingSubtype: isFinishing.value ? form.finishingSubtype : null,
     finishingTaskId: usesFinishingTask.value || isPackaging.value ? form.finishingTaskId : null,
     paperTypeId: isPackaging.value ? form.paperTypeId : null,
-    supplyGroupId: isFinishing.value ? form.supplyGroupId : null,
-    supplyConsumptionQuantity: consumesSupply.value ? String(form.supplyConsumptionQuantity) : null,
-    supplyConsumptionBasis: consumesSupply.value ? form.supplyConsumptionBasis : null,
+    supplies: isFinishing.value ? form.supplies : [],
   }
 
   if (isEditing.value) emit('submit', { ...base, active: form.active }, 'update')
@@ -318,29 +314,10 @@ const handleSubmit = () => {
             <option v-for="k in PRINTING_INK_KINDS" :key="k" :value="k">{{ PRINTING_INK_KIND_LABELS[k] }}</option>
           </select>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            A <strong>quantidade</strong> de tinta de cada face é informada no orçamento, não aqui.
+            A <strong>quantidade</strong> de tinta de cada face e a <strong>taxa de cobertura</strong>
+            são informadas no orçamento, não aqui — a cobertura é característica do trabalho, e a
+            mesma atividade atende tanto um chapado quanto um miolo de texto.
           </p>
-
-          <label class="block mt-4 mb-2 text-sm font-medium text-slate-900 dark:text-white">
-            Taxa de cobertura <span class="text-rose-500">*</span>
-          </label>
-          <div class="relative">
-            <input
-              v-model="form.printingCoveragePercent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              placeholder="Ex.: 35"
-              :class="[inputClass('printingCoveragePercent'), 'pr-10']"
-            />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Quanto da área impressa recebe tinta — <strong>100% é chapado</strong>. Fica no cadastro
-            para o orçamento não perguntar isso a cada impressão.
-          </p>
-          <p v-if="errors['printingCoveragePercent']" class="mt-1 text-xs text-rose-600">{{ errors['printingCoveragePercent'] }}</p>
         </div>
         <div>
           <span class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
@@ -461,34 +438,50 @@ const handleSubmit = () => {
       </div>
     </fieldset>
 
-    <!-- Consumo de insumo: só no acabamento -->
+    <!-- Consumo de insumo: só no acabamento. Lista de itens (grupo ou item do estoque). -->
     <fieldset v-if="isFinishing" class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Consumo de insumo</legend>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Grupo de insumo</label>
-          <select v-model="form.supplyGroupId" :class="selectClass">
-            <option :value="null">— Nenhum —</option>
-            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.value }}</option>
-          </select>
-        </div>
-        <div v-if="consumesSupply">
-          <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-            Quantidade <span v-if="selectedGroupUnit" class="text-xs font-normal text-slate-400">({{ selectedGroupUnit }})</span> <span class="text-rose-500">*</span>
-          </label>
-          <input v-model="form.supplyConsumptionQuantity" type="number" min="0" step="0.0001" :class="inputClass('supplyConsumptionQuantity')" />
-          <p v-if="errors['supplyConsumptionQuantity']" class="mt-1 text-xs text-rose-600">{{ errors['supplyConsumptionQuantity'] }}</p>
-        </div>
-        <div v-if="consumesSupply">
-          <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Base de cobrança <span class="text-rose-500">*</span></label>
-          <select v-model="form.supplyConsumptionBasis" :class="inputClass('supplyConsumptionBasis')">
-            <option v-for="b in CONSUMPTION_BASES" :key="b" :value="b">{{ CONSUMPTION_BASIS_LABELS[b] }}</option>
-          </select>
-          <p v-if="errors['supplyConsumptionBasis']" class="mt-1 text-xs text-rose-600">{{ errors['supplyConsumptionBasis'] }}</p>
-        </div>
-      </div>
+
+      <ul v-if="supplyRows.length" class="space-y-2">
+        <li
+          v-for="(row, index) in supplyRows"
+          :key="`${row.item.source}-${row.item.supplyGroupId ?? row.item.supplyId}`"
+          class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-2.5 dark:border-slate-600"
+        >
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ row.name }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ row.sourceLabel }}<span v-if="row.unit"> — consumo em {{ row.unit }}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="removeSupply(index)"
+            class="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-slate-700"
+          >
+            Remover
+          </button>
+        </li>
+      </ul>
+      <p v-else class="text-sm text-slate-500 dark:text-slate-400">
+        Nenhum insumo — esta atividade não consome nada do estoque.
+      </p>
+
+      <button
+        type="button"
+        @click="supplyPickerOpen = true"
+        class="mt-3 inline-flex items-center gap-2 rounded-lg border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-500/50 dark:text-indigo-300 dark:hover:bg-slate-700"
+      >
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Adicionar item
+      </button>
+
       <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-        A unidade da quantidade vem do grupo. No orçamento escolhe-se o insumo específico e as dimensões.
+        Escolha um <strong>grupo de insumos</strong> (o orçamento decide qual insumo do grupo entra)
+        ou um <strong>item do estoque</strong> (já decidido aqui). A quantidade não é cadastrada: a
+        forma de consumo vem da unidade de medida do próprio grupo/insumo.
       </p>
     </fieldset>
 
@@ -500,6 +493,15 @@ const handleSubmit = () => {
     <div v-if="serverError" class="rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300">
       {{ serverError }}
     </div>
+
+    <ActivitySupplyPickerModal
+      :is-open="supplyPickerOpen"
+      :groups="groups"
+      :supplies="supplies"
+      :selected="form.supplies"
+      @select="addSupply"
+      @close="supplyPickerOpen = false"
+    />
 
     <div class="flex justify-end gap-3 pt-2">
       <button type="button" @click="emit('cancel')" class="text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 focus:ring-4 focus:ring-slate-200 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">
