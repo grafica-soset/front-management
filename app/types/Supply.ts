@@ -78,6 +78,8 @@ export interface SupplyKeyValue {
   id: number
   value: string
   type: SupplyType
+  /** Unidade de medida — diz COMO o insumo é consumido quando uma atividade o escolhe. */
+  unitOfMeasure: SupplyUnitOfMeasure
   active: boolean
 }
 

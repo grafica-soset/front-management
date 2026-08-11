@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * Listagem paginada de Atividades (028; tipos reestruturados na 032 — ajuste 0004). Mostra tipo,
- * máquina(s)/custo e grupo de insumo. Máquinas e grupo são resolvidos por nome via os catálogos
- * GET /machines e GET /supply-groups. Edição em modal; cadastro em página (/atividades/novo).
+ * Listagem paginada de Atividades (028; tipos reestruturados na 032 — ajustes 0004 e 0006). Mostra
+ * tipo, máquina(s)/custo e os insumos consumidos. Máquinas, grupos e insumos são resolvidos por
+ * nome via os catálogos GET /machines, GET /supply-groups e GET /supplies. Edição em modal;
+ * cadastro em página (/atividades/novo).
  *
  * `?type=` filtra por tipo de atividade — é o que os itens do menu Produção > Atividades usam.
  */
@@ -10,6 +11,7 @@ import { computed, ref } from 'vue'
 import { useActivities } from '@/composables/useActivities'
 import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
+import { useSupplies } from '@/composables/useSupplies'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { apiErrorCode, extractApiError, extractApiErrorDetails } from '@/utils/apiError'
@@ -43,9 +45,10 @@ const loading = ref(false)
 const listError = ref<string | null>(null)
 const deletingId = ref<number | null>(null)
 
-// Mapas id→nome para exibir máquina e grupo por nome.
+// Mapas id→nome para exibir máquina, grupo e insumo por nome.
 const machineNames = ref<Record<number, string>>({})
 const groupNames = ref<Record<number, string>>({})
+const supplyNames = ref<Record<number, string>>({})
 
 const editing = ref<Activity | null>(null)
 const editOpen = ref(false)
@@ -69,6 +72,10 @@ const loadCatalogs = async () => {
     const groups = await useSupplyGroups().listKeyValues(false)
     groupNames.value = Object.fromEntries(groups.map((g) => [g.id, g.value]))
   } catch { groupNames.value = {} }
+  try {
+    const supplies = await useSupplies().listKeyValues({ onlyActive: false })
+    supplyNames.value = Object.fromEntries(supplies.map((s) => [s.id, s.value]))
+  } catch { supplyNames.value = {} }
 }
 
 const refresh = async () => {
@@ -110,8 +117,15 @@ const costLabel = (a: Activity): string => {
   const names = (a.machineIds ?? []).map((id) => machineNames.value[id] ?? `Máquina #${id}`)
   return names.length ? names.join(', ') : '—'
 }
-const groupLabel = (a: Activity): string =>
-  a.supplyGroupId ? (groupNames.value[a.supplyGroupId] ?? `Grupo #${a.supplyGroupId}`) : '—'
+// Coluna "Insumos": os itens consumidos, cada um resolvido no catálogo da sua origem.
+const suppliesLabel = (a: Activity): string => {
+  const names = (a.supplies ?? []).map((item) =>
+    item.source === 'SUPPLY_GROUP'
+      ? (groupNames.value[item.supplyGroupId!] ?? `Grupo #${item.supplyGroupId}`)
+      : (supplyNames.value[item.supplyId!] ?? `Insumo #${item.supplyId}`),
+  )
+  return names.length ? names.join(', ') : '—'
+}
 
 const openEdit = async (a: Activity) => {
   editError.value = null
@@ -141,7 +155,7 @@ const handleUpdate = async (payload: CreateActivityRequest | UpdateActivityReque
 }
 
 // Duplicar: abre o form em modo de criação já preenchido com a atividade de origem (tipo, máquina,
-// acabamento e consumo de insumo). O nome ganha sufixo porque é único por empresa.
+// acabamento e itens de consumo). O nome ganha sufixo porque é único por empresa.
 const openDuplicate = async (a: Activity) => {
   createError.value = null
   createLoading.value = false
@@ -233,7 +247,7 @@ const handleDelete = async (a: Activity) => {
                 <th class="px-5 py-3 font-semibold">Nome</th>
                 <th class="px-5 py-3 font-semibold">Tipo</th>
                 <th class="px-5 py-3 font-semibold">Máquina / Custo</th>
-                <th class="px-5 py-3 font-semibold">Grupo de insumo</th>
+                <th class="px-5 py-3 font-semibold">Insumos</th>
                 <th class="px-5 py-3 font-semibold text-center">Status</th>
                 <th class="px-5 py-3 font-semibold text-right">Ações</th>
               </tr>
@@ -243,7 +257,7 @@ const handleDelete = async (a: Activity) => {
                 <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">{{ a.name }}</td>
                 <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ ACTIVITY_TYPE_LABELS[a.type] }}</td>
                 <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ costLabel(a) }}</td>
-                <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ groupLabel(a) }}</td>
+                <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ suppliesLabel(a) }}</td>
                 <td class="px-5 py-3 text-center">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="a.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'">
                     {{ a.active ? 'Ativa' : 'Inativa' }}

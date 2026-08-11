@@ -1,10 +1,10 @@
 /**
- * Rótulos do cadastro de atividades (028/029; tipos reestruturados na 032 — ajuste 0004).
+ * Rótulos do cadastro de atividades (028/029; tipos reestruturados na 032 — ajustes 0004 e 0006).
  */
 import type {
   ActivityFinishingSubtype,
+  ActivitySupplySource,
   ActivityType,
-  ConsumptionBasis,
   PrintingInkKind,
 } from '@/types/Activity'
 import type { SupplyUnitOfMeasure } from '@/types/Supply'
@@ -22,9 +22,9 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
 /** Uma frase por tipo, mostrada abaixo do seletor para orientar quem cadastra. */
 export const ACTIVITY_TYPE_HINTS: Record<ActivityType, string> = {
   MANUAL: 'Só nome e custo por hora. O orçamento pergunta quantas horas serão usadas.',
-  PRINTING: 'A tinta de cada face é informada no orçamento — aqui entram o tipo de tinta, a taxa de cobertura e as impressoras que fazem a atividade.',
+  PRINTING: 'A tinta de cada face e a taxa de cobertura são informadas no orçamento — aqui entram o tipo de tinta e as impressoras que fazem a atividade.',
   CUTTING: 'Executada por guilhotina — marque todas que fazem o corte e o orçamento escolhe a de melhor preço. Não consome insumo.',
-  FINISHING: 'Feita à mão, por um acabamento cadastrado ou por uma máquina. Pode consumir um insumo.',
+  FINISHING: 'Feita à mão, por um acabamento cadastrado ou por uma máquina. Pode consumir um ou mais insumos.',
   PACKAGING: 'Usa a família de papéis do pacote (a mesma do cadastro de papéis) e a tarefa de acabamento Empacotar.',
 }
 
@@ -52,19 +52,24 @@ export const PRINTING_INK_KIND_LABELS: Record<PrintingInkKind, string> = {
   SCREEN_PRINTING: 'Serigrafia',
 }
 
-/** Base geométrica do consumo de insumo. */
-export const CONSUMPTION_BASES: ConsumptionBasis[] = ['UNIT', 'AREA_M2', 'LINEAR_M']
+/** De onde vem o item consumido: um grupo de insumos ou um item do estoque. */
+export const ACTIVITY_SUPPLY_SOURCES: ActivitySupplySource[] = ['SUPPLY_GROUP', 'SUPPLY']
 
-export const CONSUMPTION_BASIS_LABELS: Record<ConsumptionBasis, string> = {
-  UNIT: 'Por unidade',
-  AREA_M2: 'Por metro quadrado',
-  LINEAR_M: 'Por metro linear',
+export const ACTIVITY_SUPPLY_SOURCE_LABELS: Record<ActivitySupplySource, string> = {
+  SUPPLY_GROUP: 'Grupo de insumos',
+  SUPPLY: 'Item do estoque',
+}
+
+export const ACTIVITY_SUPPLY_SOURCE_HINTS: Record<ActivitySupplySource, string> = {
+  SUPPLY_GROUP: 'A atividade consome a família toda (ex.: "Grampos") e o orçamento escolhe o insumo do grupo.',
+  SUPPLY: 'A atividade consome este insumo específico (ex.: "Cola Branca 1kg"), sem escolha no orçamento.',
 }
 
 /**
- * Rótulo curto e estático da unidade de medida de um grupo de insumo (para exibir ao lado da
- * quantidade de consumo). Unidades espaciais ficam genéricas aqui (a unidade da empresa é resolvida
- * em telas específicas de insumo).
+ * Rótulo curto e estático da unidade de medida de um grupo/insumo — é ela que diz COMO o item é
+ * consumido (unitário, linear, por área...), já que a atividade não repete mais essa informação.
+ * Unidades espaciais ficam genéricas aqui (a unidade da empresa é resolvida em telas específicas
+ * de insumo).
  */
 export const SUPPLY_UNIT_SHORT_LABELS: Record<SupplyUnitOfMeasure, string> = {
   UNIT: 'un',
