@@ -2,15 +2,15 @@
 /**
  * Formulário de GRUPO DE INSUMO (atividade 028): nome (+ ativo na edição) + seleção dos insumos
  * que pertencem ao grupo. Elegíveis: todos os insumos, exceto tinta (papel tem cadastro próprio).
+ * Sem unidade de medida (atividade 033): ela é do insumo do estoque, não da família.
  * Autocontido: lê as listas de referência e emite o payload validado + os IDs selecionados por @submit.
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { CreateSupplyGroupRequest, SupplyGroup, UpdateSupplyGroupRequest } from '@/types/SupplyGroup'
-import type { SupplyKeyValue, SupplyUnitOfMeasure } from '@/types/Supply'
+import type { SupplyKeyValue } from '@/types/Supply'
 import { useSupplies } from '@/composables/useSupplies'
 import { useSupplyGroups } from '@/composables/useSupplyGroups'
 import { useCustomerPapers } from '@/composables/useCustomerPapers'
-import { SUPPLY_UNITS, SUPPLY_UNIT_LABELS } from '@/utils/supplyCatalog'
 
 const props = defineProps<{
   initial?: SupplyGroup | null
@@ -35,7 +35,6 @@ const emit = defineEmits<{
 const isEditing = computed(() => props.mode === 'edit')
 const form = reactive({
   name: props.initial?.name ?? '',
-  unitOfMeasure: (props.initial?.unitOfMeasure ?? 'UNIT') as SupplyUnitOfMeasure,
   active: props.initial?.active ?? true,
 })
 const error = ref<string | null>(null)
@@ -113,9 +112,9 @@ const handleSubmit = () => {
   const supplyIds = Array.from(selectedIds.value)
   const paperIds = Array.from(selectedPaperIds.value)
   if (isEditing.value) {
-    emit('submit', { customerId: 0, name, unitOfMeasure: form.unitOfMeasure, active: form.active }, 'update', supplyIds, paperIds)
+    emit('submit', { customerId: 0, name, active: form.active }, 'update', supplyIds, paperIds)
   } else {
-    emit('submit', { customerId: 0, name, unitOfMeasure: form.unitOfMeasure }, 'create', supplyIds, paperIds)
+    emit('submit', { customerId: 0, name }, 'create', supplyIds, paperIds)
   }
 }
 </script>
@@ -130,17 +129,6 @@ const handleSubmit = () => {
       <p v-if="error" class="mt-1 text-xs text-rose-600">{{ error }}</p>
     </div>
 
-    <div>
-      <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
-        Unidade de medida do consumo <span class="text-rose-500">*</span>
-      </label>
-      <select v-model="form.unitOfMeasure"
-        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-        <option v-for="u in SUPPLY_UNITS" :key="u" :value="u">{{ SUPPLY_UNIT_LABELS[u] }}</option>
-      </select>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Unidade em que a atividade informa quanto consome (ex.: Colas em grama, Grampos unitário).</p>
-    </div>
-
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
         Insumos do grupo
@@ -148,7 +136,8 @@ const handleSubmit = () => {
       </legend>
       <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
         Marque os insumos que fazem parte desta família. No orçamento, escolhe-se o insumo específico
-        do grupo (tamanho/gramatura). Tinta e papel não podem ser agrupados.
+        do grupo (tamanho/gramatura) — e o consumo sai da unidade de medida cadastrada nesse insumo.
+        Tinta e papel não podem ser agrupados.
       </p>
 
       <div v-if="loadingSupplies" class="text-sm text-slate-500 dark:text-slate-400">Carregando insumos...</div>
