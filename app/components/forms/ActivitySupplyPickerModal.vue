@@ -151,9 +151,7 @@ const rowClass = (taken: boolean) => [
               :class="rowClass(isGroupTaken(g.id))"
             >
               <span class="font-medium">{{ g.value }}</span>
-              <span class="shrink-0 text-xs">
-                {{ isGroupTaken(g.id) ? 'já adicionado' : `consumo em ${SUPPLY_UNIT_SHORT_LABELS[g.unitOfMeasure]}` }}
-              </span>
+              <span v-if="isGroupTaken(g.id)" class="shrink-0 text-xs">já adicionado</span>
             </button>
             <p v-if="!groupOptions.length" class="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
               Nenhum grupo de insumos encontrado.

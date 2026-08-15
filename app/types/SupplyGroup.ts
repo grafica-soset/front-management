@@ -1,36 +1,32 @@
 /**
- * Grupo de insumos (atividades 028/029): família de insumos (ex.: "Grampos", "Plásticos").
+ * Grupo de insumos (atividades 028/033): família de insumos (ex.: "Grampos", "Plásticos").
  * A atividade referencia o grupo; o orçamento escolhe o insumo específico do grupo.
- * A partir da 029 o grupo carrega a UNIDADE DE MEDIDA do consumo (usada pelas atividades).
+ * O grupo NÃO tem unidade de medida: quem diz como o item é consumido é o insumo do estoque,
+ * pela unidade do cadastro dele (atividade 033).
  */
-import type { SupplyUnitOfMeasure } from '@/types/Supply'
 
 export interface SupplyGroup {
   id: number
   customerId: number
   name: string
-  unitOfMeasure: SupplyUnitOfMeasure
   active: boolean
 }
 
-/** Item KeyValue da listagem de grupos (inclui a unidade para o form de atividade). */
+/** Item KeyValue da listagem de grupos. */
 export interface SupplyGroupKeyValue {
   id: number
   value: string
-  unitOfMeasure: SupplyUnitOfMeasure
   active: boolean
 }
 
 export interface CreateSupplyGroupRequest {
   customerId: number
   name: string
-  unitOfMeasure: SupplyUnitOfMeasure
 }
 
 export interface UpdateSupplyGroupRequest {
   customerId: number
   name: string
-  unitOfMeasure: SupplyUnitOfMeasure
   active: boolean
 }
 

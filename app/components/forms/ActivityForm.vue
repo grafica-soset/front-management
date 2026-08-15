@@ -172,20 +172,20 @@ const toggleMachine = (id: number) => {
     : [...form.machineIds, id]
 }
 
-// Nome e unidade de cada item de consumo, resolvidos pelos catálogos. A unidade é a informação
-// central da linha: é ela que diz COMO o item é consumido, já que a atividade não pergunta mais.
+// Nome e unidade de cada item de consumo, resolvidos pelos catálogos. A unidade só aparece no item
+// do estoque: ela é do insumo, e o grupo (atividade 033) não tem uma — quem define é o insumo que o
+// orçamento escolher dentro dele.
 const supplyRows = computed(() =>
   form.supplies.map((item) => {
-    const entry =
-      item.source === 'SUPPLY_GROUP'
-        ? groups.value.find((g) => g.id === item.supplyGroupId)
-        : supplies.value.find((s) => s.id === item.supplyId)
+    const group =
+      item.source === 'SUPPLY_GROUP' ? groups.value.find((g) => g.id === item.supplyGroupId) : undefined
+    const supply = item.source === 'SUPPLY' ? supplies.value.find((s) => s.id === item.supplyId) : undefined
     const fallbackId = item.supplyGroupId ?? item.supplyId
     return {
       item,
       sourceLabel: ACTIVITY_SUPPLY_SOURCE_LABELS[item.source],
-      name: entry?.value ?? `#${fallbackId}`,
-      unit: entry ? SUPPLY_UNIT_SHORT_LABELS[entry.unitOfMeasure] : '',
+      name: group?.value ?? supply?.value ?? `#${fallbackId}`,
+      unit: supply ? SUPPLY_UNIT_SHORT_LABELS[supply.unitOfMeasure] : '',
     }
   }),
 )
