@@ -66,6 +66,12 @@ export default function useMenu() {
       ],
     },
     {
+      name: 'Orçamento',
+      icon: 'cadastros',
+      expanded: false,
+      children: [{ name: 'Novo orçamento', href: '/orcamentos' }],
+    },
+    {
       name: 'Produção',
       icon: 'cadastros',
       expanded: false,
