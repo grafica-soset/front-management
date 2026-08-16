@@ -123,6 +123,7 @@ const stepRows = computed(() =>
               <th class="px-5 py-3 font-semibold">Folha</th>
               <th class="px-5 py-3 font-semibold">Papel</th>
               <th class="px-5 py-3 font-semibold">Cores</th>
+              <th class="px-5 py-3 font-semibold">Cobertura</th>
               <th class="px-5 py-3 font-semibold">Impressora</th>
               <th class="px-5 py-3 font-semibold">Folha selecionada</th>
               <th class="px-5 py-3 text-right font-semibold">Encaixe</th>
@@ -136,6 +137,13 @@ const stepRows = computed(() =>
               <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">
                 <template v-if="row.printed">{{ colorsLabel(row.setup) }}</template>
                 <span v-else class="text-slate-400 dark:text-slate-500">fora desta impressão</span>
+              </td>
+              <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">
+                <template v-if="row.printed">
+                  {{ row.setup.frontColors > 0 ? `${row.setup.frontCoverage}%` : '—' }}
+                  <span v-if="row.setup.backColors > 0"> / {{ row.setup.backCoverage }}%</span>
+                </template>
+                <span v-else class="text-slate-400 dark:text-slate-500">—</span>
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.machine?.name ?? '—' }}</td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.machine?.sheetLabel ?? '—' }}</td>

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import {
   DEMO_MACHINES,
+  coverageIssues,
   estimateProductCost,
   inkIssues,
   isSheetPrinted,
@@ -33,12 +34,14 @@ function sheet(kind: QuoteSheet['kind'], index: number): QuoteSheet {
   return { uid: `${kind}-${index}`, kind, index, paperTypeId: 1 }
 }
 
-function setup(front: number, back = 0): PrintingSheetSetup {
+function setup(front: number, back = 0, frontCoverage: number | null = 30, backCoverage: number | null = 30): PrintingSheetSetup {
   return {
     frontColors: front,
     backColors: back,
     frontInkIds: CMYK.slice(0, front),
     backInkIds: CMYK.slice(0, back),
+    frontCoverage,
+    backCoverage,
   }
 }
 
@@ -199,15 +202,66 @@ describe('múltiplas impressões no mesmo produto', () => {
   })
 })
 
+describe('taxa de cobertura e custo de tinta', () => {
+  const sheets = [sheet('VIA', 1)]
+  const tinta = (p: QuoteProduct) => estimateProductCost(p).lines.find((l) => l.label === 'Tinta')!.value
+
+  it('dobrar a cobertura dobra o consumo de tinta', () => {
+    const a = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4, 0, 25) })] })
+    const b = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4, 0, 50) })] })
+    expect(tinta(b)).toBeCloseTo(tinta(a) * 2, 4)
+  })
+
+  it('mais cores na face gastam mais tinta', () => {
+    const uma = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(1, 0, 40) })] })
+    const quatro = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4, 0, 40) })] })
+    expect(tinta(quatro)).toBeGreaterThan(tinta(uma))
+  })
+
+  it('papel mais poroso bebe mais tinta', () => {
+    const offset = product({ sheets: [{ ...sheet('VIA', 1), paperTypeId: 1 }], steps: [printing('i1', { 'VIA-1': setup(4) })] })
+    const jornal = product({ sheets: [{ ...sheet('VIA', 1), paperTypeId: 3 }], steps: [printing('i1', { 'VIA-1': setup(4) })] })
+    expect(tinta(jornal)).toBeGreaterThan(tinta(offset))
+  })
+
+  it('sem cobertura informada não há como dimensionar a tinta', () => {
+    // A cobertura é obrigatória: enquanto falta, a tinta fica zerada e o trilho segura o cálculo.
+    const semCobertura = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4, 0, null) })] })
+    expect(tinta(semCobertura)).toBe(0)
+    expect(coverageIssues(setup(4, 0, null))).toEqual(['frente'])
+    expect(coverageIssues(setup(4, 4, 50, null))).toEqual(['verso'])
+    expect(coverageIssues(setup(4, 4, 50, 20))).toEqual([])
+  })
+
+  it('face sem cor não cobra cobertura', () => {
+    // Só a frente imprime: a cobertura do verso não faz falta.
+    expect(coverageIssues(setup(4, 0, 50, null))).toEqual([])
+  })
+
+  it('folha fora da impressão não gasta tinta', () => {
+    const muda = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(0, 0) })] })
+    expect(tinta(muda)).toBe(0)
+  })
+
+  it('a segunda impressão soma o seu próprio consumo de tinta', () => {
+    const uma = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4) })] })
+    const duas = product({
+      sheets,
+      steps: [printing('i1', { 'VIA-1': setup(4) }), printing('i2', { 'VIA-1': setup(1) })],
+    })
+    expect(tinta(duas)).toBeGreaterThan(tinta(uma))
+  })
+})
+
 describe('tintas por face', () => {
   it('cobra uma tinta para cada cor, em cada face', () => {
     expect(inkIssues(setup(4, 1))).toEqual([])
-    expect(inkIssues({ frontColors: 4, backColors: 0, frontInkIds: [11, 12], backInkIds: [] })).toEqual([
-      'frente: 2 de 4 tinta(s)',
-    ])
-    expect(inkIssues({ frontColors: 1, backColors: 2, frontInkIds: [15], backInkIds: [] })).toEqual([
-      'verso: 0 de 2 tinta(s)',
-    ])
+    expect(
+      inkIssues({ frontColors: 4, backColors: 0, frontInkIds: [11, 12], backInkIds: [], frontCoverage: 30, backCoverage: 30 }),
+    ).toEqual(['frente: 2 de 4 tinta(s)'])
+    expect(
+      inkIssues({ frontColors: 1, backColors: 2, frontInkIds: [15], backInkIds: [], frontCoverage: 30, backCoverage: 30 }),
+    ).toEqual(['verso: 0 de 2 tinta(s)'])
   })
 })
 

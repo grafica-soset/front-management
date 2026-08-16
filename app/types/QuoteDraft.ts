@@ -46,6 +46,17 @@ export interface PrintingSheetSetup {
   backColors: number
   frontInkIds: number[]
   backInkIds: number[]
+  /**
+   * Taxa de cobertura de cada face, em % (1 a 100). É característica do TRABALHO, não da etapa: a
+   * mesma "Impressão 4x0" atende um chapado e um miolo de texto — por isso é perguntada aqui, e
+   * por face, já que a frente chapada com verso em texto é o caso comum.
+   *
+   * É ela que dimensiona o consumo de tinta, junto com a absorção do papel. OBRIGATÓRIA: nasce
+   * vazia (null) e segura o cálculo até ser informada — um palpite silencioso aqui erraria a tinta
+   * do trabalho inteiro.
+   */
+  frontCoverage: number | null
+  backCoverage: number | null
 }
 
 /**

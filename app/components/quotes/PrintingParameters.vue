@@ -16,6 +16,8 @@ import type { QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import MachineOptionCard from '@/components/quotes/MachineOptionCard.vue'
 import {
   colorsLabel,
+  coverageIssues,
+  coverageLabel,
   findMachine,
   findPaperType,
   inkIssues,
@@ -61,6 +63,18 @@ const setColors = (sheet: QuoteSheet, face: 'front' | 'back', value: number) => 
     current.backInkIds = current.backInkIds.slice(0, colors)
   }
   store.pruneInks()
+}
+
+/**
+ * Taxa de cobertura da face, em % — é ela que dimensiona o consumo de tinta. Fica entre 1 e 100:
+ * zero seria "não imprime", e quem não imprime zera as CORES, não a cobertura.
+ */
+const setCoverage = (sheet: QuoteSheet, face: 'front' | 'back', value: string) => {
+  const current = setup(sheet)
+  // Campo vazio volta a null — a cobertura é obrigatória e o trilho cobra enquanto faltar.
+  const percent = value === '' ? null : Math.max(1, Math.min(100, Math.round(Number(value) || 0)))
+  if (face === 'front') current.frontCoverage = percent
+  else current.backCoverage = percent
 }
 
 /** Tintas aceitas pela impressora atribuída à folha. */
@@ -127,7 +141,7 @@ const toggleSeparateCovers = () => {
               <span class="text-sm text-slate-600 dark:text-slate-300">{{ paperOf(sheet)?.name ?? 'sem papel definido' }}</span>
             </div>
             <span v-if="printsSheet(sheet)" class="text-xs tabular-nums text-slate-500 dark:text-slate-400">
-              {{ colorsLabel(setup(sheet)) }} · {{ printedSides(setup(sheet)) }} face(s) ·
+              {{ colorsLabel(setup(sheet)) }} · {{ coverageLabel(setup(sheet)) }} ·
               {{ sheetsForSheet(product, sheet).toLocaleString('pt-BR') }} folhas
             </span>
             <span v-else class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-600 dark:text-slate-200">
@@ -147,6 +161,21 @@ const toggleSeparateCovers = () => {
                 class="w-24 rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
               />
             </div>
+            <div v-if="setup(sheet).frontColors > 0">
+              <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
+                Cobertura da frente (%) <span class="text-rose-500">*</span>
+              </label>
+              <input
+                :value="setup(sheet).frontCoverage ?? ''"
+                type="number"
+                min="1"
+                max="100"
+                placeholder="obrigatório"
+                @input="setCoverage(sheet, 'front', ($event.target as HTMLInputElement).value)"
+                class="w-32 rounded-lg border bg-slate-50 p-2 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
+                :class="setup(sheet).frontCoverage ? 'border-slate-300 dark:border-slate-600' : 'border-amber-400 dark:border-amber-500'"
+              />
+            </div>
             <div>
               <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">Cores no verso</label>
               <input
@@ -158,7 +187,31 @@ const toggleSeparateCovers = () => {
                 class="w-24 rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
               />
             </div>
+            <div v-if="setup(sheet).backColors > 0">
+              <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
+                Cobertura do verso (%) <span class="text-rose-500">*</span>
+              </label>
+              <input
+                :value="setup(sheet).backCoverage ?? ''"
+                type="number"
+                min="1"
+                max="100"
+                placeholder="obrigatório"
+                @input="setCoverage(sheet, 'back', ($event.target as HTMLInputElement).value)"
+                class="w-32 rounded-lg border bg-slate-50 p-2 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
+                :class="setup(sheet).backCoverage ? 'border-slate-300 dark:border-slate-600' : 'border-amber-400 dark:border-amber-500'"
+              />
+            </div>
           </div>
+          <p v-if="printsSheet(sheet)" class="mt-1 text-xs" :class="coverageIssues(setup(sheet)).length ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'">
+            <template v-if="coverageIssues(setup(sheet)).length">
+              Informe a cobertura d{{ coverageIssues(setup(sheet)).join(' e d') === 'frente' ? 'a frente' : 'o ' + coverageIssues(setup(sheet)).join(' e d') }}.
+            </template>
+            <template v-else>
+              A cobertura é o quanto da folha recebe tinta: texto corrido fica na faixa de 20–30%,
+              fundo chapado chega a 100%. É ela que dimensiona o consumo de tinta.
+            </template>
+          </p>
 
           <!-- Tintas por face -->
           <div v-if="printsSheet(sheet)" class="mt-4 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-700">

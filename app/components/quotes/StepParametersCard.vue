@@ -2,6 +2,12 @@
 /**
  * Card de parâmetros de UMA etapa no passo 3 (atividade 034).
  *
+ * EM ABERTO — escolha do item dentro de um GRUPO de insumo: quando a atividade consome um grupo
+ * (ex.: "Espirais"), o critério de escolha é TÉCNICO e específico da atividade — a espiral tem que
+ * caber na espessura do bloco —, não "o mais barato". Consumo por medida também entra aqui: o
+ * grampo é cobrado por centímetro linear, dependendo do tamanho do bloco. Será tratado por tipo de
+ * atividade; nenhuma etapa deste protótipo consome grupo.
+ *
  * Cada tipo de atividade pede uma coisa diferente — e várias não pedem nada. Este componente é o
  * despachante: escolhe os campos pelo tipo da atividade e, quando não há o que perguntar, explica
  * de onde o número vem em vez de deixar um card vazio (card vazio faz o usuário procurar o campo

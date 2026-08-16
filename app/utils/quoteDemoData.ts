@@ -21,31 +21,38 @@ export interface DemoPaperType {
   sheetPrice: number
   /** Papel fino demais transparece: a impressão dos 2 lados fica bloqueada no passo 3. */
   allowsBothSides: boolean
+  /**
+   * Absorção de tinta em g/m² para 100% de cobertura, por cor. Papel poroso (jornal) bebe mais
+   * tinta que papel revestido (couché) — é o cadastro que a 032 (ajuste 0001) criou na família.
+   */
+  inkAbsorptionGsm: number
 }
 
 export const DEMO_PAPER_TYPES: DemoPaperType[] = [
-  { id: 1, name: 'Off-set 56g/m²', weightGsm: 56, sheetPrice: 0.42, allowsBothSides: true },
-  { id: 2, name: 'Off-set 75g/m²', weightGsm: 75, sheetPrice: 0.58, allowsBothSides: true },
-  { id: 3, name: 'Jornal 49g/m²', weightGsm: 49, sheetPrice: 0.31, allowsBothSides: true },
-  { id: 4, name: 'Couché 115g/m²', weightGsm: 115, sheetPrice: 0.94, allowsBothSides: true },
-  { id: 5, name: 'Cartão 250g/m²', weightGsm: 250, sheetPrice: 1.85, allowsBothSides: true },
-  { id: 6, name: 'Seda 20g/m²', weightGsm: 20, sheetPrice: 0.24, allowsBothSides: false },
+  { id: 1, name: 'Off-set 56g/m²', weightGsm: 56, sheetPrice: 0.42, allowsBothSides: true, inkAbsorptionGsm: 1.2 },
+  { id: 2, name: 'Off-set 75g/m²', weightGsm: 75, sheetPrice: 0.58, allowsBothSides: true, inkAbsorptionGsm: 1.1 },
+  { id: 3, name: 'Jornal 49g/m²', weightGsm: 49, sheetPrice: 0.31, allowsBothSides: true, inkAbsorptionGsm: 1.8 },
+  { id: 4, name: 'Couché 115g/m²', weightGsm: 115, sheetPrice: 0.94, allowsBothSides: true, inkAbsorptionGsm: 0.7 },
+  { id: 5, name: 'Cartão 250g/m²', weightGsm: 250, sheetPrice: 1.85, allowsBothSides: true, inkAbsorptionGsm: 0.9 },
+  { id: 6, name: 'Seda 20g/m²', weightGsm: 20, sheetPrice: 0.24, allowsBothSides: false, inkAbsorptionGsm: 2.1 },
 ]
 
 export interface DemoInk {
   id: number
   name: string
   kind: 'CMYK' | 'PANTONE' | 'LINE'
+  /** Preço do quilo da tinta. */
+  pricePerKg: number
 }
 
 export const DEMO_INKS: DemoInk[] = [
-  { id: 11, name: 'Ciano (processo)', kind: 'CMYK' },
-  { id: 12, name: 'Magenta (processo)', kind: 'CMYK' },
-  { id: 13, name: 'Amarelo (processo)', kind: 'CMYK' },
-  { id: 14, name: 'Preto (processo)', kind: 'CMYK' },
-  { id: 15, name: 'Preto Traço', kind: 'LINE' },
-  { id: 16, name: 'Pantone 485C', kind: 'PANTONE' },
-  { id: 17, name: 'Pantone Reflex Blue', kind: 'PANTONE' },
+  { id: 11, pricePerKg: 78.0, name: 'Ciano (processo)', kind: 'CMYK' },
+  { id: 12, pricePerKg: 82.0, name: 'Magenta (processo)', kind: 'CMYK' },
+  { id: 13, pricePerKg: 74.0, name: 'Amarelo (processo)', kind: 'CMYK' },
+  { id: 14, pricePerKg: 62.0, name: 'Preto (processo)', kind: 'CMYK' },
+  { id: 15, pricePerKg: 58.0, name: 'Preto Traço', kind: 'LINE' },
+  { id: 16, pricePerKg: 145.0, name: 'Pantone 485C', kind: 'PANTONE' },
+  { id: 17, pricePerKg: 152.0, name: 'Pantone Reflex Blue', kind: 'PANTONE' },
 ]
 
 export interface DemoMachine {
@@ -234,15 +241,38 @@ export function colorsLabel(setup: PrintingSheetSetup): string {
   return `${setup.frontColors}x${setup.backColors}`
 }
 
+/** Cobertura das faces impressas, no formato "50%/20%" (só a frente quando o verso não roda). */
+export function coverageLabel(setup: PrintingSheetSetup): string {
+  const parts: string[] = []
+  if (setup.frontColors > 0) parts.push(setup.frontCoverage == null ? '—' : `${setup.frontCoverage}%`)
+  if (setup.backColors > 0) parts.push(setup.backCoverage == null ? '—' : `${setup.backCoverage}%`)
+  return parts.length ? `cobertura ${parts.join('/')}` : ''
+}
+
+/**
+ * Faces impressas sem cobertura informada. A cobertura é obrigatória: sem ela não há como
+ * dimensionar a tinta, e o orçamento sairia barato demais sem ninguém perceber.
+ */
+export function coverageIssues(setup: PrintingSheetSetup): string[] {
+  const issues: string[] = []
+  if (setup.frontColors > 0 && !setup.frontCoverage) issues.push('frente')
+  if (setup.backColors > 0 && !setup.backCoverage) issues.push('verso')
+  return issues
+}
+
 /** Configuração de uma folha numa etapa que ainda não a configurou. */
 export function defaultSheetSetup(): PrintingSheetSetup {
   // Começa com a frente em 1 cor; quem não imprime esta folha nesta etapa zera as duas faces.
-  return { frontColors: 1, backColors: 0, frontInkIds: [], backInkIds: [] }
+  // A cobertura nasce VAZIA: é obrigatória, e um default silencioso erraria a tinta do trabalho.
+  return { frontColors: 1, backColors: 0, frontInkIds: [], backInkIds: [], frontCoverage: null, backCoverage: null }
 }
 
 /** O que a etapa faz com esta folha (zeros quando a etapa ainda não a configurou). */
 export function setupFor(step: QuoteStep, sheet: QuoteSheet): PrintingSheetSetup {
-  return step.printing?.bySheet[sheet.uid] ?? { frontColors: 0, backColors: 0, frontInkIds: [], backInkIds: [] }
+  return (
+    step.printing?.bySheet[sheet.uid] ??
+    { frontColors: 0, backColors: 0, frontInkIds: [], backInkIds: [], frontCoverage: 0, backCoverage: 0 }
+  )
 }
 
 /**
@@ -324,6 +354,35 @@ export function machineForSheet(step: QuoteStep, sheet: QuoteSheet): number | nu
   if (sheet.kind === 'COVER' && printing.separateCovers) return printing.coverMachineId
   if (printing.perSheet) return printing.machineIdBySheet[sheet.uid] ?? null
   return printing.machineId
+}
+
+/**
+ * Consumo de tinta de UMA face, em gramas, para a tiragem inteira daquela folha.
+ *
+ *   gramas = cobertura × absorção do papel (g/m²) × área impressa (m²) × cores × folhas
+ *
+ * A área é a da FOLHA DE IMPRESSÃO (é ela que passa na máquina), e cada cor deposita a sua camada
+ * — 4 cores a 50% gastam o dobro de 2 cores a 50%.
+ */
+export function inkGramsForFace(
+  product: QuoteProduct,
+  sheet: QuoteSheet,
+  machine: DemoMachine,
+  colors: number,
+  coveragePercent: number | null,
+  sheetsRun: number,
+): number {
+  if (colors <= 0 || !coveragePercent || coveragePercent <= 0 || sheetsRun <= 0) return 0
+  const absorption = findPaperType(sheet.paperTypeId)?.inkAbsorptionGsm ?? 0
+  const areaM2 = (machine.sheetWidthMm * machine.sheetHeightMm) / 1_000_000
+  return (coveragePercent / 100) * absorption * areaM2 * colors * sheetsRun
+}
+
+/** Preço médio do quilo das tintas escolhidas na face (zero quando nenhuma foi escolhida). */
+export function inkPricePerKg(inkIds: number[]): number {
+  const prices = inkIds.map((id) => DEMO_INKS.find((ink) => ink.id === id)?.pricePerKg ?? 0)
+  if (prices.length === 0) return 0
+  return prices.reduce((sum, price) => sum + price, 0) / prices.length
 }
 
 /** Tintas que a impressora escolhida aceita — trocar de máquina pode derrubar a seleção. */
@@ -426,6 +485,8 @@ export function estimateProductCost(product: QuoteProduct): ProductCost {
   let printCost = 0
   let printMinutes = 0
   let totalSheets = 0
+  let inkCost = 0
+  let inkGrams = 0
   const machines = new Set<string>()
 
   // 1) Papel líquido: uma vez por folha do produto, impressa ou não.
@@ -461,6 +522,14 @@ export function estimateProductCost(product: QuoteProduct): ProductCost {
       printCost += hours * machine.hourlyCost
       printMinutes += hours * 60
       machines.add(machine.name)
+
+      // Tinta: cada face gasta conforme a sua cobertura e as tintas escolhidas nela. A quebra
+      // também é impressa, então entra no volume.
+      const frontGrams = inkGramsForFace(product, sheet, machine, setup.frontColors, setup.frontCoverage, run)
+      const backGrams = inkGramsForFace(product, sheet, machine, setup.backColors, setup.backCoverage, run)
+      inkGrams += frontGrams + backGrams
+      inkCost += (frontGrams / 1000) * inkPricePerKg(setup.frontInkIds)
+      inkCost += (backGrams / 1000) * inkPricePerKg(setup.backInkIds)
     }
   }
 
@@ -486,6 +555,7 @@ export function estimateProductCost(product: QuoteProduct): ProductCost {
     { label: 'Papel', value: paperCost, detail: `${totalSheets.toLocaleString('pt-BR')} folhas compradas` },
     { label: 'Chapas', value: plateCost, detail: 'uma matriz por cor, por lado, por impressão' },
     { label: 'Impressão', value: printCost, detail: impressoes },
+    { label: 'Tinta', value: inkCost, detail: `${(inkGrams / 1000).toFixed(2)} kg pela cobertura informada` },
     { label: 'Etapas', value: stepsCost, detail: `${product.steps.length} etapa(s) ativada(s)` },
   ]
   const total = lines.reduce((sum, line) => sum + line.value, 0)

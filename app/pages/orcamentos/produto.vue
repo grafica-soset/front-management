@@ -20,6 +20,7 @@ import StepActivities from '@/components/quotes/StepActivities.vue'
 import StepParameters from '@/components/quotes/StepParameters.vue'
 import StepSummary from '@/components/quotes/StepSummary.vue'
 import {
+  coverageIssues,
   estimateProductCost,
   inkIssues,
   isSheetPrinted,
@@ -73,6 +74,9 @@ const blockers = computed(() => {
     }
     if (!step.printing?.perSheet && !step.printing?.machineId) {
       list.push(`Escolher a impressora${ordinal}`)
+    }
+    if (printed.some((sheet) => coverageIssues(setupFor(step, sheet)).length > 0)) {
+      list.push(`Informar a taxa de cobertura de cada face impressa${ordinal}`)
     }
     if (printed.some((sheet) => inkIssues(setupFor(step, sheet)).length > 0)) {
       list.push(`Selecionar uma tinta para cada cor${ordinal}`)
