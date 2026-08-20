@@ -22,8 +22,9 @@ export interface DemoPaperType {
   /** Papel fino demais transparece: a impressão dos 2 lados fica bloqueada no passo 3. */
   allowsBothSides: boolean
   /**
-   * Absorção de tinta em g/m² para 100% de cobertura, por cor. Papel poroso (jornal) bebe mais
-   * tinta que papel revestido (couché) — é o cadastro que a 032 (ajuste 0001) criou na família.
+   * Absorção de tinta em g/m² para 100% de cobertura. É o TOTAL que o papel bebe, não por cor:
+   * as cores dividem essa gramatura entre si. Papel poroso (jornal) bebe mais que revestido
+   * (couché) — é o cadastro que a 032 (ajuste 0001) criou na família.
    */
   inkAbsorptionGsm: number
 }
@@ -359,10 +360,15 @@ export function machineForSheet(step: QuoteStep, sheet: QuoteSheet): number | nu
 /**
  * Consumo de tinta de UMA face, em gramas, para a tiragem inteira daquela folha.
  *
- *   gramas = cobertura × absorção do papel (g/m²) × área impressa (m²) × cores × folhas
+ *   gramas = cobertura × absorção do papel (g/m²) × área da PEÇA FINAL (m²) × peças impressas
  *
- * A área é a da FOLHA DE IMPRESSÃO (é ela que passa na máquina), e cada cor deposita a sua camada
- * — 4 cores a 50% gastam o dobro de 2 cores a 50%.
+ * Duas regras que vieram da gráfica e que é fácil errar:
+ *
+ * 1. A cobertura é sobre a ÁREA DA PEÇA FINAL, não sobre a folha que passa na máquina. "10% de
+ *    cobertura" quer dizer 10% do 10×15 que o cliente recebe.
+ * 2. As cores DIVIDEM a gramatura, não a multiplicam. Numa 4 cores, cada tinta leva 25% do que o
+ *    papel absorve — o total depositado é o mesmo de uma cor só. O que muda com a quantidade de
+ *    cores é o PREÇO, porque cada tinta custa o seu quilo.
  */
 export function inkGramsForFace(
   product: QuoteProduct,
@@ -374,15 +380,20 @@ export function inkGramsForFace(
 ): number {
   if (colors <= 0 || !coveragePercent || coveragePercent <= 0 || sheetsRun <= 0) return 0
   const absorption = findPaperType(sheet.paperTypeId)?.inkAbsorptionGsm ?? 0
-  const areaM2 = (machine.sheetWidthMm * machine.sheetHeightMm) / 1_000_000
-  return (coveragePercent / 100) * absorption * areaM2 * colors * sheetsRun
+  const pieceAreaM2 = ((product.widthMm ?? 0) * (product.heightMm ?? 0)) / 1_000_000
+  // Peças impressas: cada folha que passa na máquina carrega a grade inteira de peças.
+  const pieces = sheetsRun * piecesPerSheet(product, machine)
+  return (coveragePercent / 100) * absorption * pieceAreaM2 * pieces
 }
 
-/** Preço médio do quilo das tintas escolhidas na face (zero quando nenhuma foi escolhida). */
-export function inkPricePerKg(inkIds: number[]): number {
-  const prices = inkIds.map((id) => DEMO_INKS.find((ink) => ink.id === id)?.pricePerKg ?? 0)
-  if (prices.length === 0) return 0
-  return prices.reduce((sum, price) => sum + price, 0) / prices.length
+/**
+ * Custo da tinta de uma face: a gramatura se divide igualmente entre as cores, e cada cor é
+ * cobrada pelo preço do quilo da SUA tinta — 4 cores de processo custam menos que 4 pantones.
+ */
+export function inkCostForFace(grams: number, colors: number, inkIds: number[]): number {
+  if (grams <= 0 || colors <= 0 || inkIds.length === 0) return 0
+  const kgPerColor = grams / colors / 1000
+  return inkIds.reduce((sum, id) => sum + kgPerColor * (DEMO_INKS.find((ink) => ink.id === id)?.pricePerKg ?? 0), 0)
 }
 
 /** Tintas que a impressora escolhida aceita — trocar de máquina pode derrubar a seleção. */
@@ -528,8 +539,8 @@ export function estimateProductCost(product: QuoteProduct): ProductCost {
       const frontGrams = inkGramsForFace(product, sheet, machine, setup.frontColors, setup.frontCoverage, run)
       const backGrams = inkGramsForFace(product, sheet, machine, setup.backColors, setup.backCoverage, run)
       inkGrams += frontGrams + backGrams
-      inkCost += (frontGrams / 1000) * inkPricePerKg(setup.frontInkIds)
-      inkCost += (backGrams / 1000) * inkPricePerKg(setup.backInkIds)
+      inkCost += inkCostForFace(frontGrams, setup.frontColors, setup.frontInkIds)
+      inkCost += inkCostForFace(backGrams, setup.backColors, setup.backInkIds)
     }
   }
 

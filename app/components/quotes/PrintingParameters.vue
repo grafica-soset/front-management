@@ -208,8 +208,9 @@ const toggleSeparateCovers = () => {
               Informe a cobertura d{{ coverageIssues(setup(sheet)).join(' e d') === 'frente' ? 'a frente' : 'o ' + coverageIssues(setup(sheet)).join(' e d') }}.
             </template>
             <template v-else>
-              A cobertura é o quanto da folha recebe tinta: texto corrido fica na faixa de 20–30%,
-              fundo chapado chega a 100%. É ela que dimensiona o consumo de tinta.
+              A cobertura é o quanto da <strong>peça final</strong> recebe tinta: texto corrido
+              fica na faixa de 20–30%, fundo chapado chega a 100%. As cores dividem a gramatura que
+              o papel absorve — numa 4 cores, cada tinta leva 25%.
             </template>
           </p>
 

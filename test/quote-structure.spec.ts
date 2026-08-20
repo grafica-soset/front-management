@@ -4,6 +4,8 @@ import {
   DEMO_MACHINES,
   coverageIssues,
   estimateProductCost,
+  inkCostForFace,
+  inkGramsForFace,
   inkIssues,
   isSheetPrinted,
   machineOptions,
@@ -212,10 +214,44 @@ describe('taxa de cobertura e custo de tinta', () => {
     expect(tinta(b)).toBeCloseTo(tinta(a) * 2, 4)
   })
 
-  it('mais cores na face gastam mais tinta', () => {
-    const uma = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(1, 0, 40) })] })
-    const quatro = product({ sheets, steps: [printing('i1', { 'VIA-1': setup(4, 0, 40) })] })
-    expect(tinta(quatro)).toBeGreaterThan(tinta(uma))
+  it('as cores DIVIDEM a gramatura, em vez de multiplicá-la', () => {
+    // Numa 4 cores cada tinta leva 25% do que o papel absorve: o total depositado é o mesmo de
+    // uma cor só. Errar isso quadruplica a tinta do orçamento.
+    const maquina = DEMO_MACHINES.find((m) => m.id === 101)!
+    const p = product({ sheets })
+    const umaCor = inkGramsForFace(p, sheets[0]!, maquina, 1, 40, 500)
+    const quatroCores = inkGramsForFace(p, sheets[0]!, maquina, 4, 40, 500)
+    expect(quatroCores).toBeCloseTo(umaCor, 6)
+  })
+
+  it('o que muda com as cores é o preço, não a gramatura', () => {
+    const maquina = DEMO_MACHINES.find((m) => m.id === 101)!
+    const p = product({ sheets })
+    const gramas = inkGramsForFace(p, sheets[0]!, maquina, 4, 40, 500)
+    // 4 cores de processo (média R$ 74/kg) contra 4 pantones (R$ 145 e R$ 152).
+    const processo = inkCostForFace(gramas, 4, [11, 12, 13, 14])
+    const pantone = inkCostForFace(gramas, 4, [16, 17, 16, 17])
+    expect(pantone).toBeGreaterThan(processo)
+  })
+
+  it('cada cor leva uma fração igual da gramatura', () => {
+    const maquina = DEMO_MACHINES.find((m) => m.id === 101)!
+    const p = product({ sheets })
+    const gramas = inkGramsForFace(p, sheets[0]!, maquina, 4, 40, 500)
+    // Uma cor de preto sozinha custa 1/4 do que custariam 4 pretos.
+    const umaDeQuatro = inkCostForFace(gramas, 4, [14])
+    const quatroPretos = inkCostForFace(gramas, 4, [14, 14, 14, 14])
+    expect(quatroPretos).toBeCloseTo(umaDeQuatro * 4, 6)
+  })
+
+  it('a cobertura é sobre a área da PEÇA FINAL, não da folha da máquina', () => {
+    const maquina = DEMO_MACHINES.find((m) => m.id === 101)!
+    const pequena = product({ sheets, widthMm: 100, heightMm: 150 })
+    const grande = product({ sheets, widthMm: 200, heightMm: 150 })
+    // Mesmas folhas rodadas e mesma grade forçada: o dobro de área na peça é o dobro de tinta.
+    const a = inkGramsForFace(pequena, sheets[0]!, maquina, 4, 50, 100) / piecesPerSheet(pequena, maquina)
+    const b = inkGramsForFace(grande, sheets[0]!, maquina, 4, 50, 100) / piecesPerSheet(grande, maquina)
+    expect(b).toBeCloseTo(a * 2, 6)
   })
 
   it('papel mais poroso bebe mais tinta', () => {
