@@ -244,10 +244,10 @@ const toggleSeparateCovers = () => {
                         : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
                     "
                   >
-                    {{ ink.value }}
+                    {{ ink.name }}
                   </button>
                   <span v-if="!inksFor(sheet).length" class="text-xs text-amber-600 dark:text-amber-400">
-                    Nenhuma tinta cadastrada em Insumos.
+                    A impressora escolhida não aceita nenhuma das tintas cadastradas.
                   </span>
                 </div>
               </div>
