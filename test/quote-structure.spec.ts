@@ -254,10 +254,22 @@ describe('taxa de cobertura e custo de tinta', () => {
     expect(b).toBeCloseTo(a * 2, 6)
   })
 
-  it('papel mais poroso bebe mais tinta', () => {
-    const offset = product({ sheets: [{ ...sheet('VIA', 1), paperTypeId: 1 }], steps: [printing('i1', { 'VIA-1': setup(4) })] })
-    const jornal = product({ sheets: [{ ...sheet('VIA', 1), paperTypeId: 3 }], steps: [printing('i1', { 'VIA-1': setup(4) })] })
-    expect(tinta(jornal)).toBeGreaterThan(tinta(offset))
+  it('a absorção depende do tipo de tinta da máquina', () => {
+    // O mesmo papel bebe offset e toner de formas diferentes (1,08 contra 0,50 no Off-set).
+    const p = product({ sheets })
+    const offset = DEMO_MACHINES.find((m) => m.id === 101)!
+    const digital = DEMO_MACHINES.find((m) => m.id === 104)!
+    const naOffset = inkGramsForFace(p, sheets[0]!, offset, 4, 50, 100)
+    const naDigital = inkGramsForFace(p, sheets[0]!, digital, 4, 50, 100)
+    expect(naOffset).toBeGreaterThan(naDigital)
+  })
+
+  it('papel com absorção maior bebe mais tinta', () => {
+    const p = product({ sheets })
+    const maquina = DEMO_MACHINES.find((m) => m.id === 101)!
+    const couche = inkGramsForFace(p, { ...sheet('VIA', 1), paperTypeId: 5 }, maquina, 4, 50, 100)
+    const offsetPapel = inkGramsForFace(p, { ...sheet('VIA', 1), paperTypeId: 1 }, maquina, 4, 50, 100)
+    expect(offsetPapel).toBeGreaterThan(couche)
   })
 
   it('sem cobertura informada não há como dimensionar a tinta', () => {

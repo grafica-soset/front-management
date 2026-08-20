@@ -22,20 +22,24 @@ export interface DemoPaperType {
   /** Papel fino demais transparece: a impressão dos 2 lados fica bloqueada no passo 3. */
   allowsBothSides: boolean
   /**
-   * Absorção de tinta em g/m² para 100% de cobertura. É o TOTAL que o papel bebe, não por cor:
-   * as cores dividem essa gramatura entre si. Papel poroso (jornal) bebe mais que revestido
-   * (couché) — é o cadastro que a 032 (ajuste 0001) criou na família.
+   * Absorção em g/m² para 100% de cobertura, SEPARADA POR TIPO DE TINTA: o offset e o toner são
+   * absorvidos de forma diferente pelo mesmo papel (no Off-set, 1,08 contra 0,50). É o total que o
+   * papel bebe, não por cor — as cores dividem essa gramatura entre si.
+   *
+   * O motor escolhe o campo pela máquina: impressora offset usa [offsetAbsorptionGsm]; digital usa
+   * [tonerAbsorptionGsm].
    */
-  inkAbsorptionGsm: number
+  offsetAbsorptionGsm: number
+  tonerAbsorptionGsm: number
 }
 
 export const DEMO_PAPER_TYPES: DemoPaperType[] = [
-  { id: 1, name: 'Off-set 56g/m²', weightGsm: 56, sheetPrice: 0.42, allowsBothSides: true, inkAbsorptionGsm: 1.2 },
-  { id: 2, name: 'Off-set 75g/m²', weightGsm: 75, sheetPrice: 0.58, allowsBothSides: true, inkAbsorptionGsm: 1.1 },
-  { id: 3, name: 'Jornal 49g/m²', weightGsm: 49, sheetPrice: 0.31, allowsBothSides: true, inkAbsorptionGsm: 1.8 },
-  { id: 4, name: 'Couché 115g/m²', weightGsm: 115, sheetPrice: 0.94, allowsBothSides: true, inkAbsorptionGsm: 0.7 },
-  { id: 5, name: 'Cartão 250g/m²', weightGsm: 250, sheetPrice: 1.85, allowsBothSides: true, inkAbsorptionGsm: 0.9 },
-  { id: 6, name: 'Seda 20g/m²', weightGsm: 20, sheetPrice: 0.24, allowsBothSides: false, inkAbsorptionGsm: 2.1 },
+  { id: 1, name: 'Off-set 56g/m²', weightGsm: 56, sheetPrice: 0.42, allowsBothSides: true, offsetAbsorptionGsm: 1.08, tonerAbsorptionGsm: 0.5 },
+  { id: 2, name: 'Off-set 75g/m²', weightGsm: 75, sheetPrice: 0.58, allowsBothSides: true, offsetAbsorptionGsm: 1.08, tonerAbsorptionGsm: 0.5 },
+  { id: 3, name: 'Jornal 49g/m²', weightGsm: 49, sheetPrice: 0.31, allowsBothSides: true, offsetAbsorptionGsm: 1.0, tonerAbsorptionGsm: 0.6 },
+  { id: 4, name: 'Couché 115g/m²', weightGsm: 115, sheetPrice: 0.94, allowsBothSides: true, offsetAbsorptionGsm: 1.06, tonerAbsorptionGsm: 0.6 },
+  { id: 5, name: 'Cartão 250g/m²', weightGsm: 250, sheetPrice: 1.85, allowsBothSides: true, offsetAbsorptionGsm: 0.95, tonerAbsorptionGsm: 0.55 },
+  { id: 6, name: 'Seda 20g/m²', weightGsm: 20, sheetPrice: 0.24, allowsBothSides: false, offsetAbsorptionGsm: 1.2, tonerAbsorptionGsm: 0.7 },
 ]
 
 export interface DemoInk {
@@ -362,13 +366,15 @@ export function machineForSheet(step: QuoteStep, sheet: QuoteSheet): number | nu
  *
  *   gramas = cobertura × absorção do papel (g/m²) × área da PEÇA FINAL (m²) × peças impressas
  *
- * Duas regras que vieram da gráfica e que é fácil errar:
+ * Três regras que vieram da gráfica e que é fácil errar:
  *
  * 1. A cobertura é sobre a ÁREA DA PEÇA FINAL, não sobre a folha que passa na máquina. "10% de
  *    cobertura" quer dizer 10% do 10×15 que o cliente recebe.
  * 2. As cores DIVIDEM a gramatura, não a multiplicam. Numa 4 cores, cada tinta leva 25% do que o
  *    papel absorve — o total depositado é o mesmo de uma cor só. O que muda com a quantidade de
  *    cores é o PREÇO, porque cada tinta custa o seu quilo.
+ * 3. A absorção depende do TIPO DE TINTA: o mesmo papel bebe offset e toner de formas diferentes,
+ *    e quem decide qual taxa vale é a máquina escolhida.
  */
 export function inkGramsForFace(
   product: QuoteProduct,
@@ -379,7 +385,9 @@ export function inkGramsForFace(
   sheetsRun: number,
 ): number {
   if (colors <= 0 || !coveragePercent || coveragePercent <= 0 || sheetsRun <= 0) return 0
-  const absorption = findPaperType(sheet.paperTypeId)?.inkAbsorptionGsm ?? 0
+  const paper = findPaperType(sheet.paperTypeId)
+  // Offset e digital não absorvem igual: a taxa sai do tipo de tinta da máquina escolhida.
+  const absorption = (machine.type === 'DIGITAL' ? paper?.tonerAbsorptionGsm : paper?.offsetAbsorptionGsm) ?? 0
   const pieceAreaM2 = ((product.widthMm ?? 0) * (product.heightMm ?? 0)) / 1_000_000
   // Peças impressas: cada folha que passa na máquina carrega a grade inteira de peças.
   const pieces = sheetsRun * piecesPerSheet(product, machine)
