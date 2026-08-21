@@ -1,5 +1,5 @@
 /**
- * Rascunho de ORÇAMENTO (atividade 034) — protótipo navegável.
+ * Rascunho de ORÇAMENTO (atividade 034).
  *
  * Um orçamento tem N produtos. Cada produto tem uma ESTRUTURA que decide quantas folhas ele usa:
  *
@@ -10,8 +10,8 @@
  * Capas entram como folhas à parte: são configuradas como uma via/lâmina qualquer (papel, lados,
  * cores), mas contam pela quantidade de capas, não pelos jogos.
  *
- * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. O cálculo é de demonstração
- * (`utils/quoteDemoData.ts`) até o motor do backend existir.
+ * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. A store o traduz no contrato do
+ * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
 
 /** O que a folha é dentro do produto. */
@@ -67,6 +67,8 @@ export interface PrintingSheetSetup {
 export interface PrintingSetup {
   /** Configuração de cada folha, indexada pelo `uid` dela. */
   bySheet: Record<string, PrintingSheetSetup>
+  /** Chapa escolhida pelo usuário quando a impressora aceita mais de um tipo. */
+  plateSupplyId?: number | null
   /** Impressora do produto inteiro (quando não está por folha). */
   machineId: number | null
   /** "Selecionar impressora diferente por via/lâmina". */
@@ -81,8 +83,8 @@ export interface PrintingSetup {
 
 /** Parâmetros que uma etapa pede quando é ativada no orçamento. */
 export interface StepParameters {
-  /** Atividade manual: quantas horas de trabalho. */
-  laborHours?: number
+  /** Atividade manual: quantos MINUTOS de trabalho (a tela pergunta assim). */
+  laborMinutes?: number
   /** Dobradeira. */
   parallelFolds?: number
   crossFolds?: number

@@ -16,7 +16,7 @@ import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import SheetPaperRow from '@/components/quotes/SheetPaperRow.vue'
-import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteDemoData'
+import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const product = computed(() => store.draft!)

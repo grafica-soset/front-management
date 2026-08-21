@@ -18,24 +18,30 @@ import {
   colorsLabel,
   coverageIssues,
   coverageLabel,
-  findMachine,
-  findPaperType,
   inkIssues,
-  inksForMachine,
   isSheetPrinted,
   machineForSheet,
-  machineOptions,
   printedSides,
   setupFor,
   sheetLabel,
   sheetsForSheet,
-} from '@/utils/quoteDemoData'
+} from '@/utils/quoteModel'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import type { SheetCostingResponse } from '@/types/Quote'
 
-const props = defineProps<{ step: QuoteStep }>()
+const props = defineProps<{
+  step: QuoteStep
+  /** Posição desta impressão no produto (1ª, 2ª...) — casa com o índice que o motor devolve. */
+  printingIndex: number
+}>()
 
 const store = useQuoteDraftStore()
+const catalogs = useQuoteCatalogs()
 const product = computed(() => store.draft!)
 const printing = computed(() => props.step.printing!)
+
+const findMachine = (id: number | null) => catalogs.findMachine(id)
+const findPaperType = (id: number | null) => catalogs.findPaperType(id)
 
 const setup = (sheet: QuoteSheet) => setupFor(props.step, sheet)
 const paperOf = (sheet: QuoteSheet) => findPaperType(sheet.paperTypeId)
@@ -46,10 +52,45 @@ const coverSheets = computed(() => product.value.sheets.filter((s) => s.kind ===
 const printedBody = computed(() => bodySheets.value.filter(printsSheet))
 const printedCovers = computed(() => coverSheets.value.filter(printsSheet))
 
-/** Opções de impressora para um conjunto de folhas nesta impressão. */
-const optionsFor = (sheets: QuoteSheet[]) => machineOptions(product.value, props.step, sheets)
+/**
+ * Opções de impressora vindas do MOTOR: cada plano avaliado (papel × formato × máquina) vira uma
+ * linha, ficando a mais barata de cada máquina. Sem cálculo ainda, a lista vem vazia.
+ */
+const costingOf = (sheet: QuoteSheet): SheetCostingResponse | undefined =>
+  store.draftCost?.sheets.find((s) => s.kind === sheet.kind && s.number === sheet.index)
+
+const optionsFor = (sheets: QuoteSheet[]) => {
+  const costing = sheets[0] ? costingOf(sheets[0]) : undefined
+  if (!costing) return []
+  const best = new Map<number, {
+    machineId: number; machineName: string; machineType: 'OFFSET' | 'DIGITAL'
+    total: number; waste: number; minutes: number
+    sheetLabel: string; applicationsPerSheet: number; motherSheets: number
+  }>()
+  for (const plan of [costing.chosen, ...costing.alternatives]) {
+    const pass = plan.printings.find((p) => p.printingIndex === props.printingIndex)
+    if (!pass) continue
+    const atual = best.get(pass.machineId)
+    if (atual && atual.total <= plan.totalCost) continue
+    best.set(pass.machineId, {
+      machineId: pass.machineId,
+      machineName: pass.machineName,
+      machineType: pass.machineType,
+      total: plan.totalCost,
+      waste: pass.wasteSheets,
+      minutes: pass.minutes,
+      sheetLabel: `${plan.paperCode} — ${plan.printFormatName}`,
+      applicationsPerSheet: plan.applicationsPerSheet,
+      motherSheets: plan.motherSheets,
+    })
+  }
+  return Array.from(best.values()).sort((a, b) => a.total - b.total)
+}
 const bodyOptions = computed(() => optionsFor(printedBody.value))
 const coverOptions = computed(() => optionsFor(printedCovers.value))
+
+/** Chapas que a impressora escolhida aceita — o usuário decide quando há mais de uma. */
+const plateOptions = computed(() => catalogs.plates.value)
 
 /** As cores são o interruptor: zero nas duas faces tira a folha desta impressão. */
 const setColors = (sheet: QuoteSheet, face: 'front' | 'back', value: number) => {
@@ -78,7 +119,7 @@ const setCoverage = (sheet: QuoteSheet, face: 'front' | 'back', value: string) =
 }
 
 /** Tintas aceitas pela impressora atribuída à folha. */
-const inksFor = (sheet: QuoteSheet) => inksForMachine(machineForSheet(props.step, sheet))
+const inksFor = (_sheet: QuoteSheet) => catalogs.inks.value
 
 const toggleInk = (sheet: QuoteSheet, face: 'front' | 'back', inkId: number) => {
   const current = setup(sheet)
@@ -93,7 +134,7 @@ const toggleInk = (sheet: QuoteSheet, face: 'front' | 'back', inkId: number) => 
 }
 
 const issuesOf = (sheet: QuoteSheet) => (printsSheet(sheet) ? inkIssues(setup(sheet)) : [])
-const machineNameOf = (sheet: QuoteSheet) => findMachine(machineForSheet(props.step, sheet))?.name ?? null
+const machineNameOf = (sheet: QuoteSheet) => findMachine(machineForSheet(props.step, sheet))?.value ?? null
 
 const togglePerSheet = () => {
   printing.value.perSheet = !printing.value.perSheet
@@ -244,7 +285,7 @@ const toggleSeparateCovers = () => {
                         : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
                     "
                   >
-                    {{ ink.name }}
+                    {{ ink.value }}
                   </button>
                   <span v-if="!inksFor(sheet).length" class="text-xs text-amber-600 dark:text-amber-400">
                     A impressora escolhida não aceita nenhuma das tintas cadastradas.
@@ -279,19 +320,36 @@ const toggleSeparateCovers = () => {
         </button>
       </div>
 
+      <div v-if="plateOptions.length > 1" class="mt-3">
+        <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
+          Chapa desta impressão
+        </label>
+        <select
+          v-model.number="printing.plateSupplyId"
+          class="block w-full max-w-md rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+        >
+          <option :value="null">A mais barata compatível</option>
+          <option v-for="chapa in plateOptions" :key="chapa.id" :value="chapa.id">{{ chapa.value }}</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Uma chapa por cor, por lado, nesta impressão. Quando a impressora aceita mais de um tipo,
+          a escolha é sua.
+        </p>
+      </div>
+
       <div v-if="!printing.perSheet" class="mt-3 space-y-2">
         <p v-if="printedBody.length === 0" class="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
           Nenhuma via/lâmina com cores — esta impressão não roda o corpo do produto.
         </p>
-        <p v-else-if="!bodyOptions.length" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-          Nenhuma impressora comporta este formato. Revise a dimensão final no passo 1.
+        <p v-else-if="!bodyOptions.length" class="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
+          Complete a configuração para o motor calcular as opções de impressora.
         </p>
         <template v-else-if="printing.machineId">
           <MachineOptionCard
-            v-for="option in bodyOptions.filter((o) => o.machine.id === printing.machineId)"
-            :key="option.machine.id"
+            v-for="option in bodyOptions.filter((o) => o.machineId === printing.machineId)"
+            :key="option.machineId"
             :option="option"
-            :best="option.machine.id === bodyOptions[0]?.machine.id"
+            :best="option.machineId === bodyOptions[0]?.machineId"
             :best-total="bodyOptions[0]?.total ?? 0"
             :selected="true"
             clearable
@@ -300,12 +358,12 @@ const toggleSeparateCovers = () => {
         </template>
         <MachineOptionCard
           v-for="(option, index) in printing.machineId ? [] : bodyOptions"
-          :key="option.machine.id"
+          :key="option.machineId"
           :option="option"
           :best="index === 0"
           :best-total="bodyOptions[0]?.total ?? 0"
           :selected="false"
-          @select="store.setMachine(step.uid, 'PRODUCT', option.machine.id)"
+          @select="store.setMachine(step.uid, 'PRODUCT', option.machineId)"
         />
       </div>
 
@@ -317,10 +375,10 @@ const toggleSeparateCovers = () => {
           <div class="space-y-2">
             <template v-if="printing.machineIdBySheet[sheet.uid]">
               <MachineOptionCard
-                v-for="option in optionsFor([sheet]).filter((o) => o.machine.id === printing.machineIdBySheet[sheet.uid])"
-                :key="option.machine.id"
+                v-for="option in optionsFor([sheet]).filter((o) => o.machineId === printing.machineIdBySheet[sheet.uid])"
+                :key="option.machineId"
                 :option="option"
-                :best="option.machine.id === optionsFor([sheet])[0]?.machine.id"
+                :best="option.machineId === optionsFor([sheet])[0]?.machineId"
                 :best-total="optionsFor([sheet])[0]?.total ?? 0"
                 :selected="true"
                 clearable
@@ -329,12 +387,12 @@ const toggleSeparateCovers = () => {
             </template>
             <MachineOptionCard
               v-for="(option, index) in printing.machineIdBySheet[sheet.uid] ? [] : optionsFor([sheet])"
-              :key="option.machine.id"
+              :key="option.machineId"
               :option="option"
               :best="index === 0"
               :best-total="optionsFor([sheet])[0]?.total ?? 0"
               :selected="false"
-              @select="store.setMachine(step.uid, sheet.uid, option.machine.id)"
+              @select="store.setMachine(step.uid, sheet.uid, option.machineId)"
             />
           </div>
         </div>
@@ -365,10 +423,10 @@ const toggleSeparateCovers = () => {
       <div v-if="printing.separateCovers && printedCovers.length" class="mt-3 space-y-2">
         <template v-if="printing.coverMachineId">
           <MachineOptionCard
-            v-for="option in coverOptions.filter((o) => o.machine.id === printing.coverMachineId)"
-            :key="option.machine.id"
+            v-for="option in coverOptions.filter((o) => o.machineId === printing.coverMachineId)"
+            :key="option.machineId"
             :option="option"
-            :best="option.machine.id === coverOptions[0]?.machine.id"
+            :best="option.machineId === coverOptions[0]?.machineId"
             :best-total="coverOptions[0]?.total ?? 0"
             :selected="true"
             clearable
@@ -377,12 +435,12 @@ const toggleSeparateCovers = () => {
         </template>
         <MachineOptionCard
           v-for="(option, index) in printing.coverMachineId ? [] : coverOptions"
-          :key="option.machine.id"
+          :key="option.machineId"
           :option="option"
           :best="index === 0"
           :best-total="coverOptions[0]?.total ?? 0"
           :selected="false"
-          @select="store.setMachine(step.uid, 'COVERS', option.machine.id)"
+          @select="store.setMachine(step.uid, 'COVERS', option.machineId)"
         />
       </div>
     </section>

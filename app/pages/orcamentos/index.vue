@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * TELA INICIAL DO ORÇAMENTO (atividade 034) — PROTÓTIPO.
+ * TELA INICIAL DO ORÇAMENTO (atividade 034).
  *
  * Nesta fase o orçamento é só a lista de PRODUTOS e o total. Cliente, condições de pagamento e
  * impostos ainda não existem no sistema: ficam como um bloco reservado, para o desenho já mostrar
@@ -9,7 +9,8 @@
  * "Adicionar produto" leva ao assistente (/orcamentos/produto), que é onde mora a complexidade.
  */
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
-import { brl, findActivity, sheetsPerUnit } from '@/utils/quoteDemoData'
+import { brl, sheetsPerUnit } from '@/utils/quoteModel'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 
 definePageMeta({ middleware: 'auth' })
@@ -17,6 +18,9 @@ definePageMeta({ middleware: 'auth' })
 const router = useRouter()
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
+const catalogs = useQuoteCatalogs()
+
+onMounted(() => catalogs.load())
 
 const openNew = () => {
   store.startNew()
@@ -36,17 +40,13 @@ const describe = (index: number) => {
       ? `${p.blades} lâmina(s)`
       : `${p.sets} jogos × ${p.vias} vias`
   const covers = p.hasCovers ? ` + ${p.coverCount} capa(s)` : ''
-  const steps = p.steps.map((s) => findActivity(s.activityId)?.name).filter(Boolean).join(' · ')
+  const steps = p.steps.map((s) => catalogs.findActivity(s.activityId)?.value).filter(Boolean).join(' · ')
   return { structure: `${structure}${covers}`, steps: steps || 'sem etapas' }
 }
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-      <strong>Protótipo.</strong> Valores ilustrativos, sem integração com a API.
-    </div>
-
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Orçamento</h1>
@@ -120,10 +120,10 @@ const describe = (index: number) => {
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">{{ sheetsPerUnit(p) }}</td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                {{ brl(store.productCosts[index]?.unitCost ?? 0) }}
+                {{ brl(store.costs[p.uid]?.unitCost ?? 0) }}
               </td>
               <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-900 dark:text-white">
-                {{ brl(store.productCosts[index]?.total ?? 0) }}
+                {{ brl(store.costs[p.uid]?.totalCost ?? 0) }}
               </td>
               <td class="px-5 py-3 text-right">
                 <div class="inline-flex items-center gap-1">

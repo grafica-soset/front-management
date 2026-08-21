@@ -8,7 +8,9 @@
  * escolhidas só ganham a contagem "já no produto ×2", como informação, não como bloqueio.
  */
 import { computed, ref, watch } from 'vue'
-import { ACTIVITY_TYPE_LABEL, DEMO_ACTIVITIES, type DemoActivity } from '@/utils/quoteDemoData'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
+import type { ActivityKeyValue } from '@/types/Activity'
 
 const props = defineProps<{
   isOpen: boolean
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const catalogs = useQuoteCatalogs()
 const search = ref('')
 
 watch(
@@ -32,8 +35,8 @@ watch(
 
 const groups = computed(() => {
   const term = search.value.trim().toLowerCase()
-  const matches = DEMO_ACTIVITIES.filter((a) => !term || a.name.toLowerCase().includes(term))
-  const byType = new Map<DemoActivity['type'], DemoActivity[]>()
+  const matches = catalogs.activities.value.filter((a) => !term || a.value.toLowerCase().includes(term))
+  const byType = new Map<ActivityKeyValue['type'], ActivityKeyValue[]>()
   for (const activity of matches) {
     const list = byType.get(activity.type) ?? []
     list.push(activity)
@@ -42,7 +45,7 @@ const groups = computed(() => {
   return Array.from(byType.entries())
 })
 
-const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
+const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity.type) !== 'NONE'
 </script>
 
 <template>
@@ -81,7 +84,7 @@ const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
         <div class="max-h-80 space-y-4 overflow-y-auto pr-1">
           <div v-for="[type, activities] in groups" :key="type">
             <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-              {{ ACTIVITY_TYPE_LABEL[type] }}
+              {{ ACTIVITY_TYPE_LABELS[type] }}
             </p>
             <div class="space-y-1.5">
               <button
@@ -92,7 +95,7 @@ const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
                 class="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50/60 dark:border-slate-700 dark:hover:bg-slate-700/60"
               >
                 <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ activity.name }}</span>
+                  <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ activity.value }}</span>
                   <span v-if="needsSetup(activity)" class="text-xs text-amber-600 dark:text-amber-400">pede configuração no passo 3</span>
                   <span v-else class="text-xs text-slate-400 dark:text-slate-500">calculada pelo sistema</span>
                 </span>

@@ -15,7 +15,8 @@
  */
 import { computed } from 'vue'
 import type { QuoteStep } from '@/types/QuoteDraft'
-import { ACTIVITY_TYPE_LABEL, brl, findActivity } from '@/utils/quoteDemoData'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import PrintingParameters from '@/components/quotes/PrintingParameters.vue'
 
 const props = defineProps<{
@@ -25,12 +26,12 @@ const props = defineProps<{
   printingTotal?: number
 }>()
 
-const activity = computed(() => findActivity(props.step.activityId))
-const paramKind = computed(() => activity.value?.paramKind ?? 'NONE')
+const catalogs = useQuoteCatalogs()
+const activity = computed(() => catalogs.findActivity(props.step.activityId))
+const paramKind = computed(() => catalogs.paramKindOf(activity.value?.type))
 const params = computed(() => props.step.parameters)
-const laborCost = computed(() => (params.value.laborHours ?? 0) * (activity.value?.hourlyCost ?? 0))
 
-const setNumber = (key: 'laborHours' | 'parallelFolds' | 'crossFolds' | 'staples' | 'holes' | 'numberingUnits', value: string) => {
+const setNumber = (key: 'laborMinutes' | 'numberingUnits', value: string) => {
   const parsed = Number(value.replace(',', '.'))
   props.step.parameters[key] = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }
@@ -43,10 +44,10 @@ const inputClass =
   <div v-if="activity" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
     <div class="flex flex-wrap items-center gap-2">
       <h3 class="text-base font-semibold text-slate-900 dark:text-white">
-        {{ activity.name }}<span v-if="(printingTotal ?? 0) > 1" class="text-slate-400"> ({{ printingIndex }}ª)</span>
+        {{ activity.value }}<span v-if="(printingTotal ?? 0) > 1" class="text-slate-400"> ({{ printingIndex }}ª)</span>
       </h3>
       <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-        {{ ACTIVITY_TYPE_LABEL[activity.type] }}
+        {{ ACTIVITY_TYPE_LABELS[activity.type] }}
       </span>
     </div>
 
@@ -55,27 +56,26 @@ const inputClass =
       <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <span>Nada a configurar. {{ activity.autoNote }}</span>
+      <span>Nada a configurar — o motor calcula pelo cadastro da atividade e pelo encaixe na folha.</span>
     </p>
 
     <!-- Atividade manual: horas -->
-    <div v-else-if="paramKind === 'HOURS'" class="mt-3">
+    <div v-else-if="paramKind === 'MINUTES'" class="mt-3">
       <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
-        Horas de trabalho <span class="text-rose-500">*</span>
+        Tempo de trabalho (minutos) <span class="text-rose-500">*</span>
       </label>
       <div class="flex flex-wrap items-center gap-3">
         <input
-          :value="params.laborHours ?? ''"
+          :value="params.laborMinutes ?? ''"
           type="number"
           min="0"
-          step="0.5"
+          step="5"
           placeholder="0"
-          @input="setNumber('laborHours', ($event.target as HTMLInputElement).value)"
+          @input="setNumber('laborMinutes', ($event.target as HTMLInputElement).value)"
           :class="inputClass"
         />
         <span class="text-sm text-slate-500 dark:text-slate-400">
-          × {{ brl(activity.hourlyCost) }}/h =
-          <span class="font-medium text-slate-900 dark:text-white">{{ brl(laborCost) }}</span>
+          ao valor da hora cadastrado na atividade
         </span>
       </div>
     </div>
@@ -89,7 +89,7 @@ const inputClass =
         <strong>{{ printingIndex }}ª de {{ printingTotal }} impressões</strong> deste produto — configuração
         própria, somada às demais. Zere as cores das folhas que não entram nesta passada.
       </p>
-      <PrintingParameters :step="step" />
+      <PrintingParameters :step="step" :printing-index="printingIndex ?? 1" />
     </div>
 
   </div>

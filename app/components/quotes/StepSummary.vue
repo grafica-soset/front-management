@@ -12,100 +12,70 @@
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useUnitConverter } from '@/composables/useUnitConverter'
-import {
-  brl,
-  colorsLabel,
-  estimateProductCost,
-  findActivity,
-  findMachine,
-  findPaperType,
-  isSheetPrinted,
-  machineForSheet,
-  piecesPerSheet,
-  printingSteps,
-  setupFor,
-  sheetLabel,
-  sheetsForSheet,
-  sheetsPerUnit,
-} from '@/utils/quoteDemoData'
+import { brl } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
-const product = computed(() => store.draft!)
 const { format } = useUnitConverter()
 
-const cost = computed(() => estimateProductCost(product.value))
-const unitLabel = computed(() => (product.value.structure === 'BLADE' ? 'peça' : 'bloco'))
+const cost = computed(() => store.draftCost)
+const unitLabel = computed(() => (store.draft?.structure === 'BLADE' ? 'peça' : 'bloco'))
 
-/**
- * Uma tabela por IMPRESSÃO: cada etapa de impressão é uma passada pela máquina, com as suas cores
- * e o seu acerto. Ver as duas separadas é o que permite conferir por que o total é a soma.
- */
-const printingTables = computed(() =>
-  printingSteps(product.value).map((step, index) => ({
-    step,
-    index: index + 1,
-    name: findActivity(step.activityId)?.name ?? 'Impressão',
-    rows: product.value.sheets.map((sheet) => {
-      const setup = setupFor(step, sheet)
-      const printed = isSheetPrinted(sheet, setup)
-      const machine = printed ? findMachine(machineForSheet(step, sheet)) : undefined
-      return {
-        sheet,
-        setup,
-        printed,
-        paper: findPaperType(sheet.paperTypeId),
-        machine,
-        pieces: machine ? piecesPerSheet(product.value, machine) : 0,
-        sheets: sheetsForSheet(product.value, sheet),
-      }
-    }),
-  })),
-)
+const sheetName = (kind: string, number: number) =>
+  `${kind === 'BLADE' ? 'Lâmina' : kind === 'COVER' ? 'Capa' : 'Via'} ${number}`
 
-const stepRows = computed(() =>
-  product.value.steps.map((step) => ({
-    step,
-    activity: findActivity(step.activityId),
-  })),
-)
+/** Uma tabela por IMPRESSÃO: é o que explica por que o total é a soma das passadas. */
+const printingTables = computed(() => {
+  const c = cost.value
+  if (!c) return []
+  const indices = new Set<number>()
+  c.sheets.forEach((s) => s.chosen.printings.forEach((p) => indices.add(p.printingIndex)))
+  return Array.from(indices).sort((a, b) => a - b).map((index) => ({
+    index,
+    name: c.sheets.flatMap((s) => s.chosen.printings).find((p) => p.printingIndex === index)?.activityName ?? 'Impressão',
+    rows: c.sheets.map((sheet) => ({
+      sheet,
+      pass: sheet.chosen.printings.find((p) => p.printingIndex === index) ?? null,
+    })),
+  }))
+})
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div v-if="cost" class="space-y-4">
     <!-- Cabeçalho do produto -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ product.name || 'Produto sem nome' }}</h2>
+      <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ cost.name || 'Produto sem nome' }}</h2>
       <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Formato final</dt>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Formato pedido</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            {{ format(product.widthMm) }} × {{ format(product.heightMm) }}
+            {{ format(cost.widthMm) }} × {{ format(cost.heightMm) }}
           </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Formato entregue</dt>
+          <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ cost.finalFormatName }}</dd>
         </div>
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Tiragem</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            {{ (product.quantity ?? 0).toLocaleString('pt-BR') }} {{ unitLabel }}(s)
+            {{ cost.quantity.toLocaleString('pt-BR') }} {{ unitLabel }}(s)
           </dd>
         </div>
         <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Estrutura</dt>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas na tiragem</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            {{ product.structure === 'BLADE' ? `${product.blades} lâmina(s)` : `${product.sets} jogos × ${product.vias} vias` }}
-            <span v-if="product.hasCovers"> + {{ product.coverCount }} capa(s)</span>
+            {{ cost.totalSheets.toLocaleString('pt-BR') }}
+            <span class="text-xs font-normal text-slate-500">({{ cost.sheetsPerUnit }}/{{ unitLabel }})</span>
           </dd>
-        </div>
-        <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas por {{ unitLabel }}</dt>
-          <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ sheetsPerUnit(product) }}</dd>
         </div>
       </dl>
     </section>
 
-    <!-- Uma tabela por impressão: os custos se somam -->
+    <!-- Uma tabela por impressão -->
     <section
       v-for="table in printingTables"
-      :key="table.step.uid"
+      :key="table.index"
       class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800"
     >
       <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
@@ -125,34 +95,41 @@ const stepRows = computed(() =>
               <th class="px-5 py-3 font-semibold">Cores</th>
               <th class="px-5 py-3 font-semibold">Cobertura</th>
               <th class="px-5 py-3 font-semibold">Impressora</th>
-              <th class="px-5 py-3 font-semibold">Folha selecionada</th>
-              <th class="px-5 py-3 text-right font-semibold">Encaixe</th>
-              <th class="px-5 py-3 text-right font-semibold">Folhas</th>
+              <th class="px-5 py-3 font-semibold">Formato de impressão</th>
+              <th class="px-5 py-3 text-right font-semibold">Aplicações</th>
+              <th class="px-5 py-3 text-right font-semibold">Chapas</th>
+              <th class="px-5 py-3 text-right font-semibold">Quebra</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
-            <tr v-for="row in table.rows" :key="row.sheet.uid">
-              <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">{{ sheetLabel(row.sheet) }}</td>
-              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.paper?.name ?? '—' }}</td>
+            <tr v-for="row in table.rows" :key="`${row.sheet.kind}-${row.sheet.number}`">
+              <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">
+                {{ sheetName(row.sheet.kind, row.sheet.number) }}
+              </td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.sheet.paperTypeName }}</td>
               <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.printed">{{ colorsLabel(row.setup) }}</template>
+                <template v-if="row.pass">{{ row.pass.frontColors }}x{{ row.pass.backColors }}</template>
                 <span v-else class="text-slate-400 dark:text-slate-500">fora desta impressão</span>
               </td>
               <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.printed">
-                  {{ row.setup.frontColors > 0 ? `${row.setup.frontCoverage}%` : '—' }}
-                  <span v-if="row.setup.backColors > 0"> / {{ row.setup.backCoverage }}%</span>
+                <template v-if="row.pass">
+                  {{ row.pass.frontCoveragePercent }}%<span v-if="row.pass.backColors > 0"> / {{ row.pass.backCoveragePercent }}%</span>
                 </template>
                 <span v-else class="text-slate-400 dark:text-slate-500">—</span>
               </td>
-              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.machine?.name ?? '—' }}</td>
-              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.machine?.sheetLabel ?? '—' }}</td>
-              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.printed">{{ row.pieces }} por folha</template>
-                <span v-else class="text-slate-400 dark:text-slate-500">—</span>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.pass?.machineName ?? '—' }}</td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
+                {{ row.sheet.chosen.paperCode }} — {{ row.sheet.chosen.printFormatName }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                {{ row.sheets.toLocaleString('pt-BR') }}
+                {{ row.sheet.chosen.applicationsPerSheet }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                <template v-if="row.pass">{{ row.pass.plateCount }} ({{ row.pass.plateSupplyName ?? '—' }})</template>
+                <span v-else>—</span>
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                {{ row.pass ? row.pass.wasteSheets.toLocaleString('pt-BR') : '—' }}
               </td>
             </tr>
           </tbody>
@@ -160,59 +137,71 @@ const stepRows = computed(() =>
       </div>
     </section>
 
+    <!-- Cortes: as descidas vêm do cadastro de formatos -->
+    <section v-if="cost.sheets.length" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Cortes</h3>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
+        {{ cost.sheets[0]!.chosen.motherFormatName }} → {{ cost.sheets[0]!.chosen.printFormatName }}:
+        <strong>{{ cost.sheets[0]!.chosen.preCutDescents }} descidas</strong> antes de imprimir.
+        Depois, {{ cost.sheets[0]!.chosen.printFormatName }} → {{ cost.finalFormatName }} em
+        {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicações:
+        <strong>{{ cost.sheets[0]!.chosen.refileDescents }} descidas</strong> no refile.
+      </p>
+    </section>
+
     <!-- Etapas -->
-    <section v-if="stepRows.length" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <section v-if="cost.steps.length" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
         <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Etapas</h3>
       </div>
       <ul class="divide-y divide-slate-100 dark:divide-slate-700/50">
-        <li v-for="row in stepRows" :key="row.step.uid" class="flex items-center justify-between gap-3 px-5 py-3">
-          <span class="text-sm text-slate-800 dark:text-slate-100">{{ row.activity?.name }}</span>
-          <span class="text-xs text-slate-500 dark:text-slate-400">
-            <template v-if="row.activity?.paramKind === 'HOURS'">
-              {{ row.step.parameters.laborHours ?? 0 }}h × {{ brl(row.activity.hourlyCost) }}/h
-            </template>
-            <template v-else-if="row.activity?.paramKind === 'STAPLES'">{{ row.step.parameters.staples ?? 0 }} grampo(s)</template>
-            <template v-else-if="row.activity?.paramKind === 'HOLES'">{{ row.step.parameters.holes ?? 0 }} furo(s)</template>
-            <template v-else-if="row.activity?.paramKind === 'FOLDS'">
-              {{ row.step.parameters.parallelFolds ?? 0 }} paralela(s) / {{ row.step.parameters.crossFolds ?? 0 }} cruzada(s)
-            </template>
-            <template v-else-if="row.activity?.paramKind === 'NUMBERING'">
-              {{ row.step.parameters.numberingUnits ?? 0 }} numerador(es)
-            </template>
-            <template v-else>calculada pelo sistema</template>
-          </span>
+        <li v-for="(step, index) in cost.steps" :key="`${step.activityId}-${index}`" class="px-5 py-3">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-sm text-slate-800 dark:text-slate-100">{{ step.activityName }}</span>
+            <span class="shrink-0 text-sm tabular-nums text-slate-900 dark:text-white">{{ brl(step.totalCost) }}</span>
+          </div>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ step.detail }}</p>
         </li>
+      </ul>
+    </section>
+
+    <!-- Avisos do motor -->
+    <section
+      v-if="cost.warnings.length"
+      class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+    >
+      <p class="font-medium">Avisos do cálculo</p>
+      <ul class="mt-1 list-disc pl-5">
+        <li v-for="w in cost.warnings" :key="w">{{ w }}</li>
       </ul>
     </section>
 
     <!-- Fechamento -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <div class="grid gap-4 sm:grid-cols-3">
-        <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Máquinas utilizadas</dt>
-          <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            {{ cost.machinesUsed.length ? cost.machinesUsed.join(', ') : '—' }}
-          </dd>
+      <dl class="space-y-1.5">
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-600 dark:text-slate-300">Papel</dt>
+          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(cost.paperCost) }}</dd>
         </div>
-        <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Tempo de trabalho</dt>
-          <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ Math.round(cost.totalMinutes) }} min</dd>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-600 dark:text-slate-300">Chapas</dt>
+          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(cost.plateCost) }}</dd>
         </div>
-        <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas compradas</dt>
-          <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ cost.totalSheets.toLocaleString('pt-BR') }}</dd>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-600 dark:text-slate-300">Tinta</dt>
+          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(cost.inkCost) }}</dd>
         </div>
-      </div>
-
-      <dl class="mt-5 space-y-1.5 border-t border-slate-200 pt-4 dark:border-slate-700">
-        <div v-for="line in cost.lines" :key="line.label" class="flex justify-between text-sm">
-          <dt class="text-slate-600 dark:text-slate-300">{{ line.label }}</dt>
-          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(line.value) }}</dd>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-600 dark:text-slate-300">Impressão</dt>
+          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(cost.printCost) }}</dd>
+        </div>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-600 dark:text-slate-300">Etapas</dt>
+          <dd class="tabular-nums text-slate-900 dark:text-white">{{ brl(cost.stepsCost) }}</dd>
         </div>
         <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold dark:border-slate-700">
           <dt class="text-slate-900 dark:text-white">Total do produto</dt>
-          <dd class="tabular-nums text-indigo-700 dark:text-indigo-300">{{ brl(cost.total) }}</dd>
+          <dd class="tabular-nums text-indigo-700 dark:text-indigo-300">{{ brl(cost.totalCost) }}</dd>
         </div>
         <div class="flex justify-between text-sm">
           <dt class="text-slate-500 dark:text-slate-400">Por {{ unitLabel }}</dt>
@@ -221,4 +210,11 @@ const stepRows = computed(() =>
       </dl>
     </section>
   </div>
+
+  <p
+    v-else
+    class="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400"
+  >
+    O cálculo ainda não foi feito — complete a configuração e o motor devolve a memória aqui.
+  </p>
 </template>

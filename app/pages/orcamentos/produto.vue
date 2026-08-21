@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * ASSISTENTE DE PRODUTO DO ORÇAMENTO (atividade 034) — PROTÓTIPO.
+ * ASSISTENTE DE PRODUTO DO ORÇAMENTO (atividade 034).
  *
  * Rota própria em vez de modal: o passo 3 precisa de largura para comparar impressoras, a
  * configuração dura minutos e o usuário vai e volta entre passos. Um modal com quatro passos
@@ -9,30 +9,24 @@
  * Layout: passo a passo no topo, um passo por vez no corpo e o trilho de preço fixo à direita —
  * o preço acompanha a configuração, em vez de ser uma revelação no fim.
  *
- * ⚠️ Sem integração: catálogos e cálculo vêm de `utils/quoteDemoData.ts`.
+ * Catálogos e cálculo são os reais: o preço vem do motor a cada mexida (com debounce).
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import QuoteStepper from '@/components/quotes/QuoteStepper.vue'
 import QuotePriceRail from '@/components/quotes/QuotePriceRail.vue'
 import StepProductDefinition from '@/components/quotes/StepProductDefinition.vue'
 import StepActivities from '@/components/quotes/StepActivities.vue'
 import StepParameters from '@/components/quotes/StepParameters.vue'
 import StepSummary from '@/components/quotes/StepSummary.vue'
-import {
-  coverageIssues,
-  estimateProductCost,
-  inkIssues,
-  isSheetPrinted,
-  printingSteps,
-  setupFor,
-  sheetsPerUnit,
-} from '@/utils/quoteDemoData'
+import { coverageIssues, inkIssues, isSheetPrinted, printingSteps, setupFor, sheetsPerUnit } from '@/utils/quoteModel'
 
 definePageMeta({ middleware: 'auth' })
 
 const router = useRouter()
 const store = useQuoteDraftStore()
+const catalogs = useQuoteCatalogs()
 
 const STEPS = [
   { key: 'produto', label: 'Formato e papéis' },
@@ -43,13 +37,12 @@ const STEPS = [
 
 const current = ref(0)
 
-// Entrar direto na URL sem rascunho aberto começa um produto novo, em vez de quebrar.
-onMounted(() => {
+onMounted(async () => {
   if (!store.draft) store.startNew()
+  await catalogs.load()
 })
 
 const product = computed(() => store.draft)
-const cost = computed(() => (product.value ? estimateProductCost(product.value) : null))
 
 /** O que ainda impede o cálculo — vira a lista de pendências do trilho. */
 const blockers = computed(() => {
@@ -62,18 +55,20 @@ const blockers = computed(() => {
   if (p.sheets.some((s) => s.paperTypeId == null)) list.push('Escolher o papel de cada via/lâmina')
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
 
-  // Cada impressão é conferida por si: máquina escolhida e tintas batendo com as cores. Via ou
-  // capa com cores zero nas duas faces é só papel, e não precisa de máquina nenhuma.
+  // Com impressão, o produto precisa de dois cortes: um antes, para a folha entrar na máquina, e
+  // o refile depois. É a ordem na lista que diz qual é qual.
   const impressoes = printingSteps(p)
+  const cortes = p.steps.filter((s) => catalogs.findActivity(s.activityId)?.type === 'CUTTING')
+  if (impressoes.length > 0 && cortes.length < 2) {
+    list.push('Adicionar duas etapas de corte: uma antes da impressão e o refile depois')
+  }
+
   impressoes.forEach((step, index) => {
     const ordinal = impressoes.length > 1 ? ` (${index + 1}ª impressão)` : ''
     const printed = p.sheets.filter((sheet) => isSheetPrinted(sheet, setupFor(step, sheet)))
     if (printed.length === 0) {
       list.push(`Informar as cores de ao menos uma via/lâmina${ordinal}`)
       return
-    }
-    if (!step.printing?.perSheet && !step.printing?.machineId) {
-      list.push(`Escolher a impressora${ordinal}`)
     }
     if (printed.some((sheet) => coverageIssues(setupFor(step, sheet)).length > 0)) {
       list.push(`Informar a taxa de cobertura de cada face impressa${ordinal}`)
@@ -84,6 +79,24 @@ const blockers = computed(() => {
   })
   return list
 })
+
+/**
+ * Recalcula no motor a cada mexida, com debounce — o usuário mexe em cores e dimensões o tempo
+ * todo, e uma chamada por tecla digitada não ajudaria ninguém.
+ */
+let timer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => [store.draft, blockers.value.length] as const,
+  () => {
+    if (timer) clearTimeout(timer)
+    if (blockers.value.length > 0) {
+      store.draftCost = null
+      return
+    }
+    timer = setTimeout(() => store.calculateDraft(), 400)
+  },
+  { deep: true },
+)
 
 /** Cada passo só libera o seguinte quando tem o que ele precisa. */
 const stepValid = computed(() => {
@@ -126,9 +139,11 @@ const cancel = () => {
 
 <template>
   <div v-if="product" class="space-y-6">
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-      <strong>Protótipo.</strong> Catálogos e valores são ilustrativos e não vêm da API. O objetivo
-      aqui é validar o layout e o caminho da configuração.
+    <div
+      v-if="store.calcError"
+      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+    >
+      <strong>Não foi possível calcular.</strong> {{ store.calcError }}
     </div>
 
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -138,6 +153,7 @@ const cancel = () => {
         </h1>
         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {{ product.name || 'Sem nome ainda' }}
+          <span v-if="store.calculating" class="ml-2 text-xs text-indigo-600 dark:text-indigo-400">calculando...</span>
         </p>
       </div>
       <button
@@ -182,12 +198,11 @@ const cancel = () => {
       </div>
 
       <QuotePriceRail
-        v-if="cost"
-        :cost="cost"
+        :cost="store.draftCost"
         :blockers="blockers"
         :sheets-per-unit="sheetsPerUnit(product)"
         :unit-label="unitLabel"
-        :can-save="blockers.length === 0"
+        :can-save="blockers.length === 0 && !!store.draftCost"
         :save-label="store.editingUid ? 'Salvar alterações' : 'Salvar produto'"
         @save="save"
       />

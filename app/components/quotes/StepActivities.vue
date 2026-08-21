@@ -12,9 +12,11 @@
 import { computed, ref } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import ActivityPickerModal from '@/components/quotes/ActivityPickerModal.vue'
-import { ACTIVITY_TYPE_LABEL, findActivity } from '@/utils/quoteDemoData'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 
 const store = useQuoteDraftStore()
+const catalogs = useQuoteCatalogs()
 const product = computed(() => store.draft!)
 const pickerOpen = ref(false)
 
@@ -28,7 +30,7 @@ const rows = computed(() =>
   product.value.steps.map((step, index) => ({
     step,
     index,
-    activity: findActivity(step.activityId),
+    activity: catalogs.findActivity(step.activityId),
   })),
 )
 
@@ -75,10 +77,10 @@ const pick = (activityId: number) => {
         </span>
 
         <div class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ row.activity?.name }}</span>
+          <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ row.activity?.value }}</span>
           <span class="text-xs text-slate-500 dark:text-slate-400">
-            {{ row.activity ? ACTIVITY_TYPE_LABEL[row.activity.type] : '' }}
-            <template v-if="row.activity && row.activity.paramKind !== 'NONE'">
+            {{ row.activity ? ACTIVITY_TYPE_LABELS[row.activity.type] : '' }}
+            <template v-if="row.activity && catalogs.paramKindOf(row.activity.type) !== 'NONE'">
               · <span class="text-amber-600 dark:text-amber-400">pede configuração</span>
             </template>
           </span>

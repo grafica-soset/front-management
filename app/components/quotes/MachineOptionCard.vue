@@ -10,8 +10,22 @@
  * a informação que decide a troca.
  */
 import { computed } from 'vue'
-import type { MachineOption } from '@/utils/quoteDemoData'
-import { brl } from '@/utils/quoteDemoData'
+import { brl } from '@/utils/quoteModel'
+
+/** Opção de impressora derivada do cálculo do motor (plano escolhido + alternativas). */
+export interface MachineOption {
+  machineId: number
+  machineName: string
+  machineType: 'OFFSET' | 'DIGITAL'
+  /** Total da FOLHA neste plano: papel, máquina, chapas e tinta. */
+  total: number
+  waste: number
+  minutes: number
+  /** Papel e formato que este plano usa. */
+  sheetLabel: string
+  applicationsPerSheet: number
+  motherSheets: number
+}
 
 const props = defineProps<{
   option: MachineOption
@@ -61,23 +75,23 @@ const difference = computed(() => props.option.total - props.bestTotal)
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="font-medium text-slate-900 dark:text-white">{{ option.machine.name }}</span>
+          <span class="font-medium text-slate-900 dark:text-white">{{ option.machineName }}</span>
           <span
             class="rounded-full px-2 py-0.5 text-xs font-medium"
             :class="
-              option.machine.type === 'DIGITAL'
+              option.machineType === 'DIGITAL'
                 ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
                 : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
             "
           >
-            {{ option.machine.type === 'DIGITAL' ? 'Digital' : 'Off-set' }}
+            {{ option.machineType === 'DIGITAL' ? 'Digital' : 'Off-set' }}
           </span>
           <span v-if="best" class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
             Melhor preço
           </span>
         </div>
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Folha selecionada: {{ option.machine.sheetLabel }} · {{ option.piecesPerSheet }} peça(s) por folha
+          Folha selecionada: {{ option.sheetLabel }} · {{ option.applicationsPerSheet }} aplicação(ões) por folha
         </p>
       </div>
       <div class="shrink-0 text-right" :class="clearable ? 'pr-8' : ''">
@@ -97,7 +111,7 @@ const difference = computed(() => props.option.total - props.bestTotal)
       </div>
       <div>
         <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas</dt>
-        <dd class="text-sm tabular-nums text-slate-800 dark:text-slate-100">{{ option.sheets.toLocaleString('pt-BR') }}</dd>
+        <dd class="text-sm tabular-nums text-slate-800 dark:text-slate-100">{{ option.motherSheets.toLocaleString('pt-BR') }}</dd>
       </div>
     </dl>
   </component>
