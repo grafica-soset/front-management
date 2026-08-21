@@ -80,6 +80,8 @@ export interface SupplyKeyValue {
   type: SupplyType
   /** Unidade de medida — diz COMO o insumo é consumido quando uma atividade o escolhe. */
   unitOfMeasure: SupplyUnitOfMeasure
+  /** Tipo da chapa — nulo fora de PLATE. O orçamento só oferece as que a impressora aceita. */
+  plateType?: PlateType | null
   active: boolean
 }
 

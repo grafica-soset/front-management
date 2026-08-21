@@ -910,6 +910,11 @@ export interface MachineKeyValue {
   machineType: MachineType
   active: boolean
   /**
+   * Chapas que a máquina aceita — vazio na digital, que não usa matriz. É o que permite ao
+   * orçamento pedir a escolha da chapa só quando ela existe e há mais de uma opção.
+   */
+  acceptedPlateTypes?: PlateType[]
+  /**
    * Tintas que a máquina aceita — vazio para quem não imprime. É o que permite ao seletor da
    * atividade de impressão oferecer só as impressoras capazes daquela tinta.
    */

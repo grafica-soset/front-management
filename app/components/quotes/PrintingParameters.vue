@@ -89,8 +89,26 @@ const optionsFor = (sheets: QuoteSheet[]) => {
 const bodyOptions = computed(() => optionsFor(printedBody.value))
 const coverOptions = computed(() => optionsFor(printedCovers.value))
 
-/** Chapas que a impressora escolhida aceita — o usuário decide quando há mais de uma. */
-const plateOptions = computed(() => catalogs.plates.value)
+/**
+ * Chapas a oferecer NESTA impressão: as que a impressora escolhida aceita. A digital não usa
+ * matriz, então nem o campo aparece — e quando a impressora aceita um tipo só, o motor resolve
+ * sozinho, sem perguntar nada.
+ */
+const chosenMachine = computed(() => catalogs.findMachine(printing.value.machineId))
+
+const plateOptions = computed(() => {
+  const machine = chosenMachine.value
+  if (!machine || machine.machineType === 'DIGITAL') return []
+  const accepted = machine.acceptedPlateTypes ?? []
+  if (accepted.length === 0) return []
+  return catalogs.plates.value.filter((plate) => !plate.plateType || accepted.includes(plate.plateType))
+})
+
+/** Só vale perguntar quando a impressora aceita mais de um TIPO de chapa. */
+const asksForPlate = computed(() => {
+  const accepted = chosenMachine.value?.acceptedPlateTypes ?? []
+  return accepted.length > 1 && plateOptions.value.length > 1
+})
 
 /** As cores são o interruptor: zero nas duas faces tira a folha desta impressão. */
 const setColors = (sheet: QuoteSheet, face: 'front' | 'back', value: number) => {
@@ -320,9 +338,9 @@ const toggleSeparateCovers = () => {
         </button>
       </div>
 
-      <div v-if="plateOptions.length > 1" class="mt-3">
+      <div v-if="asksForPlate" class="mt-3">
         <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
-          Chapa desta impressão
+          Chapa desta impressão — {{ chosenMachine?.value }}
         </label>
         <select
           v-model.number="printing.plateSupplyId"
@@ -332,8 +350,8 @@ const toggleSeparateCovers = () => {
           <option v-for="chapa in plateOptions" :key="chapa.id" :value="chapa.id">{{ chapa.value }}</option>
         </select>
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Uma chapa por cor, por lado, nesta impressão. Quando a impressora aceita mais de um tipo,
-          a escolha é sua.
+          Uma chapa por cor, por lado, nesta impressão. Esta impressora aceita mais de um tipo, e a
+          diferença de preço entre eles é grande — por isso a escolha é sua.
         </p>
       </div>
 
