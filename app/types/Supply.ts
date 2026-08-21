@@ -82,6 +82,9 @@ export interface SupplyKeyValue {
   unitOfMeasure: SupplyUnitOfMeasure
   /** Tipo da chapa — nulo fora de PLATE. O orçamento só oferece as que a impressora aceita. */
   plateType?: PlateType | null
+  /** Classificação da tinta — nula fora de INK. Diz se a impressora escolhida imprime esta tinta. */
+  inkColorType?: InkColorType | null
+  inkSubtype?: InkSubtype | null
   active: boolean
 }
 

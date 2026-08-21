@@ -7,8 +7,11 @@
  * a folha que não entra nesta passada é zerada aqui, sem afetar a outra.
  *
  * As OPÇÕES DE IMPRESSORA comparam (papel × máquina) com total, quebra, tempo e folha. Escolhida
- * a máquina, as outras somem — o X devolve a lista. As TINTAS vêm depois da impressora, e são por
- * face: a frente pode ser CMYK e o verso um Pantone.
+ * a máquina, as outras somem — o X devolve a lista.
+ *
+ * As TINTAS vêm DEPOIS da impressora, e não junto das cores: é a máquina que decide quais existem.
+ * Toner e tinta offset não se misturam, e escolher antes seria escolher no escuro. São por face —
+ * a frente pode ser CMYK e o verso um Pantone.
  */
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
@@ -50,6 +53,7 @@ const printsSheet = (sheet: QuoteSheet) => isSheetPrinted(sheet, setup(sheet))
 const bodySheets = computed(() => product.value.sheets.filter((s) => s.kind !== 'COVER'))
 const coverSheets = computed(() => product.value.sheets.filter((s) => s.kind === 'COVER'))
 const printedBody = computed(() => bodySheets.value.filter(printsSheet))
+const printedSheets = computed(() => product.value.sheets.filter(printsSheet))
 const printedCovers = computed(() => coverSheets.value.filter(printsSheet))
 
 /**
@@ -136,8 +140,23 @@ const setCoverage = (sheet: QuoteSheet, face: 'front' | 'back', value: string) =
   else current.backCoverage = percent
 }
 
-/** Tintas aceitas pela impressora atribuída à folha. */
-const inksFor = (_sheet: QuoteSheet) => catalogs.inks.value
+/**
+ * Tintas que a impressora da folha realmente imprime.
+ *
+ * O SUBTIPO separa os mundos — toner na digital, tinta offset na offset, serigráfica na
+ * serigrafia — e oferecer os dois juntos é oferecer o que a máquina não roda. O TIPO (CMYK ou
+ * Pantone) filtra o que ela aceita naquele trabalho.
+ */
+const inksFor = (sheet: QuoteSheet) => {
+  const machine = catalogs.findMachine(machineForSheet(props.step, sheet))
+  if (!machine) return []
+  return catalogs.inks.value.filter((ink) => {
+    if (ink.inkSubtype && machine.inkSubtype && ink.inkSubtype !== machine.inkSubtype) return false
+    const aceitos = machine.acceptedInkColorTypes ?? []
+    if (ink.inkColorType && aceitos.length > 0 && !aceitos.includes(ink.inkColorType)) return false
+    return true
+  })
+}
 
 const toggleInk = (sheet: QuoteSheet, face: 'front' | 'back', inkId: number) => {
   const current = setup(sheet)
@@ -179,8 +198,9 @@ const toggleSeparateCovers = () => {
     <section>
       <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Cores por face</h4>
       <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-        Cores desta impressão em cada via/lâmina{{ coverSheets.length ? ' e capa' : '' }}. Zero nas
-        duas faces = a folha não entra nesta impressão.
+        Quantas cores e quanta cobertura em cada via/lâmina{{ coverSheets.length ? ' e capa' : '' }}.
+        Zero cores nas duas faces = a folha não entra nesta impressão. As tintas vêm depois, junto
+        com a impressora.
       </p>
 
       <div class="mt-3 space-y-3">
@@ -273,48 +293,6 @@ const toggleSeparateCovers = () => {
             </template>
           </p>
 
-          <!-- Tintas por face -->
-          <div v-if="printsSheet(sheet)" class="mt-4 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-700">
-            <div v-for="face in (['front', 'back'] as const)" :key="face">
-              <div
-                v-if="(face === 'front' ? setup(sheet).frontColors : setup(sheet).backColors) > 0"
-                class="space-y-1.5"
-              >
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="text-xs font-medium text-slate-700 dark:text-slate-200">
-                    Tintas d{{ face === 'front' ? 'a frente' : 'o verso' }}
-                    <span class="font-normal text-slate-500 dark:text-slate-400">
-                      — {{ (face === 'front' ? setup(sheet).frontInkIds : setup(sheet).backInkIds).length }} de
-                      {{ face === 'front' ? setup(sheet).frontColors : setup(sheet).backColors }}
-                      <template v-if="machineNameOf(sheet)"> · aceitas na {{ machineNameOf(sheet) }}</template>
-                    </span>
-                  </span>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    v-for="ink in inksFor(sheet)"
-                    :key="`${face}-${ink.id}`"
-                    type="button"
-                    @click="toggleInk(sheet, face, ink.id)"
-                    class="rounded-full border px-3 py-1 text-xs transition-colors"
-                    :class="
-                      (face === 'front' ? setup(sheet).frontInkIds : setup(sheet).backInkIds).includes(ink.id)
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300'
-                        : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
-                    "
-                  >
-                    {{ ink.value }}
-                  </button>
-                  <span v-if="!inksFor(sheet).length" class="text-xs text-amber-600 dark:text-amber-400">
-                    A impressora escolhida não aceita nenhuma das tintas cadastradas.
-                  </span>
-                </div>
-              </div>
-            </div>
-            <p v-if="issuesOf(sheet).length" class="text-xs text-amber-600 dark:text-amber-400">
-              Faltam tintas — {{ issuesOf(sheet).join(' · ') }}.
-            </p>
-          </div>
         </div>
       </div>
     </section>
@@ -417,7 +395,79 @@ const toggleSeparateCovers = () => {
       </div>
     </section>
 
-    <!-- ─── 3. Capas ─────────────────────────────────────────────────────── -->
+
+    <!-- ─── 3. Tintas ────────────────────────────────────────────────────── -->
+    <section v-if="printedSheets.length">
+      <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Tintas</h4>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+        Vêm depois da impressora: são as que ela imprime. Toner e tinta offset não se misturam, e
+        trocar de máquina pode derrubar a seleção.
+      </p>
+
+      <div class="mt-3 space-y-3">
+        <div
+          v-for="sheet in printedSheets"
+          :key="`tintas-${sheet.uid}`"
+          class="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-sm font-medium text-slate-900 dark:text-white">
+              {{ sheetLabel(sheet) }}
+              <span class="font-normal text-slate-500 dark:text-slate-400">
+                — {{ colorsLabel(setup(sheet)) }}
+              </span>
+            </span>
+            <span v-if="machineNameOf(sheet)" class="text-xs text-slate-500 dark:text-slate-400">
+              {{ machineNameOf(sheet) }}
+            </span>
+          </div>
+
+          <p v-if="!machineNameOf(sheet)" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            Escolha a impressora acima para liberar as tintas.
+          </p>
+
+          <template v-else>
+            <div v-for="face in (['front', 'back'] as const)" :key="face" class="mt-3">
+              <div v-if="(face === 'front' ? setup(sheet).frontColors : setup(sheet).backColors) > 0" class="space-y-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-xs font-medium text-slate-700 dark:text-slate-200">
+                    {{ face === 'front' ? 'Frente' : 'Verso' }}
+                    <span class="font-normal text-slate-500 dark:text-slate-400">
+                      — {{ (face === 'front' ? setup(sheet).frontInkIds : setup(sheet).backInkIds).length }} de
+                      {{ face === 'front' ? setup(sheet).frontColors : setup(sheet).backColors }}
+                    </span>
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="ink in inksFor(sheet)"
+                    :key="`${face}-${ink.id}`"
+                    type="button"
+                    @click="toggleInk(sheet, face, ink.id)"
+                    class="rounded-full border px-3 py-1 text-xs transition-colors"
+                    :class="
+                      (face === 'front' ? setup(sheet).frontInkIds : setup(sheet).backInkIds).includes(ink.id)
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300'
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
+                    "
+                  >
+                    {{ ink.value }}
+                  </button>
+                  <span v-if="!inksFor(sheet).length" class="text-xs text-amber-600 dark:text-amber-400">
+                    Nenhuma tinta cadastrada que a {{ machineNameOf(sheet) }} imprima.
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p v-if="issuesOf(sheet).length" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Faltam tintas — {{ issuesOf(sheet).join(' · ') }}.
+            </p>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 4. Capas ─────────────────────────────────────────────────────── -->
     <section v-if="coverSheets.length" class="rounded-xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900/60 dark:bg-violet-900/10">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
