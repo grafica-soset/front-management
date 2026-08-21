@@ -23,7 +23,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'save'): void }>()
 
-const hasNumbers = computed(() => props.blockers.length === 0 && props.cost !== null)
+/**
+ * O preço aparece assim que o motor consegue calcular — mesmo com pendências abertas. A tinta, por
+ * exemplo, só é escolhida depois da impressora: segurar o preço até lá esconderia justamente a
+ * informação que ajuda a escolher.
+ */
+const hasNumbers = computed(() => props.cost !== null)
 
 /** Linhas do custo, na ordem em que a gráfica pensa o trabalho. */
 const lines = computed(() => {
@@ -46,8 +51,10 @@ const lines = computed(() => {
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Resumo</h2>
       </div>
 
-      <div v-if="!hasNumbers" class="px-5 py-4">
-        <p class="text-sm text-slate-500 dark:text-slate-400">Para calcular, falta:</p>
+      <div v-if="blockers.length" class="px-5 py-4" :class="hasNumbers ? 'border-b border-slate-200 dark:border-slate-700' : ''">
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+          {{ hasNumbers ? 'Para salvar, falta:' : 'Para calcular, falta:' }}
+        </p>
         <ul class="mt-2 space-y-1.5">
           <li v-for="blocker in blockers" :key="blocker" class="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
             <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
@@ -56,7 +63,7 @@ const lines = computed(() => {
         </ul>
       </div>
 
-      <template v-else>
+      <template v-if="hasNumbers">
         <dl class="divide-y divide-slate-100 dark:divide-slate-700/60">
           <div v-for="line in lines" :key="line.label" class="flex items-baseline justify-between gap-3 px-5 py-2.5">
             <dt class="min-w-0">

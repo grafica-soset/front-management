@@ -44,8 +44,12 @@ onMounted(async () => {
 
 const product = computed(() => store.draft)
 
-/** O que ainda impede o cálculo — vira a lista de pendências do trilho. */
-const blockers = computed(() => {
+/**
+ * O que o MOTOR precisa para calcular. A tinta não entra aqui de propósito: ela é escolhida depois
+ * da impressora, e a impressora vem justamente do cálculo — exigi-la antes trancaria o usuário num
+ * ciclo, com a tela pedindo tinta e as opções de máquina nunca aparecendo.
+ */
+const calcBlockers = computed(() => {
   const p = product.value
   if (!p) return ['Abrir um produto']
   const list: string[] = []
@@ -73,8 +77,28 @@ const blockers = computed(() => {
     if (printed.some((sheet) => coverageIssues(setupFor(step, sheet)).length > 0)) {
       list.push(`Informar a taxa de cobertura de cada face impressa${ordinal}`)
     }
+  })
+  return list
+})
+
+/**
+ * O que falta para SALVAR: o que o motor precisa, mais a tinta de cada cor — que só se escolhe
+ * depois da máquina. O preço já aparece antes disso; o que a tinta segura é o fechamento do
+ * produto, porque sem ela o custo de tinta sai zerado.
+ */
+const blockers = computed(() => {
+  const p = product.value
+  if (!p) return calcBlockers.value
+  const list = [...calcBlockers.value]
+  const impressoes = printingSteps(p)
+  impressoes.forEach((step, index) => {
+    const ordinal = impressoes.length > 1 ? ` (${index + 1}ª impressão)` : ''
+    const printed = p.sheets.filter((sheet) => isSheetPrinted(sheet, setupFor(step, sheet)))
     if (printed.some((sheet) => inkIssues(setupFor(step, sheet)).length > 0)) {
       list.push(`Selecionar uma tinta para cada cor${ordinal}`)
+    }
+    if (!step.printing?.perSheet && !step.printing?.machineId) {
+      list.push(`Escolher a impressora${ordinal}`)
     }
   })
   return list
@@ -86,10 +110,10 @@ const blockers = computed(() => {
  */
 let timer: ReturnType<typeof setTimeout> | null = null
 watch(
-  () => [store.draft, blockers.value.length] as const,
+  () => [store.draft, calcBlockers.value.length] as const,
   () => {
     if (timer) clearTimeout(timer)
-    if (blockers.value.length > 0) {
+    if (calcBlockers.value.length > 0) {
       store.draftCost = null
       return
     }
