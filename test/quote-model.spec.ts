@@ -21,7 +21,7 @@ import {
  */
 
 function sheet(kind: QuoteSheet['kind'], index: number): QuoteSheet {
-  return { uid: `${kind}-${index}`, kind, index, paperTypeId: 1 }
+  return { uid: `${kind}-${index}`, kind, index, paperTypeId: 1, printFormatNumber: null }
 }
 
 function setup(front: number, back = 0, frontCoverage: number | null = 30, backCoverage: number | null = 30): PrintingSheetSetup {

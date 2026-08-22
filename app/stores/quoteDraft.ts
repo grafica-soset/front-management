@@ -23,7 +23,7 @@ function uid(prefix: string): string {
 }
 
 function emptySheet(kind: SheetKind, index: number): QuoteSheet {
-  return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null }
+  return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null }
 }
 
 /** Etapa de impressão nova: nenhuma máquina escolhida e cada folha na configuração padrão. */
@@ -263,6 +263,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           number: sheet.index,
           kind: sheet.kind,
           paperTypeId: sheet.paperTypeId!,
+          printFormatNumber: sheet.printFormatNumber,
         })),
         steps,
       }
@@ -304,6 +305,15 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * Troca a impressora de uma ETAPA de impressão. `scope` é 'PRODUCT', 'COVERS' ou o uid de uma
      * folha (modo por folha). `machineId` nulo limpa a seleção e devolve a lista de opções.
      */
+    /**
+     * Formato de impressão da FOLHA — não da etapa: uma folha é cortada uma vez, então a escolha
+     * vale para todas as impressões que passarem por ela.
+     */
+    setPrintFormat(sheetUid: string, formatNumber: number | null) {
+      const sheet = this.draft?.sheets.find((s) => s.uid === sheetUid)
+      if (sheet) sheet.printFormatNumber = formatNumber
+    },
+
     setMachine(stepUid: string, scope: 'PRODUCT' | 'COVERS' | string, machineId: number | null) {
       const printing = this.draft?.steps.find((s) => s.uid === stepUid)?.printing
       if (!printing) return

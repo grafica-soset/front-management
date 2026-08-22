@@ -18,13 +18,13 @@ import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import type { QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import MachineOptionCard from '@/components/quotes/MachineOptionCard.vue'
 import {
+  brl,
   colorsLabel,
   coverageIssues,
   coverageLabel,
   inkIssues,
   isSheetPrinted,
   machineForSheet,
-  printedSides,
   setupFor,
   sheetLabel,
   sheetsForSheet,
@@ -71,7 +71,11 @@ const optionsFor = (sheets: QuoteSheet[]) => {
     total: number; waste: number; minutes: number
     sheetLabel: string; applicationsPerSheet: number; motherSheets: number
   }>()
+  // Com formato escolhido pelo usuário, a comparação de impressoras fica dentro dele — senão a
+  // linha da máquina anunciaria um formato diferente do que o cálculo está usando.
+  const pinned = sheets[0]?.printFormatNumber ?? null
   for (const plan of [costing.chosen, ...costing.alternatives]) {
+    if (pinned !== null && plan.printFormatNumber !== pinned) continue
     const pass = plan.printings.find((p) => p.printingIndex === props.printingIndex)
     if (!pass) continue
     const atual = best.get(pass.machineId)
@@ -92,6 +96,53 @@ const optionsFor = (sheets: QuoteSheet[]) => {
 }
 const bodyOptions = computed(() => optionsFor(printedBody.value))
 const coverOptions = computed(() => optionsFor(printedCovers.value))
+
+/**
+ * Formatos de impressão oferecidos para UMA folha, montados a partir dos planos que o motor já
+ * avaliou — o escolhido mais as alternativas.
+ *
+ * Só entram os formatos da FOLHA-MÃE em uso: se o papel é 66x96, a lista é a tabela de conversões
+ * do 66x96. Formatos de outra folha-mãe não são alternativa nenhuma — trocá-los seria trocar o
+ * papel, que é outra decisão.
+ *
+ * De cada formato fica o plano mais barato, e o critério vai junto: quantas aplicações do formato
+ * final cabem nele, que é o número que manda no custo.
+ */
+const formatOptionsFor = (sheet: QuoteSheet) => {
+  const costing = costingOf(sheet)
+  if (!costing) return []
+  const motherFormat = costing.chosen.motherFormatName
+  const best = new Map<number, {
+    formatNumber: number; name: string; applications: number; finalFormatNumber: number
+    total: number; printSheets: number; motherSheets: number
+    preCutDescents: number; refileDescents: number
+  }>()
+  for (const plan of [costing.chosen, ...costing.alternatives]) {
+    if (plan.motherFormatName !== motherFormat) continue
+    const atual = best.get(plan.printFormatNumber)
+    if (atual && atual.total <= plan.totalCost) continue
+    best.set(plan.printFormatNumber, {
+      formatNumber: plan.printFormatNumber,
+      name: plan.printFormatName,
+      applications: plan.applicationsPerSheet,
+      finalFormatNumber: plan.finalFormatNumber,
+      total: plan.totalCost,
+      printSheets: plan.printSheetsNet,
+      motherSheets: plan.motherSheets,
+      preCutDescents: plan.preCutDescents,
+      refileDescents: plan.refileDescents,
+    })
+  }
+  return Array.from(best.values()).sort((a, b) => a.total - b.total)
+}
+
+/**
+ * O formato marcado na lista: o que o usuário escolheu ou, na falta de escolha, o que o motor está
+ * usando. A escolha do usuário vem primeiro para o clique acender na hora — o recálculo leva alguns
+ * décimos, e até ele voltar o plano ainda é o anterior.
+ */
+const currentFormat = (sheet: QuoteSheet) =>
+  sheet.printFormatNumber ?? costingOf(sheet)?.chosen.printFormatNumber ?? null
 
 /**
  * Chapas a oferecer NESTA impressão: as que a impressora escolhida aceita. A digital não usa
@@ -293,6 +344,82 @@ const toggleSeparateCovers = () => {
             </template>
           </p>
 
+          <!-- Formato de impressão: em que tamanho a folha-mãe entra na máquina. -->
+          <div v-if="printsSheet(sheet)" class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h5 class="text-xs font-semibold text-slate-900 dark:text-white">
+                Formato de impressão
+                <span v-if="costingOf(sheet)" class="font-normal text-slate-500 dark:text-slate-400">
+                  — da folha {{ costingOf(sheet)!.chosen.motherFormatName }}
+                </span>
+              </h5>
+              <button
+                v-if="sheet.printFormatNumber !== null"
+                type="button"
+                @click="store.setPrintFormat(sheet.uid, null)"
+                class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                Voltar à escolha do sistema
+              </button>
+            </div>
+
+            <p v-if="!formatOptionsFor(sheet).length" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Complete a configuração para o motor listar os formatos.
+            </p>
+
+            <template v-else>
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Quantas aplicações da peça cabem na folha que entra na máquina — quanto mais
+                aplicações, menos folhas para imprimir, mas o corte e a quebra mudam junto.
+              </p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  v-for="(option, index) in formatOptionsFor(sheet)"
+                  :key="option.formatNumber"
+                  type="button"
+                  @click="store.setPrintFormat(sheet.uid, option.formatNumber)"
+                  class="rounded-lg border p-3 text-left transition-colors"
+                  :class="
+                    currentFormat(sheet) === option.formatNumber
+                      ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/30'
+                      : 'border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700'
+                  "
+                >
+                  <span class="flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white">
+                      {{ option.name }}
+                      <span class="font-normal text-slate-500 dark:text-slate-400">
+                        · formato {{ option.formatNumber }}
+                      </span>
+                    </span>
+                    <span class="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                      {{ brl(option.total) }}
+                    </span>
+                  </span>
+                  <span class="mt-1 block text-xs tabular-nums text-slate-600 dark:text-slate-300">
+                    {{ option.finalFormatNumber }} ÷ {{ option.formatNumber }} =
+                    <strong>{{ option.applications }} aplicações</strong> por folha
+                  </span>
+                  <span class="mt-0.5 block text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                    {{ option.printSheets.toLocaleString('pt-BR') }} folhas na máquina ·
+                    {{ option.motherSheets.toLocaleString('pt-BR') }} folhas-mãe ·
+                    {{ option.preCutDescents }}+{{ option.refileDescents }} descidas de faca
+                  </span>
+                  <span
+                    v-if="index === 0"
+                    class="mt-1.5 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  >
+                    Mais barato — escolha do sistema
+                  </span>
+                </button>
+              </div>
+              <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                O formato é da folha: vale para todas as impressões que passarem por ela. O total
+                compara papel, máquina, chapas e tinta — <strong>o corte fica de fora</strong>, por
+                isso as descidas de faca aparecem aqui para você pesar.
+              </p>
+            </template>
+          </div>
         </div>
       </div>
     </section>

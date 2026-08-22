@@ -25,6 +25,11 @@ export interface QuoteSheetRequest {
   paperTypeId: number
   /** Troca manual do papel escolhido pelo sistema. */
   paperId?: number | null
+  /**
+   * Troca manual do formato de impressão: o NÚMERO do formato na tabela da folha-mãe (o 9 do 66x96
+   * é o 32x22). É preferência, não filtro — o motor continua devolvendo os outros em `alternatives`.
+   */
+  printFormatNumber?: number | null
 }
 
 /** O que uma impressão faz com uma folha. Cores zero nas duas faces = folha fora da impressão. */
@@ -113,6 +118,8 @@ export interface SheetPlanResponse {
   printHeightMm: number
   printFormatNumber: number
   finalFormatName: string
+  /** Numerador do critério de escolha: 36 ÷ 9 = 4 aplicações por folha. */
+  finalFormatNumber: number
   finalWidthMm: number
   finalHeightMm: number
   applicationsPerSheet: number

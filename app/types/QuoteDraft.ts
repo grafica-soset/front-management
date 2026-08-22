@@ -33,6 +33,11 @@ export interface QuoteSheet {
   index: number
   /** Família de papéis (`/paper-types`) — o sistema escolhe o tamanho dentro dela. */
   paperTypeId: number | null
+  /**
+   * Formato de impressão escolhido pelo usuário — o número do formato na folha-mãe. Nulo deixa o
+   * motor escolher pelo custo, que é o caminho normal.
+   */
+  printFormatNumber: number | null
 }
 
 /**
