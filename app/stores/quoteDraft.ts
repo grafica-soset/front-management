@@ -88,12 +88,19 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.editingUid = null
     },
 
-    /** Abre um produto salvo no assistente (cópia: cancelar não pode sujar a lista). */
+    /**
+     * Abre um produto salvo no assistente (cópia: cancelar não pode sujar a lista).
+     *
+     * O custo calculado volta junto. Sem ele a tela reabre sem resultado nenhum, e o passo de
+     * parâmetros perde as opções de impressora — que saem do cálculo, não do cadastro —, deixando
+     * a máquina já escolhida sem card para exibir. O recálculo confirma tudo em seguida.
+     */
     edit(productUid: string) {
       const found = this.products.find((p) => p.uid === productUid)
       if (!found) return
       this.draft = JSON.parse(JSON.stringify(found)) as QuoteProduct
       this.editingUid = productUid
+      this.draftCost = this.costs[productUid] ?? null
     },
 
     discard() {

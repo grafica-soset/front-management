@@ -40,6 +40,11 @@ const current = ref(0)
 onMounted(async () => {
   if (!store.draft) store.startNew()
   await catalogs.load()
+
+  // Abrir um produto salvo não mexe em nada, então o watch de recálculo não dispara — e sem
+  // cálculo o passo de parâmetros fica sem opções de impressora. O gatilho é aqui, depois dos
+  // catálogos, que são justamente o que `calcBlockers` consulta para saber o tipo das atividades.
+  if (calcBlockers.value.length === 0) scheduleCalc(0)
 })
 
 const product = computed(() => store.draft)
@@ -109,15 +114,20 @@ const blockers = computed(() => {
  * todo, e uma chamada por tecla digitada não ajudaria ninguém.
  */
 let timer: ReturnType<typeof setTimeout> | null = null
+const scheduleCalc = (delay: number) => {
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(() => store.calculateDraft(), delay)
+}
+
 watch(
   () => [store.draft, calcBlockers.value.length] as const,
   () => {
-    if (timer) clearTimeout(timer)
     if (calcBlockers.value.length > 0) {
+      if (timer) clearTimeout(timer)
       store.draftCost = null
       return
     }
-    timer = setTimeout(() => store.calculateDraft(), 400)
+    scheduleCalc(400)
   },
   { deep: true },
 )
