@@ -72,6 +72,81 @@ const printingTables = computed(() => {
       </dl>
     </section>
 
+    <!-- Papel: o que foi comprado, em que tamanho, e quanto virou quebra -->
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Papel</h3>
+        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          A folha-mãe é comprada uma vez, por mais impressões que receba; cada impressão acrescenta
+          só a sua quebra de acerto.
+        </p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50/50 text-xs uppercase text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
+            <tr>
+              <th class="px-5 py-3 font-semibold">Folha</th>
+              <th class="px-5 py-3 font-semibold">Papel escolhido</th>
+              <th class="px-5 py-3 font-semibold">Folha-mãe</th>
+              <th class="px-5 py-3 font-semibold">Formato de impressão</th>
+              <th class="px-5 py-3 text-right font-semibold">Peças</th>
+              <th class="px-5 py-3 text-right font-semibold">Líquidas</th>
+              <th class="px-5 py-3 text-right font-semibold">Quebra</th>
+              <th class="px-5 py-3 text-right font-semibold">Folhas-mãe</th>
+              <th class="px-5 py-3 text-right font-semibold">R$/folha</th>
+              <th class="px-5 py-3 text-right font-semibold">Custo</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
+            <tr v-for="sheet in cost.sheets" :key="`papel-${sheet.kind}-${sheet.number}`">
+              <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">
+                {{ sheetName(sheet.kind, sheet.number) }}
+              </td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
+                {{ sheet.chosen.paperCode }}
+                <span class="block text-xs text-slate-500 dark:text-slate-400">{{ sheet.paperTypeName }} · {{ sheet.paperWeightGsm }} g/m²</span>
+              </td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ sheet.chosen.motherFormatName }}</td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
+                {{ sheet.chosen.printFormatName }}
+                <span class="block text-xs text-slate-500 dark:text-slate-400">
+                  {{ sheet.chosen.applicationsPerSheet }} aplicação(ões) por folha
+                </span>
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                {{ sheet.requiredSheets.toLocaleString('pt-BR') }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                {{ sheet.chosen.printSheetsNet.toLocaleString('pt-BR') }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-amber-700 dark:text-amber-400">
+                {{ sheet.chosen.wasteSheets.toLocaleString('pt-BR') }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums font-medium text-slate-900 dark:text-white">
+                {{ sheet.chosen.motherSheets.toLocaleString('pt-BR') }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                {{ brl(sheet.chosen.paperPricePerSheet) }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-900 dark:text-white">
+                {{ brl(sheet.chosen.paperCost) }}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot class="border-t-2 border-slate-200 bg-slate-50/50 dark:border-slate-600 dark:bg-slate-700/40">
+            <tr>
+              <td colspan="9" class="px-5 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Total de papel
+              </td>
+              <td class="px-5 py-3 text-right font-bold tabular-nums text-slate-900 dark:text-white">
+                {{ brl(cost.paperCost) }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
     <!-- Uma tabela por impressão -->
     <section
       v-for="table in printingTables"
@@ -97,8 +172,12 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 font-semibold">Impressora</th>
               <th class="px-5 py-3 font-semibold">Formato de impressão</th>
               <th class="px-5 py-3 text-right font-semibold">Aplicações</th>
-              <th class="px-5 py-3 text-right font-semibold">Chapas</th>
+              <th class="px-5 py-3 text-right font-semibold">Passadas</th>
               <th class="px-5 py-3 text-right font-semibold">Quebra</th>
+              <th class="px-5 py-3 text-right font-semibold">Chapas</th>
+              <th class="px-5 py-3 text-right font-semibold">Tinta</th>
+              <th class="px-5 py-3 text-right font-semibold">Máquina</th>
+              <th class="px-5 py-3 text-right font-semibold">Total</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -125,11 +204,44 @@ const printingTables = computed(() => {
                 {{ row.sheet.chosen.applicationsPerSheet }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.pass">{{ row.pass.plateCount }} ({{ row.pass.plateSupplyName ?? '—' }})</template>
+                <template v-if="row.pass">{{ row.pass.passes }}</template>
+                <span v-else>—</span>
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-amber-700 dark:text-amber-400">
+                {{ row.pass ? row.pass.wasteSheets.toLocaleString('pt-BR') : '—' }}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                <template v-if="row.pass">
+                  {{ brl(row.pass.plateCost) }}
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    {{ row.pass.plateCount }} × {{ row.pass.plateSupplyName ?? 'sem chapa' }}
+                  </span>
+                </template>
                 <span v-else>—</span>
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                {{ row.pass ? row.pass.wasteSheets.toLocaleString('pt-BR') : '—' }}
+                <template v-if="row.pass">
+                  {{ brl(row.pass.inkCost) }}
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    {{ row.pass.inkGrams.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} g
+                  </span>
+                </template>
+                <span v-else>—</span>
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                <template v-if="row.pass">
+                  {{ brl(row.pass.printCost) }}
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    {{ Math.round(row.pass.minutes) }} min
+                  </span>
+                </template>
+                <span v-else>—</span>
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums font-medium text-slate-900 dark:text-white">
+                <template v-if="row.pass">
+                  {{ brl(row.pass.plateCost + row.pass.inkCost + row.pass.printCost) }}
+                </template>
+                <span v-else>—</span>
               </td>
             </tr>
           </tbody>
@@ -157,8 +269,18 @@ const printingTables = computed(() => {
       <ul class="divide-y divide-slate-100 dark:divide-slate-700/50">
         <li v-for="(step, index) in cost.steps" :key="`${step.activityId}-${index}`" class="px-5 py-3">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-sm text-slate-800 dark:text-slate-100">{{ step.activityName }}</span>
-            <span class="shrink-0 text-sm tabular-nums text-slate-900 dark:text-white">{{ brl(step.totalCost) }}</span>
+            <span class="text-sm text-slate-800 dark:text-slate-100">
+              {{ step.activityName }}
+              <span v-if="step.totalMinutes > 0" class="text-xs text-slate-500 dark:text-slate-400">
+                · {{ Math.round(step.totalMinutes) }} min
+              </span>
+            </span>
+            <span class="shrink-0 text-right">
+              <span class="text-sm tabular-nums text-slate-900 dark:text-white">{{ brl(step.totalCost) }}</span>
+              <span v-if="!step.countedInStepsTotal" class="block text-xs text-slate-400 dark:text-slate-500">
+                já somado acima
+              </span>
+            </span>
           </div>
           <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ step.detail }}</p>
         </li>

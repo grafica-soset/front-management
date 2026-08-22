@@ -116,6 +116,8 @@ export interface SheetPlanResponse {
   finalWidthMm: number
   finalHeightMm: number
   applicationsPerSheet: number
+  /** Preço da folha-mãe: folhas-mãe × preço = custo do papel. */
+  paperPricePerSheet: number
   /** Descidas de faca de cada corte, do cadastro de formatos. */
   preCutDescents: number
   refileDescents: number
@@ -153,6 +155,8 @@ export interface StepCostingResponse {
   totalMinutes: number
   totalCost: number
   detail: string
+  /** Falso na impressão: o custo aparece para conferência, mas já está em Impressão/Chapas/Tinta. */
+  countedInStepsTotal: boolean
 }
 
 export interface ProductCostingResponse {
