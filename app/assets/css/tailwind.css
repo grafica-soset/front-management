@@ -10,9 +10,11 @@
  * ajustes que utilitário nenhum resolve.
  */
 @media print {
+  /* Deitado: a tabela de impressão tem 13 colunas e a de papel, 10. Em pé não cabem —
+   * e cortar coluna de um relatório de auditoria é pior do que virar a folha. */
   @page {
-    size: A4;
-    margin: 12mm;
+    size: A4 landscape;
+    margin: 10mm;
   }
 
   /* O tema escuro segue o sistema operacional — não há botão para desligá-lo — e
@@ -26,14 +28,32 @@
     box-shadow: none !important;
   }
 
-  /* As tabelas largas do resumo rolam na tela; papel não rola. */
-  #resumo-impressao .overflow-x-auto {
+  /* As tabelas largas do resumo rolam na tela; papel não rola. E o `overflow-hidden` que
+   * arredonda o canto do bloco cortaria o que passasse da largura. */
+  #resumo-impressao .overflow-x-auto,
+  #resumo-impressao .overflow-hidden {
     overflow: visible !important;
   }
 
+  /* O respiro que a tela pede (px-5 py-3) vira largura demais quando são 13 colunas:
+   * só de padding a tabela já passava da folha, e o que passava era cortado. */
   #resumo-impressao table {
-    font-size: 10px;
+    font-size: 9px;
     width: 100%;
+  }
+
+  #resumo-impressao th,
+  #resumo-impressao td {
+    padding: 3px 4px !important;
+    /* `anywhere`, e não `break-word`: só ele encolhe a largura MÍNIMA que a coluna exige,
+     * que é o número com que o navegador decide se a tabela cabe. Assim as colunas ficam
+     * proporcionais ao conteúdo (auto) sem risco de estourar a folha de novo. */
+    overflow-wrap: anywhere;
+  }
+
+  /* Na tela cada célula leva um detalhe na linha de baixo; no papel, mais miúdo. */
+  #resumo-impressao table .text-xs {
+    font-size: 8px;
   }
 
   /* Blocos e linhas inteiros na mesma página, e o cabeçalho da tabela repetido
