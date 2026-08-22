@@ -175,12 +175,12 @@ const cancel = () => {
   <div v-if="product" class="space-y-6">
     <div
       v-if="store.calcError"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200 print:hidden"
     >
       <strong>Não foi possível calcular.</strong> {{ store.calcError }}
     </div>
 
-    <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between print:hidden">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
           {{ store.editingUid ? 'Editar produto' : 'Novo produto' }}
@@ -199,18 +199,18 @@ const cancel = () => {
       </button>
     </header>
 
-    <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 print:hidden">
       <QuoteStepper :steps="STEPS" :current="current" :max-reachable="maxReachable" @go="current = $event" />
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] print:block">
       <div class="min-w-0 space-y-6">
         <StepProductDefinition v-if="current === 0" />
         <StepActivities v-else-if="current === 1" />
         <StepParameters v-else-if="current === 2" />
         <StepSummary v-else />
 
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center justify-between gap-3 print:hidden">
           <button
             type="button"
             :disabled="current === 0"
@@ -232,6 +232,7 @@ const cancel = () => {
       </div>
 
       <QuotePriceRail
+        class="print:hidden"
         :cost="store.draftCost"
         :blockers="blockers"
         :sheets-per-unit="sheetsPerUnit(product)"

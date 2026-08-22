@@ -1,3 +1,56 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── Impressão ──────────────────────────────────────────────────────────────
+ *
+ * O que se imprime do orçamento é o RESUMO — a memória do cálculo, que é o papel
+ * que o orçamentista leva para conferir. O resto da tela (menu, assistente,
+ * botões, trilho de preço) sai pelo `print:hidden` de cada um; aqui ficam os
+ * ajustes que utilitário nenhum resolve.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  /* O tema escuro segue o sistema operacional — não há botão para desligá-lo — e
+   * o navegador não imprime fundos por padrão: texto claro sairia em branco no
+   * papel. No papel, portanto, é sempre claro. */
+  #resumo-impressao,
+  #resumo-impressao * {
+    color: #0f172a !important;
+    background: transparent !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  /* As tabelas largas do resumo rolam na tela; papel não rola. */
+  #resumo-impressao .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  #resumo-impressao table {
+    font-size: 10px;
+    width: 100%;
+  }
+
+  /* Blocos e linhas inteiros na mesma página, e o cabeçalho da tabela repetido
+   * quando ela precisa quebrar — senão a segunda página vem sem os rótulos. */
+  #resumo-impressao section,
+  #resumo-impressao tr {
+    break-inside: avoid;
+  }
+
+  #resumo-impressao thead {
+    display: table-header-group;
+  }
+
+  /* O `main` do layout reserva espaço para a barra fixa e o menu lateral, que
+   * não existem na impressão. */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}

@@ -18,6 +18,13 @@ const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
 
 const cost = computed(() => store.draftCost)
+
+/**
+ * Imprime só o resumo. Quem tira o resto da página do caminho é o `print:hidden` de cada bloco,
+ * com o CSS de impressão isolando este bloco pelo id — nada de abrir uma segunda janela e ter que
+ * carregar estilo de novo lá dentro.
+ */
+const print = () => window.print()
 const unitLabel = computed(() => (store.draft?.structure === 'BLADE' ? 'peça' : 'bloco'))
 
 const sheetName = (kind: string, number: number) =>
@@ -41,10 +48,22 @@ const printingTables = computed(() => {
 </script>
 
 <template>
-  <div v-if="cost" class="space-y-4">
+  <div v-if="cost" id="resumo-impressao" class="space-y-4">
     <!-- Cabeçalho do produto -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ cost.name || 'Produto sem nome' }}</h2>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ cost.name || 'Produto sem nome' }}</h2>
+        <button
+          type="button"
+          @click="print"
+          class="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 print:hidden dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829V6.75A2.25 2.25 0 0 1 8.97 4.5h6.06a2.25 2.25 0 0 1 2.25 2.25v7.079M6.72 13.829H4.875A1.875 1.875 0 0 1 3 11.954V9.75c0-1.036.84-1.875 1.875-1.875H6.72m0 5.954h10.56m0 0h1.845A1.875 1.875 0 0 0 21 11.954V9.75c0-1.036-.84-1.875-1.875-1.875H17.28m0 5.954v4.671c0 .621-.504 1.125-1.125 1.125H7.845a1.125 1.125 0 0 1-1.125-1.125v-4.671" />
+          </svg>
+          Imprimir resumo
+        </button>
+      </div>
       <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Formato pedido</dt>
