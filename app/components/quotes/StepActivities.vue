@@ -34,10 +34,12 @@ const rows = computed(() =>
   })),
 )
 
-const pick = (activityId: number) => {
-  store.addStep(activityId)
-  pickerOpen.value = false
-}
+/**
+ * Adicionar NÃO fecha o modal: montar a sequência de produção é escolher várias atividades de uma
+ * vez, e reabrir a cada clique transformava sete etapas em sete idas e voltas. A contagem "já no
+ * produto" na própria linha dá o retorno de que entrou.
+ */
+const pick = (activityId: number) => store.addStep(activityId)
 </script>
 
 <template>

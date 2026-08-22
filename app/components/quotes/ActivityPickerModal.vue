@@ -26,6 +26,11 @@ const emit = defineEmits<{
 const catalogs = useQuoteCatalogs()
 const search = ref('')
 
+/** Quantas etapas o produto já tem — o retorno de que os cliques estão surtindo efeito. */
+const addedCount = computed(() =>
+  Object.values(props.usageCount).reduce((total, count) => total + count, 0),
+)
+
 watch(
   () => props.isOpen,
   (open) => {
@@ -58,7 +63,7 @@ const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity
         <div>
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Adicionar atividade</h3>
           <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            A mesma atividade pode entrar mais de uma vez no produto.
+            Escolha quantas quiser — o modal fica aberto. A mesma atividade pode entrar mais de uma vez.
           </p>
         </div>
         <button
@@ -81,7 +86,7 @@ const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity
           class="block w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
         />
 
-        <div class="max-h-80 space-y-4 overflow-y-auto pr-1">
+        <div class="max-h-72 space-y-4 overflow-y-auto pr-1">
           <div v-for="[type, activities] in groups" :key="type">
             <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               {{ ACTIVITY_TYPE_LABELS[type] }}
@@ -112,6 +117,22 @@ const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity
             Nenhuma atividade encontrada.
           </p>
         </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <span class="text-sm text-slate-600 dark:text-slate-300">
+          <template v-if="addedCount">
+            {{ addedCount }} etapa(s) no produto
+          </template>
+          <template v-else>Nenhuma etapa ainda</template>
+        </span>
+        <button
+          type="button"
+          @click="emit('close')"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-indigo-500/20 hover:bg-indigo-700"
+        >
+          Concluir
+        </button>
       </div>
     </div>
   </div>
