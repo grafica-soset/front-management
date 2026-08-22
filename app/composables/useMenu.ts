@@ -125,6 +125,7 @@ export default function useMenu() {
         { name: 'Impressora Digital', href: '/maquinas/digital' },
       ],
     },
+    { name: 'Clientes', href: '/clientes', icon: 'users' },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {
       name: 'Configurações',
