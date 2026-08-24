@@ -83,6 +83,16 @@ export interface CalculateQuoteRequest {
 
 // ─── Resposta ────────────────────────────────────────────────────────────────
 
+/**
+ * Uma parcela da velocidade efetiva, em FOLHAS/HORA — tipo separado do tempo de propósito.
+ * Cumulativas: a primeira é a velocidade de partida, as seguintes são os redutores (negativos).
+ */
+export interface MachineSpeedStageResponse {
+  name: string
+  detail: string
+  sheetsPerHour: number
+}
+
 /** Uma etapa do tempo de máquina. O `detail` traz a CONTA: "4 × 12 min" explica os 48 minutos. */
 export interface MachineTimeStageResponse {
   name: string
@@ -122,6 +132,8 @@ export interface PrintingPassResponse {
   sheetsRun: number
   /** O tempo etapa por etapa — as parcelas somam `minutes`. */
   timeStages: MachineTimeStageResponse[]
+  /** De onde saiu a velocidade efetiva — as parcelas somam `sheetsPerHour`. */
+  speedStages: MachineSpeedStageResponse[]
   notes: string[]
 }
 

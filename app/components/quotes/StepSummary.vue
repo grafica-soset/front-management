@@ -40,6 +40,11 @@ const planNotes = computed(() => {
   return Array.from(new Set(notes))
 })
 
+/** As etapas de corte, que levam a memória da guilhotina para dentro da seção "Cortes". */
+const cuttingSteps = computed(() =>
+  cost.value?.steps.filter((step) => step.timeStages.length > 0) ?? [],
+)
+
 /** Uma tabela por IMPRESSÃO: é o que explica por que o total é a soma das passadas. */
 const printingTables = computed(() => {
   const c = cost.value
@@ -324,6 +329,34 @@ const printingTables = computed(() => {
                 </tr>
               </tbody>
             </table>
+
+            <template v-if="row.pass!.speedStages.length">
+              <p class="mt-3 text-xs font-medium text-slate-900 dark:text-white">
+                Velocidade efetiva
+              </p>
+              <table class="mt-1 w-full text-left text-xs">
+                <tbody>
+                  <tr v-for="stage in row.pass!.speedStages" :key="stage.name" class="align-baseline">
+                    <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
+                    <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
+                    <td
+                      class="py-0.5 text-right tabular-nums"
+                      :class="stage.sheetsPerHour < 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-slate-900 dark:text-white'"
+                    >
+                      {{ stage.sheetsPerHour.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} fls/h
+                    </td>
+                  </tr>
+                  <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                    <td class="py-1 pr-2 text-slate-900 dark:text-white" colspan="2">Efetiva</td>
+                    <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                      {{ Math.round(row.pass!.sheetsPerHour).toLocaleString('pt-BR') }} fls/h
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
           </div>
         </div>
       </div>
@@ -352,6 +385,38 @@ const printingTables = computed(() => {
         {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicações:
         <strong>{{ cost.sheets[0]!.chosen.refileDescents }} descidas</strong> no refile.
       </p>
+
+      <div v-if="cuttingSteps.length" class="mt-4 grid gap-4 lg:grid-cols-2">
+        <div
+          v-for="step in cuttingSteps"
+          :key="`corte-${step.activityId}-${step.detail}`"
+          class="rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+        >
+          <p class="text-xs font-medium text-slate-900 dark:text-white">
+            {{ step.activityName }}
+            <span class="font-normal text-slate-500 dark:text-slate-400">— {{ step.machineName }}</span>
+            <span class="block font-normal text-slate-500 dark:text-slate-400">{{ step.detail }}</span>
+          </p>
+          <table class="mt-2 w-full text-left text-xs">
+            <tbody>
+              <tr v-for="stage in step.timeStages" :key="stage.name" class="align-baseline">
+                <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
+                <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
+                <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+              <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                <td class="py-1 pr-2 text-slate-900 dark:text-white">Total</td>
+                <td class="py-1 pr-2 text-slate-500 dark:text-slate-400">{{ brl(step.totalCost) }}</td>
+                <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ step.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- Etapas -->
@@ -376,24 +441,6 @@ const printingTables = computed(() => {
             </span>
           </div>
           <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ step.detail }}</p>
-          <table v-if="step.timeStages.length" class="mt-2 w-full max-w-md text-left text-xs">
-            <tbody>
-              <tr v-for="stage in step.timeStages" :key="stage.name" class="align-baseline">
-                <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
-                <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
-                <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
-                  {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
-                </td>
-              </tr>
-              <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
-                <td class="py-1 pr-2 text-slate-900 dark:text-white">Total</td>
-                <td class="py-1 pr-2 text-slate-500 dark:text-slate-400">{{ step.machineName }}</td>
-                <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
-                  {{ step.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </li>
       </ul>
     </section>
