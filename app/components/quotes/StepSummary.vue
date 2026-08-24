@@ -12,7 +12,7 @@
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useUnitConverter } from '@/composables/useUnitConverter'
-import { brl, printRun } from '@/utils/quoteModel'
+import { brl, formatLabel, printRun } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
@@ -73,7 +73,12 @@ const printingTables = computed(() => {
         </div>
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Formato entregue</dt>
-          <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ cost.finalFormatName }}</dd>
+          <dd class="text-sm font-medium text-slate-900 dark:text-white">
+            <template v-if="cost.sheets[0]">
+              {{ formatLabel(cost.finalFormatName, cost.sheets[0].chosen.finalFormatNumber) }}
+            </template>
+            <template v-else>{{ cost.finalFormatName }}</template>
+          </dd>
         </div>
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Quantidade</dt>
@@ -134,7 +139,7 @@ const printingTables = computed(() => {
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ sheet.chosen.wholeFormatName }}</td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
-                {{ sheet.chosen.printFormatName }}
+                {{ formatLabel(sheet.chosen.printFormatName, sheet.chosen.printFormatNumber) }}
                 <span class="block text-xs text-slate-500 dark:text-slate-400">
                   {{ sheet.chosen.applicationsPerSheet }} aplicação(ões) por folha
                 </span>
@@ -224,7 +229,8 @@ const printingTables = computed(() => {
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.pass?.machineName ?? '—' }}</td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
-                {{ row.sheet.chosen.paperCode }} — {{ row.sheet.chosen.printFormatName }}
+                {{ row.sheet.chosen.paperCode }} —
+                {{ formatLabel(row.sheet.chosen.printFormatName, row.sheet.chosen.printFormatNumber) }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 {{ row.sheet.chosen.applicationsPerSheet }}
@@ -279,9 +285,11 @@ const printingTables = computed(() => {
     <section v-if="cost.sheets.length" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Cortes</h3>
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-        {{ cost.sheets[0]!.chosen.wholeFormatName }} → {{ cost.sheets[0]!.chosen.printFormatName }}:
+        {{ cost.sheets[0]!.chosen.wholeFormatName }} →
+        {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }}:
         <strong>{{ cost.sheets[0]!.chosen.preCutDescents }} descidas</strong> antes de imprimir.
-        Depois, {{ cost.sheets[0]!.chosen.printFormatName }} → {{ cost.finalFormatName }} em
+        Depois, {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }} →
+        {{ formatLabel(cost.finalFormatName, cost.sheets[0]!.chosen.finalFormatNumber) }} em
         {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicações:
         <strong>{{ cost.sheets[0]!.chosen.refileDescents }} descidas</strong> no refile.
       </p>

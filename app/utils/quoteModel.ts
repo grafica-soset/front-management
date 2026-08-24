@@ -106,6 +106,17 @@ export function sheetsPerUnit(product: QuoteProduct): number {
 }
 
 /**
+ * Um formato sempre aparece com o SEU NÚMERO: "32x22 (F9)".
+ *
+ * O número é o que manda no cálculo — é dele que saem as aplicações por folha e as descidas de faca
+ * —, e é por ele que a gráfica se refere ao formato. O tamanho sozinho não diz em quantas partes a
+ * folha inteira foi dividida.
+ */
+export function formatLabel(name: string, formatNumber: number): string {
+  return `${name} (F${formatNumber})`
+}
+
+/**
  * TIRAGEM: o total de folhas IMPRESSAS do produto, somando todas as vias/lâminas e capas.
  *
  * É o termo do métier gráfico, e não se confunde com a QUANTIDADE encomendada nem com as folhas do

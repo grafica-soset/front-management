@@ -4,6 +4,7 @@ import type { ProductCostingResponse } from '@/types/Quote'
 import {
   colorsLabel,
   coverageIssues,
+  formatLabel,
   inkIssues,
   isSheetPrinted,
   printRun,
@@ -123,5 +124,16 @@ describe('tiragem', () => {
 
   it('é zero enquanto não há cálculo', () => {
     expect(printRun(null)).toBe(0)
+  })
+})
+
+describe('rótulo de formato', () => {
+  it('mostra o número do formato junto do tamanho', () => {
+    expect(formatLabel('32x22', 9)).toBe('32x22 (F9)')
+    expect(formatLabel('33x32', 6)).toBe('33x32 (F6)')
+  })
+
+  it('a folha inteira é o formato 1 — uma parte, nenhum corte', () => {
+    expect(formatLabel('66x96', 1)).toBe('66x96 (F1)')
   })
 })

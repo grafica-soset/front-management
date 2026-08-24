@@ -20,6 +20,7 @@ import MachineOptionCard from '@/components/quotes/MachineOptionCard.vue'
 import {
   brl,
   colorsLabel,
+  formatLabel,
   coverageIssues,
   coverageLabel,
   inkIssues,
@@ -87,7 +88,7 @@ const optionsFor = (sheets: QuoteSheet[]) => {
       total: plan.totalCost,
       waste: pass.wasteSheets,
       minutes: pass.minutes,
-      sheetLabel: `${plan.paperCode} — ${plan.printFormatName}`,
+      sheetLabel: `${plan.paperCode} — ${formatLabel(plan.printFormatName, plan.printFormatNumber)}`,
       applicationsPerSheet: plan.applicationsPerSheet,
       wholeSheets: plan.wholeSheets,
     })
@@ -387,17 +388,14 @@ const toggleSeparateCovers = () => {
                 >
                   <span class="flex flex-wrap items-center justify-between gap-1">
                     <span class="text-sm font-semibold text-slate-900 dark:text-white">
-                      {{ option.name }}
-                      <span class="font-normal text-slate-500 dark:text-slate-400">
-                        · formato {{ option.formatNumber }}
-                      </span>
+                      {{ formatLabel(option.name, option.formatNumber) }}
                     </span>
                     <span class="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
                       {{ brl(option.total) }}
                     </span>
                   </span>
                   <span class="mt-1 block text-xs tabular-nums text-slate-600 dark:text-slate-300">
-                    {{ option.finalFormatNumber }} ÷ {{ option.formatNumber }} =
+                    F{{ option.finalFormatNumber }} ÷ F{{ option.formatNumber }} =
                     <strong>{{ option.applications }} aplicações</strong> por folha
                   </span>
                   <span class="mt-0.5 block text-xs tabular-nums text-slate-500 dark:text-slate-400">
