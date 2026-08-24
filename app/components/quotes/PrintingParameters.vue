@@ -433,14 +433,34 @@ const toggleSeparateCovers = () => {
             A mais barata vem primeiro. Os totais somam papel, máquina e chapas desta impressão.
           </p>
         </div>
-        <button
-          v-if="printedBody.length"
-          type="button"
-          @click="togglePerSheet"
-          class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-        >
-          {{ printing.perSheet ? '← Usar uma impressora para o produto' : 'Selecionar impressora diferente por via/lâmina' }}
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            :disabled="store.calculating"
+            @click="store.calculateDraft()"
+            class="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-indigo-500/20 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <svg
+              v-if="store.calculating"
+              class="h-3.5 w-3.5 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            {{ store.calculating ? 'Calculando...' : 'Calcular' }}
+          </button>
+          <button
+            v-if="printedBody.length"
+            type="button"
+            @click="togglePerSheet"
+            class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            {{ printing.perSheet ? '← Usar uma impressora para o produto' : 'Selecionar impressora diferente por via/lâmina' }}
+          </button>
+        </div>
       </div>
 
       <div v-if="asksForPlate" class="mt-3">
@@ -465,7 +485,8 @@ const toggleSeparateCovers = () => {
           Nenhuma via/lâmina com cores — esta impressão não roda o corpo do produto.
         </p>
         <p v-else-if="!bodyOptions.length" class="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
-          Complete a configuração para o motor calcular as opções de impressora.
+          Complete a configuração e use <strong>Calcular</strong> para o motor listar as opções de
+          impressora.
         </p>
         <template v-else-if="printing.machineId">
           <MachineOptionCard
