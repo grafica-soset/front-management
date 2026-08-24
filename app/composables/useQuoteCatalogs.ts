@@ -10,7 +10,7 @@ import { usePaperTypes } from '@/composables/usePaperTypes'
 import { useActivities } from '@/composables/useActivities'
 import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useSupplies } from '@/composables/useSupplies'
-import type { ActivityKeyValue, ActivityType } from '@/types/Activity'
+import type { ActivityKeyValue } from '@/types/Activity'
 import type { MachineKeyValue } from '@/types/Machine'
 import type { PaperType } from '@/types/PaperType'
 import type { SupplyKeyValue } from '@/types/Supply'
@@ -66,9 +66,18 @@ export function useQuoteCatalogs() {
    * O que a atividade pede no passo 3. Só três respostas importam para a tela: nada, minutos ou a
    * configuração de impressão — o resto o motor calcula a partir do cadastro.
    */
-  function paramKindOf(type: ActivityType | undefined): ParamKind {
-    if (type === 'PRINTING') return 'PRINTING'
-    if (type === 'MANUAL') return 'MINUTES'
+  /**
+   * O que a tela precisa PERGUNTAR de uma atividade.
+   *
+   * Hora-homem não é só o tipo MANUAL: um acabamento de subtipo MANUAL é cobrado do mesmo jeito —
+   * o motor pede os minutos e cobra o valor da hora da atividade. Enquanto isso olhava só o tipo,
+   * esses acabamentos nunca ganhavam o campo de tempo e saíam do orçamento custando zero.
+   */
+  function paramKindOf(activity: Pick<ActivityKeyValue, 'type' | 'finishingSubtype'> | undefined): ParamKind {
+    if (!activity) return 'NONE'
+    if (activity.type === 'PRINTING') return 'PRINTING'
+    if (activity.type === 'MANUAL') return 'MINUTES'
+    if (activity.type === 'FINISHING' && activity.finishingSubtype === 'MANUAL') return 'MINUTES'
     return 'NONE'
   }
 

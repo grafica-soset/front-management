@@ -50,7 +50,7 @@ const groups = computed(() => {
   return Array.from(byType.entries())
 })
 
-const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity.type) !== 'NONE'
+const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity) !== 'NONE'
 </script>
 
 <template>

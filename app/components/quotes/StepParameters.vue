@@ -32,10 +32,10 @@ const printingOrder = computed(() => {
 const printingTotal = computed(() => Object.keys(printingOrder.value).length)
 
 const configurable = computed(() =>
-  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)?.type) !== 'NONE'),
+  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)) !== 'NONE'),
 )
 const automatic = computed(() =>
-  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)?.type) === 'NONE'),
+  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)) === 'NONE'),
 )
 
 const showAutomatic = ref(false)

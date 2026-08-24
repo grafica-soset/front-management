@@ -28,7 +28,7 @@ const props = defineProps<{
 
 const catalogs = useQuoteCatalogs()
 const activity = computed(() => catalogs.findActivity(props.step.activityId))
-const paramKind = computed(() => catalogs.paramKindOf(activity.value?.type))
+const paramKind = computed(() => catalogs.paramKindOf(activity.value))
 const params = computed(() => props.step.parameters)
 
 const setNumber = (key: 'laborMinutes' | 'numberingUnits', value: string) => {

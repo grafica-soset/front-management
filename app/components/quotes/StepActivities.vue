@@ -82,7 +82,7 @@ const pick = (activityId: number) => store.addStep(activityId)
           <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ row.activity?.value }}</span>
           <span class="text-xs text-slate-500 dark:text-slate-400">
             {{ row.activity ? ACTIVITY_TYPE_LABELS[row.activity.type] : '' }}
-            <template v-if="row.activity && catalogs.paramKindOf(row.activity.type) !== 'NONE'">
+            <template v-if="row.activity && catalogs.paramKindOf(row.activity) !== 'NONE'">
               · <span class="text-amber-600 dark:text-amber-400">pede configuração</span>
             </template>
           </span>
