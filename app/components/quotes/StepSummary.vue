@@ -217,7 +217,6 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 text-right font-semibold">Quebra</th>
               <th class="px-5 py-3 text-right font-semibold">Chapas</th>
               <th class="px-5 py-3 text-right font-semibold">Tinta</th>
-              <th class="px-5 py-3 text-right font-semibold">Máquina (tempo)</th>
               <th class="px-5 py-3 text-right font-semibold">Total</th>
             </tr>
           </thead>
@@ -270,23 +269,6 @@ const printingTables = computed(() => {
                 </template>
                 <span v-else>—</span>
               </td>
-              <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.pass">
-                  {{ brl(row.pass.printCost) }}
-                  <span class="block text-xs text-slate-500 dark:text-slate-400">
-                    {{ Math.round(row.pass.minutes) }} min
-                  </span>
-                  <span class="block text-xs text-slate-500 dark:text-slate-400">
-                    acerto {{ Math.round(row.pass.setupMinutes) }} + rodagem
-                    {{ Math.round(row.pass.runMinutes) }}
-                  </span>
-                  <span class="block text-xs text-slate-500 dark:text-slate-400">
-                    {{ row.pass.sheetsRun.toLocaleString('pt-BR') }} fls a
-                    {{ Math.round(row.pass.sheetsPerHour).toLocaleString('pt-BR') }} fls/h
-                  </span>
-                </template>
-                <span v-else>—</span>
-              </td>
               <td class="px-5 py-3 text-right tabular-nums font-medium text-slate-900 dark:text-white">
                 <template v-if="row.pass">
                   {{ brl(row.pass.plateCost + row.pass.inkCost + row.pass.printCost) }}
@@ -313,6 +295,10 @@ const printingTables = computed(() => {
               <span v-if="row.pass!.passes > 1" class="font-normal text-slate-500 dark:text-slate-400">
                 · {{ row.pass!.passes }} passadas
               </span>
+              <span class="block font-normal text-slate-500 dark:text-slate-400">
+                {{ row.pass!.sheetsRun.toLocaleString('pt-BR') }} fls a
+                {{ Math.round(row.pass!.sheetsPerHour).toLocaleString('pt-BR') }} fls/h
+              </span>
             </p>
             <table class="mt-2 w-full text-left text-xs">
               <tbody>
@@ -331,6 +317,9 @@ const printingTables = computed(() => {
                   </td>
                   <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
                     {{ row.pass!.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                    <span class="block font-normal text-slate-500 dark:text-slate-400">
+                      {{ brl(row.pass!.printCost) }}
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -387,6 +376,24 @@ const printingTables = computed(() => {
             </span>
           </div>
           <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ step.detail }}</p>
+          <table v-if="step.timeStages.length" class="mt-2 w-full max-w-md text-left text-xs">
+            <tbody>
+              <tr v-for="stage in step.timeStages" :key="stage.name" class="align-baseline">
+                <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
+                <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
+                <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+              <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                <td class="py-1 pr-2 text-slate-900 dark:text-white">Total</td>
+                <td class="py-1 pr-2 text-slate-500 dark:text-slate-400">{{ step.machineName }}</td>
+                <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ step.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </li>
       </ul>
     </section>

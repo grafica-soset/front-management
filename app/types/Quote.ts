@@ -181,6 +181,8 @@ export interface StepCostingResponse {
   detail: string
   /** Falso na impressão: o custo aparece para conferência, mas já está em Impressão/Chapas/Tinta. */
   countedInStepsTotal: boolean
+  /** O tempo etapa por etapa, quando a máquina da etapa tem composição (guilhotina, por exemplo). */
+  timeStages: MachineTimeStageResponse[]
 }
 
 export interface ProductCostingResponse {
