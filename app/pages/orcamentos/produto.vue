@@ -60,7 +60,7 @@ const calcBlockers = computed(() => {
   const list: string[] = []
   if (!p.name.trim()) list.push('Dar um nome ao produto')
   if (!p.widthMm || !p.heightMm) list.push('Informar a dimensão final')
-  if (!p.quantity) list.push('Informar a tiragem')
+  if (!p.quantity) list.push('Informar a quantidade')
   if (p.sheets.some((s) => s.paperTypeId == null)) list.push('Escolher o papel de cada via/lâmina')
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
 

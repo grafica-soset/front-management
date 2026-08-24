@@ -24,7 +24,7 @@ export interface MachineOption {
   /** Papel e formato que este plano usa. */
   sheetLabel: string
   applicationsPerSheet: number
-  motherSheets: number
+  wholeSheets: number
 }
 
 const props = defineProps<{
@@ -111,7 +111,7 @@ const difference = computed(() => props.option.total - props.bestTotal)
       </div>
       <div>
         <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas</dt>
-        <dd class="text-sm tabular-nums text-slate-800 dark:text-slate-100">{{ option.motherSheets.toLocaleString('pt-BR') }}</dd>
+        <dd class="text-sm tabular-nums text-slate-800 dark:text-slate-100">{{ option.wholeSheets.toLocaleString('pt-BR') }}</dd>
       </div>
     </dl>
   </component>

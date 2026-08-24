@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
+import type { ProductCostingResponse } from '@/types/Quote'
 import {
   colorsLabel,
   coverageIssues,
   inkIssues,
   isSheetPrinted,
+  printRun,
   printedSides,
   setupFor,
   sheetLabel,
@@ -106,5 +108,20 @@ describe('pendências que seguram o cálculo', () => {
     expect(coverageIssues(setup(4, 0, null))).toEqual(['frente'])
     expect(coverageIssues(setup(4, 4, 50, null))).toEqual(['verso'])
     expect(coverageIssues(setup(4, 0, 50, null))).toEqual([])
+  })
+})
+
+describe('tiragem', () => {
+  const plan = (printSheetsNet: number) => ({ chosen: { printSheetsNet } })
+  const costWith = (...nets: number[]) =>
+    ({ sheets: nets.map(plan) } as unknown as ProductCostingResponse)
+
+  it('soma as folhas impressas de todas as vias', () => {
+    // 10 blocos × 50 jogos = 500 folhas por via; 4 aplicações por folha => 125 de tiragem em cada.
+    expect(printRun(costWith(125, 125))).toBe(250)
+  })
+
+  it('é zero enquanto não há cálculo', () => {
+    expect(printRun(null)).toBe(0)
   })
 })

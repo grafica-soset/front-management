@@ -12,7 +12,7 @@ import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 
 const props = defineProps<{
   sheet: QuoteSheet
-  /** Quantas folhas desta via/lâmina/capa a tiragem consome. */
+  /** Quantas folhas desta via/lâmina/capa a encomenda consome. */
   sheetCount: number
 }>()
 

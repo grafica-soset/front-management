@@ -26,7 +26,7 @@ export interface QuoteSheetRequest {
   /** Troca manual do papel escolhido pelo sistema. */
   paperId?: number | null
   /**
-   * Troca manual do formato de impressão: o NÚMERO do formato na tabela da folha-mãe (o 9 do 66x96
+   * Troca manual do formato de impressão: o NÚMERO do formato na tabela da folha inteira (o 9 do 66x96
    * é o 32x22). É preferência, não filtro — o motor continua devolvendo os outros em `alternatives`.
    */
   printFormatNumber?: number | null
@@ -112,7 +112,7 @@ export interface SheetPlanResponse {
   paperId: number
   paperCode: string
   paperName: string
-  motherFormatName: string
+  wholeFormatName: string
   printFormatName: string
   printWidthMm: number
   printHeightMm: number
@@ -123,14 +123,14 @@ export interface SheetPlanResponse {
   finalWidthMm: number
   finalHeightMm: number
   applicationsPerSheet: number
-  /** Preço da folha-mãe: folhas-mãe × preço = custo do papel. */
+  /** Preço da folha inteira: folhas inteiras × preço = custo do papel. */
   paperPricePerSheet: number
   /** Descidas de faca de cada corte, do cadastro de formatos. */
   preCutDescents: number
   refileDescents: number
   printSheetsNet: number
   wasteSheets: number
-  motherSheets: number
+  wholeSheets: number
   printings: PrintingPassResponse[]
   paperCost: number
   plateCost: number

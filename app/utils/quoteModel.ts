@@ -6,6 +6,7 @@
  * `POST /quotes/calculate`.
  */
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
+import type { ProductCostingResponse } from '@/types/Quote'
 
 // ─── Estrutura do produto ────────────────────────────────────────────────────
 
@@ -55,10 +56,10 @@ export function setupFor(step: QuoteStep, sheet: QuoteSheet): PrintingSheetSetup
 }
 
 /**
- * Quantas folhas desta via/lâmina/capa a tiragem consome.
+ * Quantas folhas desta via/lâmina/capa a encomenda consome.
  *
  * É aqui que jogos × vias aparece: cada via entra UMA VEZ POR JOGO, então um bloco de 50 jogos
- * consome 50 folhas de cada via — e a tiragem multiplica isso. Capa e lâmina entram uma vez por
+ * consome 50 folhas de cada via — e a quantidade multiplica isso. Capa e lâmina entram uma vez por
  * unidade produzida.
  */
 export function sheetsForSheet(product: QuoteProduct, sheet: QuoteSheet): number {
@@ -102,6 +103,21 @@ export function sheetsPerUnit(product: QuoteProduct): number {
   const covers = product.hasCovers ? product.coverCount || 0 : 0
   if (product.structure === 'BLADE') return (product.blades || 0) + covers
   return (product.sets || 0) * (product.vias || 0) + covers
+}
+
+/**
+ * TIRAGEM: o total de folhas IMPRESSAS do produto, somando todas as vias/lâminas e capas.
+ *
+ * É o termo do métier gráfico, e não se confunde com a QUANTIDADE encomendada nem com as folhas do
+ * produto: 10 blocos de 50 jogos com 2 vias são 1.000 folhas do produto, mas o formato de impressão
+ * comporta 4 aplicações — 125 folhas por via, 250 de tiragem.
+ *
+ * Conta as folhas líquidas, sem a quebra de acerto: a quebra é papel que a máquina come, não
+ * trabalho entregue.
+ */
+export function printRun(cost: ProductCostingResponse | null | undefined): number {
+  if (!cost) return 0
+  return cost.sheets.reduce((total, sheet) => total + sheet.chosen.printSheetsNet, 0)
 }
 
 /** Etapas de impressão do produto, na ordem em que o usuário as ativou. */

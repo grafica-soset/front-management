@@ -13,7 +13,7 @@ import { brl } from '@/utils/quoteModel'
 
 const props = defineProps<{
   cost: ProductCostingResponse | null
-  /** Pendências que impedem o cálculo (ex.: "informe a tiragem"). */
+  /** Pendências que impedem o cálculo (ex.: "informe a quantidade"). */
   blockers: string[]
   sheetsPerUnit: number
   unitLabel: string

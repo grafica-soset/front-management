@@ -2,7 +2,7 @@
 /**
  * Passo 1 do assistente — DEFINIÇÃO DO PRODUTO (atividade 034).
  *
- * Nome, formato final, tiragem, estrutura (lâmina ou bloco), papéis e capas.
+ * Nome, formato final, quantidade, estrutura (lâmina ou bloco), papéis e capas.
  *
  * Decisão de usabilidade sobre lâminas × jogos/vias: em vez de "preencher lâmina desabilita jogos
  * e vias" — que deixa na tela campos mortos e faz o usuário testar para descobrir a regra —, a
@@ -10,7 +10,10 @@
  * tempo), mas fica dita em vez de deduzida.
  *
  * O rodapé traduz a estrutura em folhas, que é o número que gera o custo: "50 jogos × 2 vias = 100
- * folhas por bloco · 1.000 folhas na tiragem".
+ * folhas por bloco · 1.000 folhas do produto".
+ *
+ * Aqui não se fala em TIRAGEM: no jargão gráfico ela é o total de folhas IMPRESSAS, que só o
+ * motor sabe — depende de quantas aplicações cabem no formato de impressão.
  */
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
@@ -51,7 +54,7 @@ const structureSummary = computed(() => {
   }
   if (p.hasCovers) parts.push(`+ ${p.coverCount} capa(s)`)
   parts.push(`${perUnit} folha(s) por ${unitLabel.value}`)
-  if (runs > 0) parts.push(`${(perUnit * runs).toLocaleString('pt-BR')} folhas na tiragem`)
+  if (runs > 0) parts.push(`${(perUnit * runs).toLocaleString('pt-BR')} folhas do produto`)
   return parts.join(' · ')
 })
 
@@ -109,7 +112,7 @@ const inputClass =
 
         <div>
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Tiragem ({{ unitLabel }}s) <span class="text-rose-500">*</span>
+            Quantidade ({{ unitLabel }}s) <span class="text-rose-500">*</span>
           </label>
           <input v-model.number="product.quantity" type="number" min="1" placeholder="10" :class="inputClass" />
         </div>

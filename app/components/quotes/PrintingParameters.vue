@@ -69,7 +69,7 @@ const optionsFor = (sheets: QuoteSheet[]) => {
   const best = new Map<number, {
     machineId: number; machineName: string; machineType: 'OFFSET' | 'DIGITAL'
     total: number; waste: number; minutes: number
-    sheetLabel: string; applicationsPerSheet: number; motherSheets: number
+    sheetLabel: string; applicationsPerSheet: number; wholeSheets: number
   }>()
   // Com formato escolhido pelo usuário, a comparação de impressoras fica dentro dele — senão a
   // linha da máquina anunciaria um formato diferente do que o cálculo está usando.
@@ -89,7 +89,7 @@ const optionsFor = (sheets: QuoteSheet[]) => {
       minutes: pass.minutes,
       sheetLabel: `${plan.paperCode} — ${plan.printFormatName}`,
       applicationsPerSheet: plan.applicationsPerSheet,
-      motherSheets: plan.motherSheets,
+      wholeSheets: plan.wholeSheets,
     })
   }
   return Array.from(best.values()).sort((a, b) => a.total - b.total)
@@ -101,8 +101,8 @@ const coverOptions = computed(() => optionsFor(printedCovers.value))
  * Formatos de impressão oferecidos para UMA folha, montados a partir dos planos que o motor já
  * avaliou — o escolhido mais as alternativas.
  *
- * Só entram os formatos da FOLHA-MÃE em uso: se o papel é 66x96, a lista é a tabela de conversões
- * do 66x96. Formatos de outra folha-mãe não são alternativa nenhuma — trocá-los seria trocar o
+ * Só entram os formatos da FOLHA INTEIRA em uso: se o papel é 66x96, a lista é a tabela de conversões
+ * do 66x96. Formatos de outra folha inteira não são alternativa nenhuma — trocá-los seria trocar o
  * papel, que é outra decisão.
  *
  * De cada formato fica o plano mais barato, e o critério vai junto: quantas aplicações do formato
@@ -111,14 +111,14 @@ const coverOptions = computed(() => optionsFor(printedCovers.value))
 const formatOptionsFor = (sheet: QuoteSheet) => {
   const costing = costingOf(sheet)
   if (!costing) return []
-  const motherFormat = costing.chosen.motherFormatName
+  const wholeFormat = costing.chosen.wholeFormatName
   const best = new Map<number, {
     formatNumber: number; name: string; applications: number; finalFormatNumber: number
-    total: number; printSheets: number; motherSheets: number
+    total: number; printSheets: number; wholeSheets: number
     preCutDescents: number; refileDescents: number
   }>()
   for (const plan of [costing.chosen, ...costing.alternatives]) {
-    if (plan.motherFormatName !== motherFormat) continue
+    if (plan.wholeFormatName !== wholeFormat) continue
     const atual = best.get(plan.printFormatNumber)
     if (atual && atual.total <= plan.totalCost) continue
     best.set(plan.printFormatNumber, {
@@ -128,7 +128,7 @@ const formatOptionsFor = (sheet: QuoteSheet) => {
       finalFormatNumber: plan.finalFormatNumber,
       total: plan.totalCost,
       printSheets: plan.printSheetsNet,
-      motherSheets: plan.motherSheets,
+      wholeSheets: plan.wholeSheets,
       preCutDescents: plan.preCutDescents,
       refileDescents: plan.refileDescents,
     })
@@ -344,13 +344,13 @@ const toggleSeparateCovers = () => {
             </template>
           </p>
 
-          <!-- Formato de impressão: em que tamanho a folha-mãe entra na máquina. -->
+          <!-- Formato de impressão: em que tamanho a folha inteira entra na máquina. -->
           <div v-if="printsSheet(sheet)" class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <h5 class="text-xs font-semibold text-slate-900 dark:text-white">
                 Formato de impressão
                 <span v-if="costingOf(sheet)" class="font-normal text-slate-500 dark:text-slate-400">
-                  — da folha {{ costingOf(sheet)!.chosen.motherFormatName }}
+                  — da folha {{ costingOf(sheet)!.chosen.wholeFormatName }}
                 </span>
               </h5>
               <button
@@ -402,7 +402,7 @@ const toggleSeparateCovers = () => {
                   </span>
                   <span class="mt-0.5 block text-xs tabular-nums text-slate-500 dark:text-slate-400">
                     {{ option.printSheets.toLocaleString('pt-BR') }} folhas na máquina ·
-                    {{ option.motherSheets.toLocaleString('pt-BR') }} folhas-mãe ·
+                    {{ option.wholeSheets.toLocaleString('pt-BR') }} folhas inteiras ·
                     {{ option.preCutDescents }}+{{ option.refileDescents }} descidas de faca
                   </span>
                   <span

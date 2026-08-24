@@ -4,7 +4,7 @@
  * Um orçamento tem N produtos. Cada produto tem uma ESTRUTURA que decide quantas folhas ele usa:
  *
  *   LÂMINA — impressão de folha única (folder, cartaz). O produto tem N lâminas independentes.
- *   BLOCO  — jogos × vias. Um bloco de 50 jogos com 2 vias tem 100 folhas; na tiragem de 10
+ *   BLOCO  — jogos × vias. Um bloco de 50 jogos com 2 vias tem 100 folhas; na encomenda de 10
  *            blocos são 1.000 folhas, 500 de cada via.
  *
  * Capas entram como folhas à parte: são configuradas como uma via/lâmina qualquer (papel, lados,
@@ -34,7 +34,7 @@ export interface QuoteSheet {
   /** Família de papéis (`/paper-types`) — o sistema escolhe o tamanho dentro dela. */
   paperTypeId: number | null
   /**
-   * Formato de impressão escolhido pelo usuário — o número do formato na folha-mãe. Nulo deixa o
+   * Formato de impressão escolhido pelo usuário — o número do formato na folha inteira. Nulo deixa o
    * motor escolher pelo custo, que é o caminho normal.
    */
   printFormatNumber: number | null
@@ -120,7 +120,12 @@ export interface QuoteProduct {
   /** Formato final da peça, em milímetros (representação canônica do sistema). */
   widthMm: number | null
   heightMm: number | null
-  /** Tiragem: peças finais (lâminas) ou blocos a produzir. */
+  /**
+   * QUANTIDADE encomendada: peças finais (lâminas) ou blocos a produzir.
+   *
+   * Não confundir com TIRAGEM, que no jargão gráfico é o total de FOLHAS IMPRESSAS — 10 blocos de
+   * 50 jogos com 2 vias dão 125 folhas por via, 250 de tiragem.
+   */
   quantity: number | null
 
   structure: ProductStructure
@@ -151,7 +156,7 @@ export interface ProductCost {
   lines: CostLine[]
   total: number
   unitCost: number
-  /** Folhas de impressão da tiragem inteira, somando todas as vias/lâminas e capas. */
+  /** Folhas do produto na encomenda inteira, somando todas as vias/lâminas e capas. */
   totalSheets: number
   totalMinutes: number
   machinesUsed: string[]

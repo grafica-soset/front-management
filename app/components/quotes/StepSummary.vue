@@ -12,7 +12,7 @@
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useUnitConverter } from '@/composables/useUnitConverter'
-import { brl } from '@/utils/quoteModel'
+import { brl, printRun } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
@@ -64,7 +64,7 @@ const printingTables = computed(() => {
           Imprimir resumo
         </button>
       </div>
-      <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Formato pedido</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
@@ -76,16 +76,23 @@ const printingTables = computed(() => {
           <dd class="text-sm font-medium text-slate-900 dark:text-white">{{ cost.finalFormatName }}</dd>
         </div>
         <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Tiragem</dt>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Quantidade</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
             {{ cost.quantity.toLocaleString('pt-BR') }} {{ unitLabel }}(s)
           </dd>
         </div>
         <div>
-          <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas na tiragem</dt>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Folhas do produto</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
             {{ cost.totalSheets.toLocaleString('pt-BR') }}
             <span class="text-xs font-normal text-slate-500">({{ cost.sheetsPerUnit }}/{{ unitLabel }})</span>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Tiragem</dt>
+          <dd class="text-sm font-medium text-slate-900 dark:text-white">
+            {{ printRun(cost).toLocaleString('pt-BR') }} fls
+            <span class="text-xs font-normal text-slate-500">impressas</span>
           </dd>
         </div>
       </dl>
@@ -96,7 +103,7 @@ const printingTables = computed(() => {
       <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
         <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Papel</h3>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          A folha-mãe é comprada uma vez, por mais impressões que receba; cada impressão acrescenta
+          A folha inteira é comprada uma vez, por mais impressões que receba; cada impressão acrescenta
           só a sua quebra de acerto.
         </p>
       </div>
@@ -106,12 +113,12 @@ const printingTables = computed(() => {
             <tr>
               <th class="px-5 py-3 font-semibold">Folha</th>
               <th class="px-5 py-3 font-semibold">Papel escolhido</th>
-              <th class="px-5 py-3 font-semibold">Folha-mãe</th>
+              <th class="px-5 py-3 font-semibold">Folha inteira</th>
               <th class="px-5 py-3 font-semibold">Formato de impressão</th>
               <th class="px-5 py-3 text-right font-semibold">Peças</th>
-              <th class="px-5 py-3 text-right font-semibold">Líquidas</th>
+              <th class="px-5 py-3 text-right font-semibold">Tiragem</th>
               <th class="px-5 py-3 text-right font-semibold">Quebra</th>
-              <th class="px-5 py-3 text-right font-semibold">Folhas-mãe</th>
+              <th class="px-5 py-3 text-right font-semibold">Folhas inteiras</th>
               <th class="px-5 py-3 text-right font-semibold">R$/folha</th>
               <th class="px-5 py-3 text-right font-semibold">Custo</th>
             </tr>
@@ -125,7 +132,7 @@ const printingTables = computed(() => {
                 {{ sheet.chosen.paperCode }}
                 <span class="block text-xs text-slate-500 dark:text-slate-400">{{ sheet.paperTypeName }} · {{ sheet.paperWeightGsm }} g/m²</span>
               </td>
-              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ sheet.chosen.motherFormatName }}</td>
+              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ sheet.chosen.wholeFormatName }}</td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
                 {{ sheet.chosen.printFormatName }}
                 <span class="block text-xs text-slate-500 dark:text-slate-400">
@@ -142,7 +149,7 @@ const printingTables = computed(() => {
                 {{ sheet.chosen.wasteSheets.toLocaleString('pt-BR') }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums font-medium text-slate-900 dark:text-white">
-                {{ sheet.chosen.motherSheets.toLocaleString('pt-BR') }}
+                {{ sheet.chosen.wholeSheets.toLocaleString('pt-BR') }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 {{ brl(sheet.chosen.paperPricePerSheet) }}
@@ -272,7 +279,7 @@ const printingTables = computed(() => {
     <section v-if="cost.sheets.length" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Cortes</h3>
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-        {{ cost.sheets[0]!.chosen.motherFormatName }} → {{ cost.sheets[0]!.chosen.printFormatName }}:
+        {{ cost.sheets[0]!.chosen.wholeFormatName }} → {{ cost.sheets[0]!.chosen.printFormatName }}:
         <strong>{{ cost.sheets[0]!.chosen.preCutDescents }} descidas</strong> antes de imprimir.
         Depois, {{ cost.sheets[0]!.chosen.printFormatName }} → {{ cost.finalFormatName }} em
         {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicações:

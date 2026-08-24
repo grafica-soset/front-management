@@ -98,7 +98,7 @@ const describe = (index: number) => {
             <tr>
               <th class="px-5 py-3 font-semibold">Produto</th>
               <th class="px-5 py-3 font-semibold">Formato</th>
-              <th class="px-5 py-3 text-right font-semibold">Tiragem</th>
+              <th class="px-5 py-3 text-right font-semibold">Quantidade</th>
               <th class="px-5 py-3 text-right font-semibold">Folhas/un.</th>
               <th class="px-5 py-3 text-right font-semibold">Unitário</th>
               <th class="px-5 py-3 text-right font-semibold">Total</th>
