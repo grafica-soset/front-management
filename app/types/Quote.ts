@@ -83,6 +83,13 @@ export interface CalculateQuoteRequest {
 
 // ─── Resposta ────────────────────────────────────────────────────────────────
 
+/** Uma etapa do tempo de máquina. O `detail` traz a CONTA: "4 × 12 min" explica os 48 minutos. */
+export interface MachineTimeStageResponse {
+  name: string
+  detail: string
+  minutes: number
+}
+
 export interface PrintingPassResponse {
   printingIndex: number
   activityId: number
@@ -113,6 +120,8 @@ export interface PrintingPassResponse {
   sheetsPerHour: number
   /** Folhas que passaram pela máquina: tiragem + quebra de acerto. */
   sheetsRun: number
+  /** O tempo etapa por etapa — as parcelas somam `minutes`. */
+  timeStages: MachineTimeStageResponse[]
   notes: string[]
 }
 

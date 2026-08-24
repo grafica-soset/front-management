@@ -298,9 +298,50 @@ const printingTables = computed(() => {
         </table>
       </div>
 
+      <div class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Tempo de máquina, etapa por etapa
+        </h4>
+        <div class="mt-3 grid gap-4 lg:grid-cols-2">
+          <div
+            v-for="row in table.rows.filter((r) => r.pass)"
+            :key="`etapas-${table.index}-${row.sheet.number}-${row.sheet.kind}`"
+            class="rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+          >
+            <p class="text-xs font-medium text-slate-900 dark:text-white">
+              {{ sheetName(row.sheet.kind, row.sheet.number) }} — {{ row.pass!.machineName }}
+              <span v-if="row.pass!.passes > 1" class="font-normal text-slate-500 dark:text-slate-400">
+                · {{ row.pass!.passes }} passadas
+              </span>
+            </p>
+            <table class="mt-2 w-full text-left text-xs">
+              <tbody>
+                <tr v-for="stage in row.pass!.timeStages" :key="stage.name" class="align-baseline">
+                  <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
+                  <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
+                  <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
+                    {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                  </td>
+                </tr>
+                <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                  <td class="py-1 pr-2 text-slate-900 dark:text-white">Total</td>
+                  <td class="py-1 pr-2 text-slate-500 dark:text-slate-400">
+                    acerto {{ Math.round(row.pass!.setupMinutes) }} + rodagem
+                    {{ Math.round(row.pass!.runMinutes) }}
+                  </td>
+                  <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                    {{ row.pass!.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div v-if="planNotes.length" class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Como o tempo foi montado
+          Observações do cálculo
         </h4>
         <ul class="mt-2 space-y-1">
           <li v-for="note in planNotes" :key="note" class="text-xs text-slate-600 dark:text-slate-300">
