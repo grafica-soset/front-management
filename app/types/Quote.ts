@@ -105,6 +105,14 @@ export interface PrintingPassResponse {
   inkCost: number
   printCost: number
   minutes: number
+  /** Acerto: custo fixo do trabalho (chapa, registro, cor). Domina a tiragem curta. */
+  setupMinutes: number
+  /** Rodagem: o tempo que depende da tiragem, na velocidade efetiva abaixo. */
+  runMinutes: number
+  /** Velocidade efetiva neste trabalho, já com as reduções da faixa cadastrada. */
+  sheetsPerHour: number
+  /** Folhas que passaram pela máquina: tiragem + quebra de acerto. */
+  sheetsRun: number
   notes: string[]
 }
 

@@ -30,6 +30,16 @@ const unitLabel = computed(() => (store.draft?.structure === 'BLADE' ? 'peça' :
 const sheetName = (kind: string, number: number) =>
   `${kind === 'BLADE' ? 'Lâmina' : kind === 'COVER' ? 'Capa' : 'Via'} ${number}`
 
+/**
+ * As notas que o motor deixou nos planos escolhidos — entre elas, a composição do acerto de cada
+ * máquina. É a memória de como o TEMPO foi montado, que é onde o orçamento costuma parecer errado
+ * sem estar: numa tiragem curta o acerto pesa mais do que a rodagem.
+ */
+const planNotes = computed(() => {
+  const notes = cost.value?.sheets.flatMap((sheet) => sheet.chosen.notes) ?? []
+  return Array.from(new Set(notes))
+})
+
 /** Uma tabela por IMPRESSÃO: é o que explica por que o total é a soma das passadas. */
 const printingTables = computed(() => {
   const c = cost.value
@@ -207,7 +217,7 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 text-right font-semibold">Quebra</th>
               <th class="px-5 py-3 text-right font-semibold">Chapas</th>
               <th class="px-5 py-3 text-right font-semibold">Tinta</th>
-              <th class="px-5 py-3 text-right font-semibold">Máquina</th>
+              <th class="px-5 py-3 text-right font-semibold">Máquina (tempo)</th>
               <th class="px-5 py-3 text-right font-semibold">Total</th>
             </tr>
           </thead>
@@ -266,6 +276,14 @@ const printingTables = computed(() => {
                   <span class="block text-xs text-slate-500 dark:text-slate-400">
                     {{ Math.round(row.pass.minutes) }} min
                   </span>
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    acerto {{ Math.round(row.pass.setupMinutes) }} + rodagem
+                    {{ Math.round(row.pass.runMinutes) }}
+                  </span>
+                  <span class="block text-xs text-slate-500 dark:text-slate-400">
+                    {{ row.pass.sheetsRun.toLocaleString('pt-BR') }} fls a
+                    {{ Math.round(row.pass.sheetsPerHour).toLocaleString('pt-BR') }} fls/h
+                  </span>
                 </template>
                 <span v-else>—</span>
               </td>
@@ -278,6 +296,17 @@ const printingTables = computed(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="planNotes.length" class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Como o tempo foi montado
+        </h4>
+        <ul class="mt-2 space-y-1">
+          <li v-for="note in planNotes" :key="note" class="text-xs text-slate-600 dark:text-slate-300">
+            {{ note }}
+          </li>
+        </ul>
       </div>
     </section>
 
