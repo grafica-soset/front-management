@@ -219,7 +219,6 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 font-semibold">Formato de impressão</th>
               <th class="px-5 py-3 text-right font-semibold">Aplicações</th>
               <th class="px-5 py-3 text-right font-semibold">Passadas</th>
-              <th class="px-5 py-3 text-right font-semibold">Quebra</th>
               <th class="px-5 py-3 text-right font-semibold">Chapas</th>
               <th class="px-5 py-3 text-right font-semibold">Tinta</th>
               <th class="px-5 py-3 text-right font-semibold">Total</th>
@@ -252,9 +251,6 @@ const printingTables = computed(() => {
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 <template v-if="row.pass">{{ row.pass.passes }}</template>
                 <span v-else>—</span>
-              </td>
-              <td class="px-5 py-3 text-right tabular-nums text-amber-700 dark:text-amber-400">
-                {{ row.pass ? row.pass.wasteSheets.toLocaleString('pt-BR') : '—' }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 <template v-if="row.pass">
