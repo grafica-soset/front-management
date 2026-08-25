@@ -216,7 +216,6 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 font-semibold">Cores</th>
               <th class="px-5 py-3 font-semibold">Cobertura</th>
               <th class="px-5 py-3 font-semibold">Impressora</th>
-              <th class="px-5 py-3 font-semibold">Formato de impressão</th>
               <th class="px-5 py-3 text-right font-semibold">Aplicações</th>
               <th class="px-5 py-3 text-right font-semibold">Passadas</th>
               <th class="px-5 py-3 text-right font-semibold">Chapas</th>
@@ -241,10 +240,6 @@ const printingTables = computed(() => {
                 <span v-else class="text-slate-400 dark:text-slate-500">—</span>
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.pass?.machineName ?? '—' }}</td>
-              <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
-                {{ row.sheet.chosen.paperCode }} —
-                {{ formatLabel(row.sheet.chosen.printFormatName, row.sheet.chosen.printFormatNumber) }}
-              </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 {{ row.sheet.chosen.applicationsPerSheet }}
               </td>
