@@ -27,6 +27,23 @@ const cost = computed(() => store.draftCost)
 const print = () => window.print()
 const unitLabel = computed(() => (store.draft?.structure === 'BLADE' ? 'peça' : 'bloco'))
 
+/**
+ * A estrutura do produto em uma linha: "50x2 vias" ou "3 lâminas". É o que diz, de bate-pronto, o
+ * que aquela quantidade contém — sem ela, "10 Bloco de Pedidos" não informa o tamanho do trabalho.
+ */
+const structureLabel = computed(() => {
+  const c = cost.value
+  if (!c) return ''
+  const vias = c.sheets.filter((s) => s.kind === 'VIA').length
+  const blades = c.sheets.filter((s) => s.kind === 'BLADE').length
+  const covers = c.sheets.filter((s) => s.kind === 'COVER').length
+  const parts: string[] = []
+  if (c.structure === 'BLOCK') parts.push(`${c.sets}x${vias} vias`)
+  else parts.push(`${blades} lâmina(s)`)
+  if (covers > 0) parts.push(`+ ${covers} capa(s)`)
+  return parts.join(' ')
+})
+
 const sheetName = (kind: string, number: number) =>
   `${kind === 'BLADE' ? 'Lâmina' : kind === 'COVER' ? 'Capa' : 'Via'} ${number}`
 
@@ -67,7 +84,10 @@ const printingTables = computed(() => {
     <!-- Cabeçalho do produto -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div class="flex flex-wrap items-start justify-between gap-3">
-        <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ cost.name || 'Produto sem nome' }}</h2>
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white">
+          {{ cost.quantity.toLocaleString('pt-BR') }} {{ cost.name || 'Produto sem nome' }}
+          <span class="font-normal text-slate-500 dark:text-slate-400">— {{ structureLabel }}</span>
+        </h2>
         <button
           type="button"
           @click="print"
@@ -135,7 +155,7 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 font-semibold">Papel escolhido</th>
               <th class="px-5 py-3 font-semibold">Folha inteira</th>
               <th class="px-5 py-3 font-semibold">Formato de impressão</th>
-              <th class="px-5 py-3 text-right font-semibold">Peças</th>
+              <th class="px-5 py-3 text-right font-semibold">Lâminas/Vias</th>
               <th class="px-5 py-3 text-right font-semibold">Tiragem</th>
               <th class="px-5 py-3 text-right font-semibold">Quebra</th>
               <th class="px-5 py-3 text-right font-semibold">Folhas inteiras</th>

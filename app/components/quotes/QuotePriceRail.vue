@@ -36,9 +36,13 @@ const lines = computed(() => {
   if (!c) return []
   return [
     { label: 'Papel', value: c.paperCost, detail: `${c.totalSheets.toLocaleString('pt-BR')} folhas no trabalho` },
-    { label: 'Chapas', value: c.plateCost, detail: 'uma por cor, por lado, por impressão' },
-    { label: 'Tinta', value: c.inkCost, detail: 'pela cobertura informada' },
-    { label: 'Impressão', value: c.printCost, detail: 'hora-máquina' },
+    // Impressão fecha o mesmo valor que a etapa de impressão mostra no resumo: máquina, chapas e
+    // tinta juntas. Separá-las aqui e somá-las lá deixava o mesmo trabalho com dois preços.
+    {
+      label: 'Impressão',
+      value: c.printCost + c.plateCost + c.inkCost,
+      detail: 'máquina, chapas e tinta',
+    },
     { label: 'Etapas', value: c.stepsCost, detail: `${c.steps.length} etapa(s)` },
   ].filter((l) => l.value > 0)
 })

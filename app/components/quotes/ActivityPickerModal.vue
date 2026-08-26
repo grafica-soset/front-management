@@ -7,7 +7,7 @@
  * mesmo produto (dois cortes, duas impressões). Por isso nada aparece desabilitado; as já
  * escolhidas só ganham a contagem "já no produto ×2", como informação, não como bloqueio.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import type { ActivityKeyValue } from '@/types/Activity'
@@ -25,6 +25,18 @@ const emit = defineEmits<{
 
 const catalogs = useQuoteCatalogs()
 const search = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+
+/**
+ * Escolher uma atividade limpa a busca e devolve o foco a ela: montar a sequência é uma escolha
+ * atrás da outra, e apagar o termo anterior à mão a cada vez é o que torna isso lento.
+ */
+const choose = async (activityId: number) => {
+  emit('pick', activityId)
+  search.value = ''
+  await nextTick()
+  searchInput.value?.focus()
+}
 
 /** Quantas etapas o produto já tem — o retorno de que os cliques estão surtindo efeito. */
 const addedCount = computed(() =>
@@ -33,8 +45,11 @@ const addedCount = computed(() =>
 
 watch(
   () => props.isOpen,
-  (open) => {
-    if (open) search.value = ''
+  async (open) => {
+    if (!open) return
+    search.value = ''
+    await nextTick()
+    searchInput.value?.focus()
   },
 )
 
@@ -80,6 +95,7 @@ const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity
 
       <div class="space-y-4 p-5">
         <input
+          ref="searchInput"
           v-model="search"
           type="search"
           placeholder="Buscar atividade..."
@@ -96,7 +112,7 @@ const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity
                 v-for="activity in activities"
                 :key="activity.id"
                 type="button"
-                @click="emit('pick', activity.id)"
+                @click="choose(activity.id)"
                 class="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50/60 dark:border-slate-700 dark:hover:bg-slate-700/60"
               >
                 <span class="min-w-0">
