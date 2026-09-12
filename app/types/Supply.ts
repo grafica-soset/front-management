@@ -80,6 +80,11 @@ export interface SupplyKeyValue {
   type: SupplyType
   /** Unidade de medida — diz COMO o insumo é consumido quando uma atividade o escolhe. */
   unitOfMeasure: SupplyUnitOfMeasure
+  /**
+   * Tipo da matriz — nulo fora de PLATE. É por ele que o cadastro da impressora (atividade 034)
+   * filtra as chapas que pode oferecer: só as dos tipos que aquela máquina grava.
+   */
+  plateType?: PlateType | null
   active: boolean
 }
 
