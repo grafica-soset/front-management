@@ -15,6 +15,12 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     'pinia-plugin-persistedstate/nuxt',
   ],
+  // O módulo procura o CSS em `<rootDir>/assets/css/tailwind.css`; com o layout `app/` do Nuxt 4 o
+  // arquivo está um nível abaixo, e sem este caminho ele caía silenciosamente no CSS padrão do
+  // Tailwind — levando junto TODO o `@media print` do resumo do orçamento.
+  tailwindcss: {
+    cssPath: '~/assets/css/tailwind.css',
+  },
   runtimeConfig: {
     public: {
       // Mantido público caso algum trecho precise da URL absoluta da API.

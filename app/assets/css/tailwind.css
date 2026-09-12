@@ -10,11 +10,25 @@
  * ajustes que utilitário nenhum resolve.
  */
 @media print {
-  /* Deitado: a tabela de impressão tem 13 colunas e a de papel, 10. Em pé não cabem —
-   * e cortar coluna de um relatório de auditoria é pior do que virar a folha. */
+  /* Deitado: a tabela de papel e a de impressão têm 10 colunas cada, e a memória de seleção, 7.
+   * Em pé não cabem — e cortar coluna de um relatório de auditoria é pior do que virar a folha. */
   @page {
     size: A4 landscape;
     margin: 10mm;
+  }
+
+  /* O layout da tela reserva largura para o menu lateral e para o trilho de preço, que não existem
+   * no papel. Se alguma dessas larguras sobreviver à impressão, a tabela é calculada sobre uma
+   * caixa mais larga que a folha e o navegador simplesmente CORTA o que passa — foi assim que a
+   * tabela de papel saía com 6 das 10 colunas. */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main,
+  main * {
+    max-width: none !important;
   }
 
   /* O tema escuro segue o sistema operacional — não há botão para desligá-lo — e
@@ -35,11 +49,12 @@
     overflow: visible !important;
   }
 
-  /* O respiro que a tela pede (px-5 py-3) vira largura demais quando são 13 colunas:
+  /* O respiro que a tela pede (px-5 py-3) vira largura demais quando são 10 colunas:
    * só de padding a tabela já passava da folha, e o que passava era cortado. */
   #resumo-impressao table {
     font-size: 9px;
     width: 100%;
+    table-layout: auto;
   }
 
   #resumo-impressao th,
@@ -52,25 +67,41 @@
   }
 
   /* Na tela cada célula leva um detalhe na linha de baixo; no papel, mais miúdo. */
-  #resumo-impressao table .text-xs {
+  #resumo-impressao table .text-xs,
+  #resumo-impressao table .text-\[11px\] {
     font-size: 8px;
   }
 
-  /* Blocos e linhas inteiros na mesma página, e o cabeçalho da tabela repetido
-   * quando ela precisa quebrar — senão a segunda página vem sem os rótulos. */
-  #resumo-impressao section,
-  #resumo-impressao tr {
+  /* O que está recolhido na tela — os motivos das combinações descartadas — é justamente o que o
+   * orçamentista leva para conferir com a produção. A tela abre todos os `details` antes de chamar
+   * o `print()`; aqui some só a setinha, que no papel não clica. */
+  #resumo-impressao details > summary {
+    list-style: none;
+  }
+
+  #resumo-impressao details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* Linha e item inteiros na mesma página. A SEÇÃO não: a de seleção passa de uma folha, e proibir
+   * a quebra dela empurraria a seção inteira para a página seguinte, deixando meia página em
+   * branco. O que não pode é o título ficar órfão no pé da folha. */
+  #resumo-impressao tr,
+  #resumo-impressao li {
     break-inside: avoid;
   }
 
+  #resumo-impressao h2,
+  #resumo-impressao h3,
+  #resumo-impressao h4,
+  #resumo-impressao h5,
+  #resumo-impressao summary,
   #resumo-impressao thead {
-    display: table-header-group;
+    break-after: avoid;
   }
 
-  /* O `main` do layout reserva espaço para a barra fixa e o menu lateral, que
-   * não existem na impressão. */
-  main {
-    margin: 0 !important;
-    padding: 0 !important;
+  /* Cabeçalho da tabela repetido quando ela quebra — senão a segunda página vem sem os rótulos. */
+  #resumo-impressao thead {
+    display: table-header-group;
   }
 }
