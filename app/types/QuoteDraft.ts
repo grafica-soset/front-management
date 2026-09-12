@@ -136,6 +136,20 @@ export interface QuoteProduct {
   /** Vias por jogo, 1 a 9 (estrutura BLOCO). */
   vias: number
 
+  /**
+   * "Vias/lâminas iguais?" — todas com o MESMO desenho.
+   *
+   * Nasce SEM RESPOSTA (null) e é perguntada assim que o produto tem mais de uma via/lâmina: é ela
+   * que decide se o trabalho paga uma chapa ou várias, e nenhum dos dois lados pode ser assumido no
+   * silêncio — um cobra a mais, o outro a menos.
+   */
+  identicalArtwork: boolean | null
+  /**
+   * Quando a resposta é NÃO: quantos desenhos DIFERENTES existem entre as vias/lâminas. Dois de
+   * quatro vias significam dois jogos de chapa — as outras duas reaproveitam.
+   */
+  distinctArtworks: number | null
+
   hasCovers: boolean
   coverCount: number
 

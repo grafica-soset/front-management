@@ -72,6 +72,10 @@ export interface QuoteProductRequest {
   heightMm: number
   structure: ProductStructure
   sets: number
+  /** Vias/lâminas iguais: mesma chapa, mesma montagem e todas na mesma impressora. */
+  identicalArtwork?: boolean
+  /** Quantos desenhos diferentes há entre as vias/lâminas. Nulo/ausente = todas diferentes. */
+  distinctArtworkCount?: number | null
   sheets: QuoteSheetRequest[]
   steps: QuoteStepRequest[]
 }
@@ -156,6 +160,8 @@ export interface SheetPlanResponse {
   paperPricePerSheet: number
   /** Descidas de faca de cada corte, do cadastro de formatos. */
   preCutDescents: number
+  /** Descidas cadastradas do formato final, contadas da folha INTEIRA — o numerador do refile. */
+  finalFormatDescents: number
   refileDescents: number
   printSheetsNet: number
   wasteSheets: number
@@ -170,6 +176,34 @@ export interface SheetPlanResponse {
   notes: string[]
 }
 
+/** O que aconteceu com uma combinação avaliada na escolha de formato e impressora. */
+export type SelectionOutcome = 'CHOSEN' | 'VIABLE' | 'REJECTED'
+
+/**
+ * Uma linha da MEMÓRIA DE SELEÇÃO: uma combinação papel × formato × impressora que o motor testou.
+ *
+ * Os campos vêm nulos até onde a avaliação chegou — é isso que diz em que ponto a combinação caiu:
+ * sem `printFormatName`, a recusa foi antes do formato; sem `machineName`, antes da impressora.
+ */
+export interface SelectionEntryResponse {
+  outcome: SelectionOutcome
+  paperId: number | null
+  paperCode: string | null
+  wholeFormatName: string | null
+  printFormatName: string | null
+  printFormatNumber: number | null
+  printWidthMm: number | null
+  printHeightMm: number | null
+  applicationsPerSheet: number | null
+  machineId: number | null
+  machineName: string | null
+  printSheetsNet: number | null
+  wholeSheets: number | null
+  totalCost: number | null
+  /** Preenchido só em REJECTED: o que faltou, apontando o cadastro a corrigir. */
+  reason: string | null
+}
+
 export interface SheetCostingResponse {
   number: number
   kind: SheetKind
@@ -179,6 +213,8 @@ export interface SheetCostingResponse {
   requiredSheets: number
   chosen: SheetPlanResponse
   alternatives: SheetPlanResponse[]
+  /** Todas as combinações testadas — inclusive as recusadas, com o motivo. */
+  selection: SelectionEntryResponse[]
   totalCost: number
 }
 
@@ -197,6 +233,46 @@ export interface StepCostingResponse {
   timeStages: MachineTimeStageResponse[]
 }
 
+/** O peso de uma folha do produto no pacote: área do formato final × gramatura × folhas. */
+export interface PackagingSheetWeightResponse {
+  sheetNumber: number
+  kind: SheetKind
+  paperTypeName: string
+  paperWeightGsm: number
+  /** Folhas desta via/lâmina/capa que a tiragem consome. */
+  sheets: number
+  weightKg: number
+}
+
+/**
+ * OS DADOS DO PACOTE: quanto pesa o trabalho, em quantos pacotes ele sai e o que custa embrulhar.
+ *
+ * O peso usa o formato FINAL PEDIDO (10,5 × 15,5 cm), não o formato cadastrado que o comporta: o
+ * que entra no pacote é a peça refilada que o cliente recebe.
+ */
+export interface PackagingCostingResponse {
+  activityName: string
+  taskName: string
+  widthMm: number
+  heightMm: number
+  weights: PackagingSheetWeightResponse[]
+  totalWeightKg: number
+  /** Teto de peso de um pacote, do cadastro da tarefa de empacotar. */
+  packageWeightKg: number
+  packages: number
+  piecesPerPackage: number
+  minutesPerPackage: number
+  totalMinutes: number
+  laborHourlyCost: number
+  laborCost: number
+  wrappingPaperName: string | null
+  wrappingSheetsPerPackage: number
+  wrappingSheets: number
+  wrappingPricePerSheet: number
+  wrappingCost: number
+  totalCost: number
+}
+
 export interface ProductCostingResponse {
   name: string
   quantity: number
@@ -209,6 +285,8 @@ export interface ProductCostingResponse {
   finalFormatName: string
   sheets: SheetCostingResponse[]
   steps: StepCostingResponse[]
+  /** A conta do pacote, aberta. Nula quando o produto não tem etapa de empacotamento. */
+  packaging: PackagingCostingResponse | null
   paperCost: number
   plateCost: number
   inkCost: number

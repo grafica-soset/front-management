@@ -41,6 +41,14 @@ const height = computed({
 
 const unitLabel = computed(() => (product.value.structure === 'BLADE' ? 'peça' : 'bloco'))
 
+/** Como se chama, nesta estrutura, a folha que carrega o desenho. */
+const artworkLabel = computed(() => (product.value.structure === 'BLADE' ? 'lâminas' : 'vias'))
+/** Quantas delas existem — abaixo de duas não há o que comparar, e a pergunta não aparece. */
+const artworkCount = computed(() =>
+  product.value.structure === 'BLADE' ? product.value.blades : product.value.vias,
+)
+const asksIdentical = computed(() => artworkCount.value >= 2)
+
 /** Frase que traduz jogos × vias em folhas — o elo entre a estrutura e o custo. */
 const structureSummary = computed(() => {
   const p = product.value
@@ -53,6 +61,10 @@ const structureSummary = computed(() => {
     parts.push(`${p.sets} jogos × ${p.vias} vias = ${p.sets * p.vias} folhas`)
   }
   if (p.hasCovers) parts.push(`+ ${p.coverCount} capa(s)`)
+  if (asksIdentical.value && p.identicalArtwork !== null) {
+    const desenhos = p.identicalArtwork ? 1 : (p.distinctArtworks ?? artworkCount.value)
+    parts.push(`${desenhos} desenho(s) = ${desenhos} jogo(s) de chapa`)
+  }
   parts.push(`${perUnit} folha(s) por ${unitLabel.value}`)
   if (runs > 0) parts.push(`${(perUnit * runs).toLocaleString('pt-BR')} folhas do produto`)
   return parts.join(' · ')
@@ -71,6 +83,9 @@ const onViasChange = (value: string) => {
   product.value.vias = Math.min(9, Math.max(1, Math.floor(Number(value) || 1)))
   store.syncSheets()
 }
+const setIdentical = (value: boolean) => store.setIdenticalArtwork(value)
+const onDistinctChange = (value: string) => store.setDistinctArtworks(Number(value))
+
 const onCoversToggle = (value: boolean) => {
   product.value.hasCovers = value
   if (value && product.value.coverCount < 1) product.value.coverCount = 1
@@ -214,6 +229,67 @@ const inputClass =
             class="w-24 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
           />
         </div>
+      </div>
+
+      <!--
+        A pergunta que decide quantas chapas o trabalho paga. Fica aqui, logo abaixo de jogos e
+        vias, porque é continuação da mesma frase: "são 2 vias — e são iguais?". Nasce sem resposta
+        de propósito: assumir "sim" cobraria a menos e assumir "não", a mais.
+      -->
+      <div
+        v-if="asksIdentical"
+        class="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+        :class="product.identicalArtwork === null ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : ''"
+      >
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+            As {{ artworkLabel }} são iguais? <span class="text-rose-500">*</span>
+          </span>
+          <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+            <button
+              type="button"
+              @click="setIdentical(true)"
+              class="px-4 py-1.5 text-sm transition-colors"
+              :class="
+                product.identicalArtwork === true
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Sim
+            </button>
+            <button
+              type="button"
+              @click="setIdentical(false)"
+              class="border-l border-slate-300 px-4 py-1.5 text-sm transition-colors dark:border-slate-600"
+              :class="
+                product.identicalArtwork === false
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Não
+            </button>
+          </div>
+
+          <div v-if="product.identicalArtwork === false" class="flex items-center gap-2">
+            <label class="text-sm text-slate-700 dark:text-slate-200">Quantas são diferentes?</label>
+            <input
+              :value="product.distinctArtworks ?? artworkCount"
+              type="number"
+              min="1"
+              :max="artworkCount"
+              @input="onDistinctChange(($event.target as HTMLInputElement).value)"
+              class="w-20 rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+            <span class="text-sm text-slate-500 dark:text-slate-400">de {{ artworkCount }}</span>
+          </div>
+        </div>
+
+        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {{ artworkLabel === 'vias' ? 'Vias' : 'Lâminas' }} com o mesmo desenho saem da mesma
+          chapa: cobra-se uma matriz e uma montagem, e todas rodam na mesma impressora.
+        </p>
       </div>
 
       <p class="mt-4 rounded-lg bg-slate-50 px-4 py-2.5 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">

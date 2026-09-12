@@ -57,6 +57,70 @@ describe('store do rascunho de orçamento', () => {
     expect(comCusto).not.toBe(semCusto)
   })
 
+  // ---- Vias/lâminas iguais: a pergunta que decide quantas chapas o trabalho paga ----
+
+  it('a pergunta nasce sem resposta — nenhum dos dois lados pode ser assumido', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setStructure('BLOCK')
+
+    expect(store.draft!.identicalArtwork).toBeNull()
+    expect(store.toPayload(store.draft!).identicalArtwork).toBe(false)
+    expect(store.toPayload(store.draft!).distinctArtworkCount).toBeNull()
+  })
+
+  it('responder NÃO parte do pior caso: todas diferentes', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setStructure('BLOCK')
+    store.draft!.vias = 4
+    store.syncSheets()
+
+    store.setIdenticalArtwork(false)
+
+    expect(store.draft!.distinctArtworks).toBe(4)
+    store.setDistinctArtworks(2)
+    expect(store.toPayload(store.draft!).distinctArtworkCount).toBe(2)
+  })
+
+  it('vias iguais mandam só a resposta — o motor recusa os dois campos juntos', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setStructure('BLOCK')
+
+    store.setIdenticalArtwork(true)
+
+    const payload = store.toPayload(store.draft!)
+    expect(payload.identicalArtwork).toBe(true)
+    expect(payload.distinctArtworkCount).toBeNull()
+  })
+
+  it('diminuir as vias não deixa para trás mais desenhos do que folhas', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setStructure('BLOCK')
+    store.draft!.vias = 4
+    store.syncSheets()
+    store.setIdenticalArtwork(false)
+
+    store.draft!.vias = 2
+    store.syncSheets()
+
+    expect(store.draft!.distinctArtworks).toBe(2)
+  })
+
+  it('via única não tem o que comparar: a resposta é esquecida', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setStructure('BLOCK')
+    store.setIdenticalArtwork(true)
+
+    store.draft!.vias = 1
+    store.syncSheets()
+
+    expect(store.draft!.identicalArtwork).toBeNull()
+  })
+
   it('remover o produto leva junto o custo guardado', () => {
     const store = useQuoteDraftStore()
     store.startNew()

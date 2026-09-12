@@ -13,10 +13,11 @@
  * Toner e tinta offset não se misturam, e escolher antes seria escolher no escuro. São por face —
  * a frente pode ser CMYK e o verso um Pantone.
  */
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import type { QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import MachineOptionCard from '@/components/quotes/MachineOptionCard.vue'
+import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import {
   brl,
   colorsLabel,
@@ -97,6 +98,34 @@ const optionsFor = (sheets: QuoteSheet[]) => {
 }
 const bodyOptions = computed(() => optionsFor(printedBody.value))
 const coverOptions = computed(() => optionsFor(printedCovers.value))
+
+/**
+ * As impressoras que o motor testou e NÃO pôde usar, com o motivo — a resposta para "por que só
+ * essas?".
+ *
+ * Fica ao lado da lista de propósito: é ali que a pergunta nasce, quando o orçamentista conhece uma
+ * máquina que daria conta e não a encontra. Cada motivo aponta um lugar diferente para corrigir —
+ * o cadastro da atividade, a faixa de formato da máquina ou a tabela de conversões do papel.
+ */
+const excludedMachines = (sheets: QuoteSheet[]) => {
+  const costing = sheets[0] ? costingOf(sheets[0]) : undefined
+  if (!costing) return []
+  const usadas = new Set(
+    (costing.selection ?? [])
+      .filter((e) => e.outcome !== 'REJECTED' && e.machineId !== null)
+      .map((e) => e.machineId as number),
+  )
+  const porMaquina = new Map<number, { name: string; reasons: string[] }>()
+  for (const entry of costing.selection ?? []) {
+    if (entry.outcome !== 'REJECTED' || entry.machineId === null || !entry.reason) continue
+    if (usadas.has(entry.machineId)) continue
+    const atual = porMaquina.get(entry.machineId) ?? { name: entry.machineName ?? '—', reasons: [] }
+    if (!atual.reasons.includes(entry.reason)) atual.reasons.push(entry.reason)
+    porMaquina.set(entry.machineId, atual)
+  }
+  return Array.from(porMaquina.values())
+}
+const excludedBody = computed(() => excludedMachines(printedBody.value))
 
 /**
  * Formatos de impressão oferecidos para UMA folha, montados a partir dos planos que o motor já
@@ -225,6 +254,21 @@ const toggleInk = (sheet: QuoteSheet, face: 'front' | 'back', inkId: number) => 
 const issuesOf = (sheet: QuoteSheet) => (printsSheet(sheet) ? inkIssues(setup(sheet)) : [])
 const machineNameOf = (sheet: QuoteSheet) => findMachine(machineForSheet(props.step, sheet))?.value ?? null
 
+/**
+ * O produto reaproveita chapa entre vias/lâminas? Então a impressora é UMA só.
+ *
+ * Não é preferência: a chapa está montada NAQUELA máquina. Por isso a opção de escolher uma
+ * impressora por via desaparece — oferecer a escolha e o motor ignorá-la em silêncio seria pior do
+ * que não oferecer.
+ */
+const sharesPlates = computed(() => {
+  const p = product.value
+  const total = p.structure === 'BLOCK' ? p.vias : p.blades
+  if (total < 2) return false
+  if (p.identicalArtwork === true) return true
+  return p.identicalArtwork === false && (p.distinctArtworks ?? total) < total
+})
+
 const togglePerSheet = () => {
   printing.value.perSheet = !printing.value.perSheet
   if (printing.value.perSheet) {
@@ -234,6 +278,19 @@ const togglePerSheet = () => {
   }
   store.pruneInks()
 }
+
+// Responder "as vias são iguais" depois de ter aberto a escolha por via desfaz a escolha: a
+// impressora passa a ser uma só, e deixar o modo ligado esconderia a lista do produto.
+watch(
+  sharesPlates,
+  (shares) => {
+    if (shares && printing.value.perSheet) {
+      printing.value.perSheet = false
+      store.pruneInks()
+    }
+  },
+  { immediate: true },
+)
 
 const toggleSeparateCovers = () => {
   printing.value.separateCovers = !printing.value.separateCovers
@@ -354,14 +411,17 @@ const toggleSeparateCovers = () => {
                   — da folha {{ costingOf(sheet)!.chosen.wholeFormatName }}
                 </span>
               </h5>
-              <button
-                v-if="sheet.printFormatNumber !== null"
-                type="button"
-                @click="store.setPrintFormat(sheet.uid, null)"
-                class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-              >
-                Voltar à escolha do sistema
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  v-if="sheet.printFormatNumber !== null"
+                  type="button"
+                  @click="store.setPrintFormat(sheet.uid, null)"
+                  class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  Voltar à escolha do sistema
+                </button>
+                <CalculateButton compact />
+              </div>
             </div>
 
             <p v-if="!formatOptionsFor(sheet).length" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -432,26 +492,9 @@ const toggleSeparateCovers = () => {
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <CalculateButton />
           <button
-            type="button"
-            :disabled="store.calculating"
-            @click="store.calculateDraft()"
-            class="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-indigo-500/20 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <svg
-              v-if="store.calculating"
-              class="h-3.5 w-3.5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            {{ store.calculating ? 'Calculando...' : 'Calcular' }}
-          </button>
-          <button
-            v-if="printedBody.length"
+            v-if="printedBody.length && !sharesPlates"
             type="button"
             @click="togglePerSheet"
             class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -460,6 +503,15 @@ const toggleSeparateCovers = () => {
           </button>
         </div>
       </div>
+
+      <p
+        v-if="sharesPlates && printedBody.length"
+        class="mt-3 rounded-lg bg-slate-50 px-4 py-2.5 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        As {{ product.structure === 'BLOCK' ? 'vias' : 'lâminas' }} que repetem o desenho rodam na
+        <strong>mesma impressora</strong> — é nela que a chapa está montada. A chapa e a montagem são
+        cobradas uma vez só.
+      </p>
 
       <div v-if="asksForPlate" class="mt-3">
         <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -507,6 +559,20 @@ const toggleSeparateCovers = () => {
           :selected="false"
           @select="store.setMachine(step.uid, 'PRODUCT', option.machineId)"
         />
+
+        <details v-if="excludedBody.length" class="rounded-lg border border-slate-200 dark:border-slate-700">
+          <summary class="cursor-pointer px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+            Por que só essas? {{ excludedBody.length }} impressora(s) ficaram de fora
+          </summary>
+          <ul class="divide-y divide-slate-100 px-4 pb-3 dark:divide-slate-700/50">
+            <li v-for="maquina in excludedBody" :key="maquina.name" class="py-2">
+              <p class="text-sm text-slate-800 dark:text-slate-100">{{ maquina.name }}</p>
+              <p v-for="motivo in maquina.reasons" :key="motivo" class="text-xs text-amber-700 dark:text-amber-400">
+                {{ motivo }}
+              </p>
+            </li>
+          </ul>
+        </details>
       </div>
 
       <div v-else class="mt-3 space-y-4">

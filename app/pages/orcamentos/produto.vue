@@ -62,6 +62,12 @@ const calcBlockers = computed(() => {
   if (!p.widthMm || !p.heightMm) list.push('Informar a dimensão final')
   if (!p.quantity) list.push('Informar a quantidade')
   if (p.sheets.some((s) => s.paperTypeId == null)) list.push('Escolher o papel de cada via/lâmina')
+  // Sem essa resposta o motor não sabe quantas chapas cobrar, e chutar erra o preço para um dos
+  // dois lados. Só é exigida quando há mais de uma via/lâmina — abaixo disso não há o que comparar.
+  const viasOuLaminas = p.structure === 'BLOCK' ? p.vias : p.blades
+  if (viasOuLaminas >= 2 && p.identicalArtwork === null) {
+    list.push(`Informar se as ${p.structure === 'BLOCK' ? 'vias' : 'lâminas'} são iguais`)
+  }
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
 
   // Com impressão, o produto precisa de dois cortes: um antes, para a folha entrar na máquina, e

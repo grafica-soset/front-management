@@ -42,6 +42,7 @@ function product(overrides: Partial<QuoteProduct> = {}): QuoteProduct {
   return {
     uid: 'p1', name: 'Bloco de Pedidos', widthMm: 105, heightMm: 155, quantity: 10,
     structure: 'BLOCK', blades: 1, sets: 50, vias: 2, hasCovers: false, coverCount: 1,
+    identicalArtwork: null, distinctArtworks: null,
     sheets: [sheet('VIA', 1), sheet('VIA', 2)], steps: [],
     ...overrides,
   }

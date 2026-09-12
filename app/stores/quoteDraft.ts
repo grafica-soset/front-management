@@ -22,6 +22,11 @@ function uid(prefix: string): string {
   return `${prefix}-${uidSeq}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+/** Quantas vias/lâminas o produto tem — o universo sobre o qual os desenhos se repetem. */
+function artworkSheetCount(product: QuoteProduct): number {
+  return product.structure === 'BLOCK' ? Math.max(1, product.vias || 1) : Math.max(1, product.blades || 1)
+}
+
 function emptySheet(kind: SheetKind, index: number): QuoteSheet {
   return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null }
 }
@@ -51,6 +56,8 @@ export function emptyProduct(): QuoteProduct {
     blades: 1,
     sets: 50,
     vias: 2,
+    identicalArtwork: null,
+    distinctArtworks: null,
     hasCovers: false,
     coverCount: 1,
     sheets: [emptySheet('BLADE', 1)],
@@ -147,7 +154,32 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     setStructure(structure: ProductStructure) {
       if (!this.draft) return
       this.draft.structure = structure
+      // A pergunta "são iguais?" é sobre as vias OU sobre as lâminas: trocar a estrutura troca o
+      // que está sendo perguntado, e a resposta antiga não vale para o novo desenho do produto.
+      this.draft.identicalArtwork = null
+      this.draft.distinctArtworks = null
       this.syncSheets()
+    },
+
+    /**
+     * Responde "vias/lâminas iguais?".
+     *
+     * O NÃO nasce com o pior caso — todas diferentes —, que é o que o sistema sempre cobrou. Daí o
+     * usuário reduz o número se algumas se repetem.
+     */
+    setIdenticalArtwork(identical: boolean) {
+      const draft = this.draft
+      if (!draft) return
+      draft.identicalArtwork = identical
+      draft.distinctArtworks = identical ? null : artworkSheetCount(draft)
+    },
+
+    /** Quantos desenhos diferentes há, quando as vias/lâminas NÃO são todas iguais. */
+    setDistinctArtworks(count: number) {
+      const draft = this.draft
+      if (!draft) return
+      const total = artworkSheetCount(draft)
+      draft.distinctArtworks = Math.min(total, Math.max(1, Math.floor(count) || 1))
     },
 
     /**
@@ -181,6 +213,16 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       }
 
       draft.sheets = next
+
+      // Mudar a quantidade de vias/lâminas muda o universo da pergunta: não faz sentido guardar
+      // "3 desenhos diferentes" num produto que passou a ter 2 vias.
+      if (draft.distinctArtworks != null) {
+        draft.distinctArtworks = Math.min(draft.distinctArtworks, artworkSheetCount(draft))
+      }
+      if (artworkSheetCount(draft) < 2) {
+        draft.identicalArtwork = null
+        draft.distinctArtworks = null
+      }
 
       // Cada etapa de impressão acompanha a nova lista: folha criada entra com a configuração
       // padrão, folha que sumiu leva junto cores, tintas e impressora que tinha nela.
@@ -266,6 +308,10 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         heightMm: product.heightMm ?? 0,
         structure: product.structure,
         sets: product.structure === 'BLOCK' ? product.sets : 1,
+        identicalArtwork: product.identicalArtwork === true,
+        // Só viaja quando é a resposta "não são todas iguais, são N": com vias iguais o motor
+        // recusaria os dois campos juntos, e sem resposta o default dele já é "todas diferentes".
+        distinctArtworkCount: product.identicalArtwork === false ? product.distinctArtworks : null,
         sheets: product.sheets.map((sheet) => ({
           number: sheet.index,
           kind: sheet.kind,
