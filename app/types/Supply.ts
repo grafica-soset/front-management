@@ -80,7 +80,10 @@ export interface SupplyKeyValue {
   type: SupplyType
   /** Unidade de medida — diz COMO o insumo é consumido quando uma atividade o escolhe. */
   unitOfMeasure: SupplyUnitOfMeasure
-  /** Tipo da chapa — nulo fora de PLATE. O orçamento só oferece as que a impressora aceita. */
+  /**
+   * Tipo da matriz — nulo fora de PLATE. É por ele que as duas telas filtram a chapa: o cadastro da
+   * impressora, para marcar as dela; o orçamento, para oferecer a escolha na impressão.
+   */
   plateType?: PlateType | null
   /** Classificação da tinta — nula fora de INK. Diz se a impressora escolhida imprime esta tinta. */
   inkColorType?: InkColorType | null
