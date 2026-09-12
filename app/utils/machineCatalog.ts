@@ -120,6 +120,8 @@ export function defaultOffsetBlock(): OffsetBlock {
     acceptedInkColorTypes: [],
     inkSubtype: 'OFFSET_INK',
     defaultInkSupplyId: null,
+    // As chapas da máquina (atividade 034): nasce vazia, e o usuário marca as que ela usa.
+    plateSupplyIds: [],
     setupTimes: {
       plateSetupMinutesPerColor: 0,
       colorMatchingMinutes: 0,
@@ -201,6 +203,9 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
     acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
     inkSubtype: block.inkSubtype ?? base.inkSubtype,
     defaultInkSupplyId: block.defaultInkSupplyId ?? null,
+    // Máquinas cadastradas antes da atividade 034 voltam sem a lista; a migração do banco semeou o
+    // que o motor já usava, mas um payload antigo em cache não teria o campo.
+    plateSupplyIds: [...(block.plateSupplyIds ?? [])],
     setupTimes: { ...base.setupTimes, ...block.setupTimes },
     speedRamp: {
       minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,

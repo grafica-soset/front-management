@@ -132,6 +132,14 @@ export interface OffsetBlock {
    * justamente essa cor: não há troca de cor a fazer. Nula = toda impressão paga lavagem.
    */
   defaultInkSupplyId: number | null
+  /**
+   * AS CHAPAS DESTA MÁQUINA (ids de insumos do tipo CHAPA) — atividade 034.
+   *
+   * `acceptedPlateTypes` diz o que a máquina SABE GRAVAR; esta lista diz quais chapas a gráfica tem
+   * para ela. A chapa é comprada para a impressora, e a de outra máquina não entra nesta — é desta
+   * lista que o orçamento oferece a escolha, com o preço de cada uma. Vazia = máquina sem chapa.
+   */
+  plateSupplyIds: number[]
   setupTimes: OffsetSetupTimes
   speedRamp: OffsetSpeedRamp
 }
@@ -926,4 +934,9 @@ export interface MachineKeyValue {
    */
   acceptedInkColorTypes?: InkColorType[]
   inkSubtype?: InkSubtype
+  /**
+   * As chapas desta máquina (ids de insumos) — atividade 034. Vem no catálogo para o orçamento
+   * perguntar QUAL chapa usar sem carregar a máquina inteira.
+   */
+  plateSupplyIds?: number[]
 }
