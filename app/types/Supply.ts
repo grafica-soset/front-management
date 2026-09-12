@@ -85,6 +85,12 @@ export interface SupplyKeyValue {
   /** Classificação da tinta — nula fora de INK. Diz se a impressora escolhida imprime esta tinta. */
   inkColorType?: InkColorType | null
   inkSubtype?: InkSubtype | null
+  /**
+   * Custo por unidade de medida. Vem no key-value porque escolher a CHAPA no orçamento é escolher
+   * um preço (atividade 034): oferecer duas chapas sem dizer quanto cada uma custa é pedir que o
+   * orçamentista escolha no escuro.
+   */
+  unitCost?: number
   active: boolean
 }
 

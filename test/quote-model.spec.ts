@@ -1,12 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import type { ProductCostingResponse } from '@/types/Quote'
+import type { MachineKeyValue } from '@/types/Machine'
+import type { SupplyKeyValue } from '@/types/Supply'
 import {
   colorsLabel,
   coverageIssues,
   formatLabel,
   inkIssues,
   isSheetPrinted,
+  plateLabel,
+  platesForMachine,
   printRun,
   printedSides,
   setupFor,
@@ -136,5 +140,54 @@ describe('rótulo de formato', () => {
 
   it('a folha inteira é o formato 1 — uma parte, nenhum corte', () => {
     expect(formatLabel('66x96', 1)).toBe('66x96 (F1)')
+  })
+})
+
+describe('Chapas da impressora no orçamento (atividade 034)', () => {
+  const chapaCtp: SupplyKeyValue = {
+    id: 100,
+    value: 'Chapa CTP 66x96',
+    type: 'PLATE',
+    unitOfMeasure: 'UNIT',
+    plateType: 'CTP',
+    unitCost: 40,
+    active: true,
+  }
+  const chapaFilm: SupplyKeyValue = { ...chapaCtp, id: 101, value: 'Chapa Laser Film', plateType: 'LASER_FILM', unitCost: 29.89 }
+  const deOutraMaquina: SupplyKeyValue = { ...chapaCtp, id: 102, value: 'Chapa CTP da Heidelberg', unitCost: 1 }
+  const estoque = [chapaCtp, chapaFilm, deOutraMaquina]
+
+  const sakurai: MachineKeyValue = {
+    id: 1,
+    value: 'Sakurai 58',
+    machineType: 'OFFSET',
+    active: true,
+    plateSupplyIds: [100, 101],
+  }
+
+  it('oferece só as chapas que a impressora declara', () => {
+    expect(platesForMachine(sakurai, estoque).map((c) => c.id)).toEqual([100, 101])
+  })
+
+  it('a chapa barata de outra máquina não entra na escolha', () => {
+    expect(platesForMachine(sakurai, estoque).some((c) => c.id === 102)).toBe(false)
+  })
+
+  it('impressora sem chapa cadastrada não oferece nenhuma — o orçamento sai sem matriz', () => {
+    expect(platesForMachine({ ...sakurai, plateSupplyIds: [] }, estoque)).toEqual([])
+  })
+
+  it('digital não usa matriz: nem pergunta', () => {
+    const digital: MachineKeyValue = { ...sakurai, machineType: 'DIGITAL', plateSupplyIds: [100] }
+    expect(platesForMachine(digital, estoque)).toEqual([])
+  })
+
+  it('o rótulo traz o preço, que é o que decide a escolha', () => {
+    expect(plateLabel(chapaCtp)).toContain('Chapa CTP 66x96')
+    expect(plateLabel(chapaCtp)).toContain('40,00')
+  })
+
+  it('sem preço no catálogo, o rótulo fica só com o nome — nunca "R$ NaN"', () => {
+    expect(plateLabel({ ...chapaCtp, unitCost: undefined })).toBe('Chapa CTP 66x96')
   })
 })

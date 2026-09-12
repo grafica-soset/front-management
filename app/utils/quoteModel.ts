@@ -7,6 +7,8 @@
  */
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
 import type { ProductCostingResponse } from '@/types/Quote'
+import type { MachineKeyValue } from '@/types/Machine'
+import type { SupplyKeyValue } from '@/types/Supply'
 
 // ─── Estrutura do produto ────────────────────────────────────────────────────
 
@@ -145,7 +147,30 @@ export function machineForSheet(step: QuoteStep, sheet: QuoteSheet): number | nu
   return printing.machineId
 }
 
+/**
+ * AS CHAPAS QUE A IMPRESSÃO PODE USAR (atividade 034): as chapas da impressora escolhida.
+ *
+ * Não é "toda chapa do tipo que a máquina aceita" — é a lista que a própria impressora declara no
+ * cadastro dela. A chapa é comprada para a máquina, e a de outra não entra nesta; oferecer o estoque
+ * inteiro era oferecer matriz que aquela impressora não usa.
+ *
+ * A digital não usa matriz: devolve vazio, e a tela não pergunta nada.
+ */
+export function platesForMachine(
+  machine: MachineKeyValue | undefined,
+  plates: SupplyKeyValue[]
+): SupplyKeyValue[] {
+  if (!machine || machine.machineType === 'DIGITAL') return []
+  const daMaquina = machine.plateSupplyIds ?? []
+  return plates.filter((plate) => daMaquina.includes(plate.id))
+}
+
 /** Formatação monetária em reais — usada em toda a tela de orçamento. */
 export function brl(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+/** "Chapa CTP 66x96 — R$ 40,00": o nome não decide nada na escolha da chapa; o preço decide. */
+export function plateLabel(plate: SupplyKeyValue): string {
+  return plate.unitCost == null ? plate.value : `${plate.value} — ${brl(plate.unitCost)}`
 }

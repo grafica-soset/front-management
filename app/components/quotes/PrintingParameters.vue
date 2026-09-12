@@ -27,6 +27,8 @@ import {
   inkIssues,
   isSheetPrinted,
   machineForSheet,
+  plateLabel,
+  platesForMachine,
   setupFor,
   sheetLabel,
   sheetsForSheet,
@@ -175,25 +177,35 @@ const currentFormat = (sheet: QuoteSheet) =>
   sheet.printFormatNumber ?? costingOf(sheet)?.chosen.printFormatNumber ?? null
 
 /**
- * Chapas a oferecer NESTA impressão: as que a impressora escolhida aceita. A digital não usa
- * matriz, então nem o campo aparece — e quando a impressora aceita um tipo só, o motor resolve
- * sozinho, sem perguntar nada.
+ * Chapas a oferecer NESTA impressão: AS CHAPAS DA IMPRESSORA escolhida (atividade 034).
+ *
+ * A lista não é mais "toda chapa do tipo que a máquina aceita": é a que a própria impressora
+ * declara no cadastro dela. A chapa é comprada para a máquina, e a de outra não entra nesta — antes
+ * o orçamento oferecia matriz que a gráfica não usaria naquela impressora.
+ *
+ * A digital não usa matriz, então nem o campo aparece; e com uma chapa só não há o que perguntar —
+ * o motor usa aquela.
  */
 const chosenMachine = computed(() => catalogs.findMachine(printing.value.machineId))
 
-const plateOptions = computed(() => {
+const plateOptions = computed(() => platesForMachine(chosenMachine.value, catalogs.plates.value))
+
+/** Só vale perguntar quando a impressora tem mais de uma chapa: aí a escolha é de preço. */
+const asksForPlate = computed(() => plateOptions.value.length > 1)
+
+/** A chapa única da impressora — não há escolha, mas o preço dela interessa. */
+const onlyPlate = computed(() => (plateOptions.value.length === 1 ? plateOptions.value[0] : null))
+
+/**
+ * Impressora sem chapa cadastrada: o orçamento dela sai SEM MATRIZ, e o custo fica menor do que o
+ * real. É erro de cadastro, e o conserto não está nesta tela — daí a frase apontar para lá.
+ */
+const machineWithoutPlates = computed(() => {
   const machine = chosenMachine.value
-  if (!machine || machine.machineType === 'DIGITAL') return []
-  const accepted = machine.acceptedPlateTypes ?? []
-  if (accepted.length === 0) return []
-  return catalogs.plates.value.filter((plate) => !plate.plateType || accepted.includes(plate.plateType))
+  if (!machine || machine.machineType === 'DIGITAL') return null
+  return (machine.plateSupplyIds ?? []).length === 0 ? machine : null
 })
 
-/** Só vale perguntar quando a impressora aceita mais de um TIPO de chapa. */
-const asksForPlate = computed(() => {
-  const accepted = chosenMachine.value?.acceptedPlateTypes ?? []
-  return accepted.length > 1 && plateOptions.value.length > 1
-})
 
 /** As cores são o interruptor: zero nas duas faces tira a folha desta impressão. */
 const setColors = (sheet: QuoteSheet, face: 'front' | 'back', value: number) => {
@@ -287,6 +299,23 @@ watch(
     if (shares && printing.value.perSheet) {
       printing.value.perSheet = false
       store.pruneInks()
+    }
+  },
+  { immediate: true },
+)
+
+// Trocar a impressora troca as chapas disponíveis: a que estava escolhida pode não ser mais dela.
+// Deixá-la ali mandaria ao motor uma escolha que ele ignora — ele cai na mais barata e avisa; melhor
+// a tela já mostrar a verdade. Só poda com o catálogo carregado e a máquina declarando chapas, senão
+// apagaria a escolha de quem só está esperando a lista chegar.
+watch(
+  plateOptions,
+  (opcoes) => {
+    if (!catalogs.plates.value.length) return
+    if (!(chosenMachine.value?.plateSupplyIds ?? []).length) return
+    const escolhida = printing.value.plateSupplyId
+    if (escolhida != null && !opcoes.some((chapa) => chapa.id === escolhida)) {
+      printing.value.plateSupplyId = null
     }
   },
   { immediate: true },
@@ -521,14 +550,34 @@ const toggleSeparateCovers = () => {
           v-model.number="printing.plateSupplyId"
           class="block w-full max-w-md rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
         >
-          <option :value="null">A mais barata compatível</option>
-          <option v-for="chapa in plateOptions" :key="chapa.id" :value="chapa.id">{{ chapa.value }}</option>
+          <option :value="null">A mais barata desta impressora</option>
+          <option v-for="chapa in plateOptions" :key="chapa.id" :value="chapa.id">
+            {{ plateLabel(chapa) }}
+          </option>
         </select>
         <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Uma chapa por cor, por lado, nesta impressão. Esta impressora aceita mais de um tipo, e a
-          diferença de preço entre eles é grande — por isso a escolha é sua.
+          Uma chapa por cor, por lado, nesta impressão. Estas são as chapas <strong>desta
+          impressora</strong>, e a diferença de preço entre elas pesa no orçamento — por isso a
+          escolha é sua.
         </p>
       </div>
+
+      <p
+        v-else-if="onlyPlate"
+        class="mt-3 rounded-lg bg-slate-50 px-4 py-2.5 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        Chapa desta impressão: <strong>{{ plateLabel(onlyPlate) }}</strong> — a única cadastrada na
+        {{ chosenMachine?.value }}. Uma por cor, por lado.
+      </p>
+
+      <p
+        v-else-if="machineWithoutPlates"
+        class="mt-3 rounded-lg bg-amber-50 px-4 py-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200"
+      >
+        A <strong>{{ machineWithoutPlates.value }}</strong> não tem chapa cadastrada: o orçamento sai
+        <strong>sem a matriz</strong>, e o custo fica menor do que o real. Selecione as chapas dela no
+        cadastro da impressora.
+      </p>
 
       <div v-if="!printing.perSheet" class="mt-3 space-y-2">
         <p v-if="printedBody.length === 0" class="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
