@@ -20,7 +20,15 @@ import StepProductDefinition from '@/components/quotes/StepProductDefinition.vue
 import StepActivities from '@/components/quotes/StepActivities.vue'
 import StepParameters from '@/components/quotes/StepParameters.vue'
 import StepSummary from '@/components/quotes/StepSummary.vue'
-import { coverageIssues, inkIssues, isSheetPrinted, printingSteps, setupFor, sheetsPerUnit } from '@/utils/quoteModel'
+import {
+  coverageIssues,
+  inkIssues,
+  isSheetPrinted,
+  platesForMachine,
+  printingSteps,
+  setupFor,
+  sheetsPerUnit,
+} from '@/utils/quoteModel'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -39,7 +47,11 @@ const current = ref(0)
 
 onMounted(async () => {
   if (!store.draft) store.startNew()
-  await catalogs.load()
+  // RECARREGA os catálogos, não aproveita o que já estava em memória: máquinas, insumos e
+  // atividades são editados em OUTRA tela, e o assistente fica aberto por muito tempo. Quem acabou
+  // de arrumar as chapas da impressora volta para cá e precisa ver a lista nova — com o cache da
+  // sessão, o orçamento seguia oferecendo as chapas de antes da edição. São cinco listas curtas.
+  await catalogs.load(true)
 
   // Abrir um produto salvo não mexe em nada, então o watch de recálculo não dispara — e sem
   // cálculo o passo de parâmetros fica sem opções de impressora. O gatilho é aqui, depois dos
@@ -69,6 +81,18 @@ const calcBlockers = computed(() => {
     list.push(`Informar se as ${p.structure === 'BLOCK' ? 'vias' : 'lâminas'} são iguais`)
   }
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
+
+  // A CHAPA da impressão: com mais de uma cadastrada na impressora, a escolha é de preço e é do
+  // usuário — o motor não tem como adivinhar qual matriz a gráfica vai gravar. Com uma só, a tela
+  // já a marca sozinha; sem nenhuma, o aviso é outro (cadastro da impressora).
+  printingSteps(p).forEach((step, index) => {
+    const ordinal = printingSteps(p).length > 1 ? ` (${index + 1}ª impressão)` : ''
+    const machine = catalogs.findMachine(step.printing?.machineId)
+    const chapas = platesForMachine(machine, catalogs.plates.value)
+    if (chapas.length > 1 && step.printing?.plateSupplyId == null) {
+      list.push(`Escolher a chapa da impressão${ordinal}`)
+    }
+  })
 
   // Com impressão, o produto precisa de dois cortes: um antes, para a folha entrar na máquina, e
   // o refile depois. É a ordem na lista que diz qual é qual.

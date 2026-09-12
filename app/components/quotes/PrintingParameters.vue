@@ -190,11 +190,24 @@ const chosenMachine = computed(() => catalogs.findMachine(printing.value.machine
 
 const plateOptions = computed(() => platesForMachine(chosenMachine.value, catalogs.plates.value))
 
-/** Só vale perguntar quando a impressora tem mais de uma chapa: aí a escolha é de preço. */
+/**
+ * Só vale perguntar quando a impressora tem mais de uma chapa — e aí a resposta é OBRIGATÓRIA: a
+ * diferença de preço entre as chapas da mesma máquina chega a três vezes (R$ 29,89 e R$ 100,80 na
+ * mesma Sakurai), então deixar o motor "pegar a mais barata" seria decidir o preço do trabalho no
+ * lugar de quem sabe qual matriz vai ser gravada.
+ */
 const asksForPlate = computed(() => plateOptions.value.length > 1)
 
 /** A chapa única da impressora — não há escolha, mas o preço dela interessa. */
 const onlyPlate = computed(() => (plateOptions.value.length === 1 ? plateOptions.value[0] : null))
+
+/** A chapa escolhida, para mostrar o preço ao lado da resposta. */
+const chosenPlate = computed(() =>
+  plateOptions.value.find((chapa) => chapa.id === printing.value.plateSupplyId) ?? null,
+)
+
+/** Falta responder: é o que pinta o bloco de âmbar e segura o cálculo. */
+const plateMissing = computed(() => asksForPlate.value && printing.value.plateSupplyId == null)
 
 /**
  * Impressora sem chapa cadastrada: o orçamento dela sai SEM MATRIZ, e o custo fica menor do que o
@@ -306,14 +319,21 @@ watch(
 
 // Trocar a impressora troca as chapas disponíveis: a que estava escolhida pode não ser mais dela.
 // Deixá-la ali mandaria ao motor uma escolha que ele ignora — ele cai na mais barata e avisa; melhor
-// a tela já mostrar a verdade. Só poda com o catálogo carregado e a máquina declarando chapas, senão
+// a tela já mostrar a verdade. Só mexe com o catálogo carregado e a máquina declarando chapas, senão
 // apagaria a escolha de quem só está esperando a lista chegar.
+//
+// Com UMA chapa só, a tela responde sozinha: não há escolha a fazer, mas há um id a mandar — é ele
+// que põe o preço da matriz na conta e o nome dela no resumo.
 watch(
   plateOptions,
   (opcoes) => {
     if (!catalogs.plates.value.length) return
     if (!(chosenMachine.value?.plateSupplyIds ?? []).length) return
     const escolhida = printing.value.plateSupplyId
+    if (opcoes.length === 1) {
+      if (escolhida !== opcoes[0]!.id) printing.value.plateSupplyId = opcoes[0]!.id
+      return
+    }
     if (escolhida != null && !opcoes.some((chapa) => chapa.id === escolhida)) {
       printing.value.plateSupplyId = null
     }
@@ -542,33 +562,78 @@ const toggleSeparateCovers = () => {
         cobradas uma vez só.
       </p>
 
-      <div v-if="asksForPlate" class="mt-3">
-        <label class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-200">
-          Chapa desta impressão — {{ chosenMachine?.value }}
-        </label>
+      <!--
+        A CHAPA (atividade 034). Sai da linha solta e vira bloco: é um campo de preço, não um
+        detalhe — e enquanto não for respondido ele segura o cálculo, então precisa se fazer notar.
+      -->
+      <div
+        v-if="asksForPlate"
+        class="mt-3 rounded-xl border p-4"
+        :class="
+          plateMissing
+            ? 'border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/5'
+            : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/40'
+        "
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <label for="chapa-impressao" class="text-sm font-medium text-slate-900 dark:text-white">
+            Chapa desta impressão <span class="text-rose-500">*</span>
+            <span class="font-normal text-slate-500 dark:text-slate-400">— {{ chosenMachine?.value }}</span>
+          </label>
+          <span
+            v-if="chosenPlate"
+            class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+          >
+            {{ brl(chosenPlate.unitCost ?? 0) }} por chapa
+          </span>
+        </div>
+
         <select
+          id="chapa-impressao"
           v-model.number="printing.plateSupplyId"
-          class="block w-full max-w-md rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+          class="mt-2 block w-full max-w-xl rounded-lg border bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
+          :class="
+            plateMissing
+              ? 'border-amber-400 dark:border-amber-500/60'
+              : 'border-slate-300 dark:border-slate-600'
+          "
         >
-          <option :value="null">A mais barata desta impressora</option>
+          <option :value="null" disabled>Selecione a chapa desta impressora…</option>
           <option v-for="chapa in plateOptions" :key="chapa.id" :value="chapa.id">
             {{ plateLabel(chapa) }}
           </option>
         </select>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Uma chapa por cor, por lado, nesta impressão. Estas são as chapas <strong>desta
-          impressora</strong>, e a diferença de preço entre elas pesa no orçamento — por isso a
-          escolha é sua.
+
+        <p class="mt-2 text-xs" :class="plateMissing ? 'text-amber-800 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'">
+          <template v-if="plateMissing">
+            A <strong>{{ chosenMachine?.value }}</strong> tem {{ plateOptions.length }} chapas
+            cadastradas, e a diferença de preço entre elas pesa no trabalho — escolher é com você.
+          </template>
+          <template v-else>
+            Uma chapa por cor, por lado, nesta impressão. Só entram aqui as chapas
+            <strong>desta impressora</strong>.
+          </template>
         </p>
       </div>
 
-      <p
+      <div
         v-else-if="onlyPlate"
-        class="mt-3 rounded-lg bg-slate-50 px-4 py-2.5 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+        class="mt-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40"
       >
-        Chapa desta impressão: <strong>{{ plateLabel(onlyPlate) }}</strong> — a única cadastrada na
-        {{ chosenMachine?.value }}. Uma por cor, por lado.
-      </p>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-sm font-medium text-slate-900 dark:text-white">
+            Chapa desta impressão
+            <span class="font-normal text-slate-500 dark:text-slate-400">— {{ chosenMachine?.value }}</span>
+          </span>
+          <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+            {{ brl(onlyPlate.unitCost ?? 0) }} por chapa
+          </span>
+        </div>
+        <p class="mt-1.5 text-sm text-slate-700 dark:text-slate-200">{{ onlyPlate.value }}</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Única chapa cadastrada nesta impressora — já vai selecionada. Uma por cor, por lado.
+        </p>
+      </div>
 
       <p
         v-else-if="machineWithoutPlates"
