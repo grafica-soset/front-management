@@ -9,10 +9,11 @@
  * faixas de quantidade configuráveis: o usuário define De/Até, com validação de
  * contiguidade; só a última faixa pode ser aberta).
  */
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { InkType, OffsetBlock, OffsetTier } from '@/types/Machine'
 import type { PlateType } from '@/types/PlateType'
-import type { InkColorType } from '@/types/Supply'
+import type { InkColorType, SupplyKeyValue } from '@/types/Supply'
+import { useSupplies } from '@/composables/useSupplies'
 import { INK_TYPES, INK_TYPE_LABELS, makeTier } from '@/utils/machineCatalog'
 import { OFFSET_PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
 import { CONVENTIONAL_INK_SUBTYPES, INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
@@ -31,6 +32,53 @@ const togglePlate = (plate: PlateType) => {
   } else {
     props.block.acceptedPlateTypes = [...props.block.acceptedPlateTypes, plate]
   }
+  prunePlateSupplies()
+}
+
+/**
+ * AS CHAPAS DESTA MÁQUINA (atividade 034).
+ *
+ * Os tipos acima dizem o que a máquina SABE GRAVAR; esta lista diz quais chapas a gráfica tem para
+ * ela. A chapa é comprada para a impressora — no tamanho dela —, e a chapa de outra máquina não
+ * entra nesta; é desta lista que o orçamento passa a oferecer a escolha.
+ *
+ * Só aparecem as chapas de um tipo que a máquina aceita, porque é exatamente o que a API permite
+ * salvar. Desmarcar um TIPO, portanto, tira dele as chapas já marcadas: deixá-las ali guardaria um
+ * cadastro que o servidor recusa, e a mensagem falaria de um campo que o usuário não tocou.
+ */
+const plates = ref<SupplyKeyValue[]>([])
+onMounted(async () => {
+  try {
+    plates.value = await useSupplies().listKeyValues({ type: 'PLATE', onlyActive: true })
+  } catch {
+    plates.value = []
+  }
+})
+
+const plateOptions = computed(() =>
+  plates.value.filter((plate) => !!plate.plateType && isPlateAccepted(plate.plateType)),
+)
+
+const isPlateSupplySelected = (id: number) => props.block.plateSupplyIds.includes(id)
+const togglePlateSupply = (id: number) => {
+  if (isPlateSupplySelected(id)) {
+    props.block.plateSupplyIds = props.block.plateSupplyIds.filter((p) => p !== id)
+  } else {
+    props.block.plateSupplyIds = [...props.block.plateSupplyIds, id]
+  }
+}
+
+// Tira as chapas cujo tipo deixou de ser aceito. Só mexe no que a lista carregada CONHECE: com o
+// catálogo ainda em voo, ou com uma chapa inativa que já estava na máquina, apagar seria perder a
+// seleção que o usuário nunca desfez.
+const prunePlateSupplies = () => {
+  const proibidas = new Set(
+    plates.value
+      .filter((plate) => !!plate.plateType && !isPlateAccepted(plate.plateType))
+      .map((plate) => plate.id),
+  )
+  if (proibidas.size === 0) return
+  props.block.plateSupplyIds = props.block.plateSupplyIds.filter((id) => !proibidas.has(id))
 }
 
 /** Tinta aceita: marca/desmarca um TIPO (CMYK/Pantone) — atividade 032 (ajuste 0001). */
@@ -199,6 +247,44 @@ const cellClass =
         </label>
       </div>
       <p v-if="errors['acceptedPlateTypes']" class="mt-2 text-xs text-rose-600">{{ errors['acceptedPlateTypes'] }}</p>
+
+      <!-- As chapas (insumos) desta máquina — atividade 034 -->
+      <div class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <span class="block text-sm font-medium text-slate-900 dark:text-white">Chapas desta máquina</span>
+        <p class="mt-1 mb-2 text-xs text-slate-500 dark:text-slate-400">
+          Quais chapas do estoque esta impressora usa. A chapa é comprada para a máquina, e no
+          orçamento a escolha é feita <strong>dentro desta lista</strong> — com o preço de cada uma.
+          Sem nenhuma marcada, o orçamento desta máquina sai sem matriz.
+        </p>
+        <p v-if="!block.acceptedPlateTypes.length" class="text-xs text-slate-500 dark:text-slate-400">
+          Selecione antes o tipo de matriz fotográfica — as chapas oferecidas aqui são as desses tipos.
+        </p>
+        <p v-else-if="!plateOptions.length" class="text-xs text-slate-500 dark:text-slate-400">
+          Nenhuma chapa cadastrada nos tipos aceitos. Cadastre a chapa em
+          <strong>Insumos</strong> para poder marcá-la aqui.
+        </p>
+        <div v-else class="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <label
+            v-for="chapa in plateOptions"
+            :key="chapa.id"
+            class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"
+          >
+            <input
+              type="checkbox"
+              :checked="isPlateSupplySelected(chapa.id)"
+              @change="togglePlateSupply(chapa.id)"
+              class="h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+            />
+            <span>
+              {{ chapa.value }}
+              <span class="text-xs text-slate-500 dark:text-slate-400">
+                — {{ PLATE_TYPE_LABELS[chapa.plateType!] }}
+              </span>
+            </span>
+          </label>
+        </div>
+        <p v-if="errors['plateSupplyIds']" class="mt-2 text-xs text-rose-600">{{ errors['plateSupplyIds'] }}</p>
+      </div>
     </fieldset>
 
     <!-- Tinta aceita pela máquina (atividade 032 — ajuste 0001) -->
