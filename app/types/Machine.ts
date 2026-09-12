@@ -126,6 +126,12 @@ export interface OffsetBlock {
   acceptedInkColorTypes: InkColorType[]
   /** Subtipo da tinta da máquina — seleção única. */
   inkSubtype: InkSubtype
+  /**
+   * COR PADRÃO da máquina (insumo de tinta) — atividade 034. É a tinta que fica nela entre um
+   * trabalho e outro, na prática o preto. O orçamento não cobra LAVAGEM quando o trabalho pede
+   * justamente essa cor: não há troca de cor a fazer. Nula = toda impressão paga lavagem.
+   */
+  defaultInkSupplyId: number | null
   setupTimes: OffsetSetupTimes
   speedRamp: OffsetSpeedRamp
 }

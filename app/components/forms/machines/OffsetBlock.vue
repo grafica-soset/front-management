@@ -9,10 +9,11 @@
  * faixas de quantidade configuráveis: o usuário define De/Até, com validação de
  * contiguidade; só a última faixa pode ser aberta).
  */
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { InkType, OffsetBlock, OffsetTier } from '@/types/Machine'
 import type { PlateType } from '@/types/PlateType'
-import type { InkColorType } from '@/types/Supply'
+import type { InkColorType, SupplyKeyValue } from '@/types/Supply'
+import { useSupplies } from '@/composables/useSupplies'
 import { INK_TYPES, INK_TYPE_LABELS, makeTier } from '@/utils/machineCatalog'
 import { OFFSET_PLATE_TYPES, PLATE_TYPE_LABELS } from '@/utils/plateTypes'
 import { CONVENTIONAL_INK_SUBTYPES, INK_COLOR_TYPES, INK_COLOR_TYPE_LABELS, INK_SUBTYPE_LABELS } from '@/utils/inkTypes'
@@ -40,6 +41,37 @@ const toggleInkColor = (color: InkColorType) => {
     props.block.acceptedInkColorTypes = props.block.acceptedInkColorTypes.filter((c) => c !== color)
   } else {
     props.block.acceptedInkColorTypes = [...props.block.acceptedInkColorTypes, color]
+  }
+}
+
+/**
+ * COR PADRÃO da máquina (atividade 034): a tinta que fica nela entre um trabalho e outro.
+ *
+ * Só entram as tintas do MESMO subtipo da máquina — apontar a cor padrão de uma offset para um
+ * toner faria o orçamento comparar tintas de máquinas diferentes e nunca reconhecer a cor que está
+ * lá. Trocar o subtipo derruba a escolha pelo mesmo motivo.
+ */
+const inks = ref<SupplyKeyValue[]>([])
+onMounted(async () => {
+  try {
+    inks.value = await useSupplies().listKeyValues({ type: 'INK', onlyActive: true })
+  } catch {
+    inks.value = []
+  }
+})
+
+const inkOptions = computed(() => inks.value.filter((ink) => ink.inkSubtype === props.block.inkSubtype))
+
+const defaultInk = computed<number | null>({
+  get: () => props.block.defaultInkSupplyId,
+  set: (value) => {
+    props.block.defaultInkSupplyId = value == null || Number.isNaN(Number(value)) ? null : Number(value)
+  },
+})
+
+const onInkSubtypeChange = () => {
+  if (!inkOptions.value.some((ink) => ink.id === props.block.defaultInkSupplyId)) {
+    props.block.defaultInkSupplyId = null
   }
 }
 
@@ -226,10 +258,23 @@ const cellClass =
         </div>
         <div>
           <label class="block mb-1.5 text-sm font-medium text-slate-900 dark:text-white">Subtipo</label>
-          <select v-model="block.inkSubtype" :class="inputClass('inkSubtype')">
+          <select v-model="block.inkSubtype" @change="onInkSubtypeChange" :class="inputClass('inkSubtype')">
             <option v-for="st in CONVENTIONAL_INK_SUBTYPES" :key="st" :value="st">{{ INK_SUBTYPE_LABELS[st] }}</option>
           </select>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Seleção única — ou toner, ou tinta offset.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block mb-1.5 text-sm font-medium text-slate-900 dark:text-white">Cor padrão da máquina</label>
+          <select v-model="defaultInk" :class="inputClass('defaultInkSupplyId')">
+            <option :value="null">Sem cor padrão</option>
+            <option v-for="ink in inkOptions" :key="ink.id" :value="ink.id">{{ ink.value }}</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            A tinta que fica na máquina entre um trabalho e outro — na prática, o preto. O orçamento
+            não cobra <strong>lavagem</strong> quando o trabalho pede justamente essa cor: não há
+            troca de cor a fazer. Sem cor padrão, toda impressão paga lavagem.
+          </p>
+          <p v-if="errors['defaultInkSupplyId']" class="mt-1 text-xs text-rose-600">{{ errors['defaultInkSupplyId'] }}</p>
         </div>
       </div>
     </fieldset>

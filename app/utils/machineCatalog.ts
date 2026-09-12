@@ -119,6 +119,7 @@ export function defaultOffsetBlock(): OffsetBlock {
     // Tinta da máquina (atividade 032 — ajuste 0001): numa offset o subtipo é tinta offset.
     acceptedInkColorTypes: [],
     inkSubtype: 'OFFSET_INK',
+    defaultInkSupplyId: null,
     setupTimes: {
       plateSetupMinutesPerColor: 0,
       colorMatchingMinutes: 0,
@@ -199,6 +200,7 @@ export function hydrateOffsetBlock(block: OffsetBlock): OffsetBlock {
     acceptedPlateTypes: [...(block.acceptedPlateTypes ?? [])],
     acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
     inkSubtype: block.inkSubtype ?? base.inkSubtype,
+    defaultInkSupplyId: block.defaultInkSupplyId ?? null,
     setupTimes: { ...base.setupTimes, ...block.setupTimes },
     speedRamp: {
       minSpeedSheetsPerHour: block.speedRamp.minSpeedSheetsPerHour ?? 0,
