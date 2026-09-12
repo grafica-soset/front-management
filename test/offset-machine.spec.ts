@@ -42,6 +42,8 @@ function buildSakuraiOffset(): OffsetBlock {
     // Tinta da máquina (atividade 032 — ajuste 0001): aceita as duas seleções de cor, tinta offset.
     acceptedInkColorTypes: ['CMYK', 'PANTONE'],
     inkSubtype: 'OFFSET_INK',
+    // As chapas desta máquina (atividade 034): duas CTP de tamanhos diferentes.
+    plateSupplyIds: [310, 311],
     setupTimes: {
       plateSetupMinutesPerColor: 15,
       colorMatchingMinutes: 10,
@@ -187,6 +189,22 @@ describe('Cadastro OFFSET — tinta da máquina (atividade 032, ajuste 0001)', (
   it('assume tinta offset quando a API não devolve o subtipo (cadastro legado)', () => {
     const legacy = { ...buildSakuraiOffset(), inkSubtype: undefined as never }
     expect(hydrateOffsetBlock(legacy).inkSubtype).toBe('OFFSET_INK')
+  })
+})
+
+describe('Cadastro OFFSET — chapas da máquina (atividade 034)', () => {
+  it('hidrata preservando as chapas selecionadas', () => {
+    expect(hydrateOffsetBlock(buildSakuraiOffset()).plateSupplyIds).toEqual([310, 311])
+  })
+
+  it('máquina sem chapa é um cadastro válido — quem reclama é o orçamento', () => {
+    const semChapa: OffsetBlock = { ...buildSakuraiOffset(), plateSupplyIds: [] }
+    expect(validateOffset(semChapa)).toEqual({})
+  })
+
+  it('cadastro legado, sem a lista, hidrata como vazia em vez de undefined', () => {
+    const legacy = { ...buildSakuraiOffset(), plateSupplyIds: undefined as never }
+    expect(hydrateOffsetBlock(legacy).plateSupplyIds).toEqual([])
   })
 })
 
