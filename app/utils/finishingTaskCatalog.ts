@@ -12,6 +12,7 @@ export const FINISHING_TASK_TYPES: FinishingTaskType[] = [
   'ENVELOPE_SEALING',
   'COLLATION',
   'MANUAL_COUNTING',
+  'STAPLING',
 ]
 
 export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
@@ -23,6 +24,7 @@ export const FINISHING_TASK_TYPE_LABELS: Record<FinishingTaskType, string> = {
   ENVELOPE_SEALING: 'Fechamento de Envelope',
   COLLATION: 'Intercalação de Vias',
   MANUAL_COUNTING: 'Contagem Manual de Vias',
+  STAPLING: 'Grampear',
 }
 
 /** Descrição curta de cada tipo, exibida no formulário. */
@@ -35,4 +37,13 @@ export const FINISHING_TASK_TYPE_HINTS: Record<FinishingTaskType, string> = {
   ENVELOPE_SEALING: 'Viragem da dobra + cola + fechamento do envelope, por unidade.',
   COLLATION: 'Organiza as vias (jogos) na ordem. Configure o tempo por jogo para cada quantidade de vias.',
   MANUAL_COUNTING: 'Conta as folhas à mão. Informe uma referência (quanto tempo leva para contar X folhas); o orçamento extrapola para a quantidade do pedido.',
+  STAPLING: 'Grampeia o talão. Não tem tempo cadastrado: ele vem da máquina. Selecione as grampeadeiras que executam o acabamento — no orçamento, a quantidade de grampos decide qual delas dá conta.',
+}
+
+/** Acabamentos feitos por MÁQUINA: a configuração guarda as máquinas, não tempos. */
+export const MACHINE_BACKED_FINISHING_TYPES: FinishingTaskType[] = ['STAPLING']
+
+/** O tipo de máquina que executa cada acabamento de máquina. */
+export const FINISHING_TASK_MACHINE_TYPE: Partial<Record<FinishingTaskType, string>> = {
+  STAPLING: 'STITCHING',
 }

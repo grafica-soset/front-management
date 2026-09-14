@@ -71,6 +71,15 @@ export interface ActivityKeyValue {
    * automatizado" e não teria como montar os campos.
    */
   machineIds?: number[]
+  /**
+   * A configuração de acabamento da atividade e o TIPO dela (atividade 035).
+   *
+   * No acabamento feito por máquina — Grampear — as máquinas moram na configuração, não na
+   * atividade: sem o tipo aqui, a tela não teria como saber que a etapa pede a quantidade de
+   * grampos, porque a atividade não declara máquina nenhuma.
+   */
+  finishingTaskId?: number | null
+  finishingTaskType?: string | null
   active: boolean
 }
 

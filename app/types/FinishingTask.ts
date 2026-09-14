@@ -12,6 +12,9 @@ export type FinishingTaskType =
   | 'ENVELOPE_SEALING'
   | 'COLLATION'
   | 'MANUAL_COUNTING'
+  // Feito por MÁQUINA (atividade 035): a configuração guarda as grampeadeiras, e quem escolhe
+  // entre elas é o trabalho — quantidade de grampos contra os cabeçotes de cada máquina.
+  | 'STAPLING'
 
 /** Posição da Intercalação de Vias: para `viaCount` vias, `secondsPerSet` segundos por jogo. */
 export interface CollationTier {
@@ -47,6 +50,14 @@ export interface FinishingTaskConfigFields {
   countingMinutes?: number | null
   // COLLATION (Intercalação de Vias) — lista qtd de vias → tempo/jogo.
   collationTiers?: CollationTier[]
+  /**
+   * STAPLING (Grampear) — as grampeadeiras que executam o acabamento.
+   *
+   * A atividade de acabamento automatizado aceita UMA máquina; aqui a lista é necessária porque a
+   * escolha depende do trabalho (3 grampos não cabem numa máquina de 2 cabeçotes, que descem
+   * juntos). Por isso as máquinas moram na configuração, e a atividade não declara nenhuma.
+   */
+  machineIds?: number[]
 }
 
 export interface FinishingTask extends FinishingTaskConfigFields {

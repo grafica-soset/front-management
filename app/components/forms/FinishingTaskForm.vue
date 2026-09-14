@@ -4,7 +4,7 @@
  * + campos específicos do tipo (descritos em TYPE_FIELDS). Autocontido: recebe dados por prop e
  * emite o payload validado.
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type {
   CollationTier,
   CreateFinishingTaskRequest,
@@ -12,11 +12,15 @@ import type {
   FinishingTaskType,
   UpdateFinishingTaskRequest,
 } from '@/types/FinishingTask'
+import type { MachineKeyValue } from '@/types/Machine'
 import {
+  FINISHING_TASK_MACHINE_TYPE,
   FINISHING_TASK_TYPES,
   FINISHING_TASK_TYPE_HINTS,
   FINISHING_TASK_TYPE_LABELS,
+  MACHINE_BACKED_FINISHING_TYPES,
 } from '@/utils/finishingTaskCatalog'
+import { useMachineCatalog } from '@/composables/useMachineCatalog'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { isBlank } from '@/utils/formNumbers'
 
@@ -67,6 +71,9 @@ const TYPE_FIELDS: Record<FinishingTaskType, FieldDescriptor[]> = {
     { key: 'countingSheetCount', label: 'Quantidade de folhas', min: 1, integer: true },
     { key: 'countingMinutes', label: 'Tempo para contar essas folhas (minutos)', min: 1, integer: true },
   ],
+  // Grampear não tem tempo cadastrado: o tempo é da MÁQUINA. O que este tipo guarda é a lista de
+  // grampeadeiras que executam o acabamento (atividade 035).
+  STAPLING: [],
 }
 
 const ALL_FIELDS = Object.values(TYPE_FIELDS).flat()
@@ -110,6 +117,38 @@ const errors = ref<Record<string, string>>({})
 const currentFields = computed(() => TYPE_FIELDS[form.type])
 const isCollation = computed(() => form.type === 'COLLATION')
 
+/**
+ * ACABAMENTO FEITO POR MÁQUINA (atividade 035).
+ *
+ * Aqui não se cadastra tempo: ele vem da máquina. O que se cadastra é QUAIS máquinas executam o
+ * acabamento — e são várias de propósito, porque a escolha é do trabalho: a quantidade de grampos
+ * contra os cabeçotes de cada grampeadeira (os cabeçotes descem juntos, então a de 2 não faz 3).
+ */
+const isMachineBacked = computed(() => MACHINE_BACKED_FINISHING_TYPES.includes(form.type))
+const expectedMachineType = computed(() => FINISHING_TASK_MACHINE_TYPE[form.type])
+
+const machines = ref<MachineKeyValue[]>([])
+const selectedMachines = ref<number[]>([...(props.initial?.machineIds ?? [])])
+
+onMounted(async () => {
+  try {
+    machines.value = await useMachineCatalog().listAll()
+  } catch {
+    machines.value = []
+  }
+})
+
+/** Só as máquinas do tipo que executa este acabamento — é o que a API aceita salvar. */
+const machineOptions = computed(() =>
+  machines.value.filter((m) => m.machineType === expectedMachineType.value),
+)
+
+const toggleMachine = (id: number) => {
+  selectedMachines.value = selectedMachines.value.includes(id)
+    ? selectedMachines.value.filter((m) => m !== id)
+    : [...selectedMachines.value, id]
+}
+
 // Posições da Intercalação de Vias (qtd de vias → tempo/jogo por jogo).
 const tiers = ref<CollationTier[]>(
   (props.initial?.collationTiers ?? []).map((t) => ({ viaCount: t.viaCount, secondsPerSet: t.secondsPerSet })),
@@ -145,6 +184,10 @@ function validate(): Record<string, string> {
       e['spiralMaxLengthMm'] = 'O tamanho máximo deve ser ≥ o mínimo.'
     }
   }
+  // Acabamento de máquina sem máquina não roda no orçamento: ele não teria onde executar.
+  if (isMachineBacked.value && selectedMachines.value.length === 0) {
+    e['machineIds'] = 'Selecione ao menos uma máquina que executa este acabamento.'
+  }
   // Intercalação de Vias: ao menos uma posição, vias ≥ 2, tempo > 0, sem quantidades repetidas.
   if (isCollation.value) {
     if (tiers.value.length === 0) e['collationTiers'] = 'Adicione ao menos uma posição.'
@@ -176,6 +219,9 @@ const handleSubmit = () => {
       viaCount: Number(t.viaCount),
       secondsPerSet: Number(t.secondsPerSet),
     }))
+  }
+  if (isMachineBacked.value) {
+    typeConfig.machineIds = [...selectedMachines.value]
   }
 
   if (isEditing.value) {
@@ -246,6 +292,41 @@ watch(() => form.type, () => { errors.value = {} })
       </div>
       <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">No orçamento, se a quantidade de vias pedida não tiver posição, usa-se a maior cadastrada.</p>
       <p v-if="errors['collationTiers']" class="mt-1 text-xs text-rose-600">{{ errors['collationTiers'] }}</p>
+    </fieldset>
+
+    <!--
+      ACABAMENTO FEITO POR MÁQUINA (atividade 035): aqui não se cadastra tempo — ele vem da
+      máquina. O que se cadastra é QUAIS máquinas executam, e são várias de propósito: a escolha
+      entre elas é do trabalho, no orçamento.
+    -->
+    <fieldset v-if="isMachineBacked" class="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Máquinas que executam</legend>
+      <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Este acabamento não tem tempo cadastrado: ele sai da máquina. Marque as que podem executá-lo
+        — no orçamento, a <strong>quantidade de grampos</strong> decide qual delas dá conta (os
+        cabeçotes descem juntos, então uma de 2 cabeçotes não faz 3 grampos).
+      </p>
+
+      <p v-if="!machineOptions.length" class="text-xs text-slate-500 dark:text-slate-400">
+        Nenhuma máquina do tipo cadastrada. Cadastre a grampeadeira em <strong>Máquinas</strong>
+        para poder marcá-la aqui.
+      </p>
+      <div v-else class="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <label
+          v-for="machine in machineOptions"
+          :key="machine.id"
+          class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"
+        >
+          <input
+            type="checkbox"
+            :checked="selectedMachines.includes(machine.id)"
+            @change="toggleMachine(machine.id)"
+            class="h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+          />
+          {{ machine.value }}
+        </label>
+      </div>
+      <p v-if="errors['machineIds']" class="mt-2 text-xs text-rose-600">{{ errors['machineIds'] }}</p>
     </fieldset>
 
     <label v-if="isEditing" class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">

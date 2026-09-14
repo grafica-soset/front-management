@@ -79,14 +79,19 @@ export function useQuoteCatalogs() {
    * esses acabamentos nunca ganhavam o campo de tempo e saíam do orçamento custando zero.
    */
   function paramKindOf(
-    activity: Pick<ActivityKeyValue, 'type' | 'finishingSubtype' | 'machineIds'> | undefined
+    activity:
+      | Pick<ActivityKeyValue, 'type' | 'finishingSubtype' | 'machineIds' | 'finishingTaskType'>
+      | undefined
   ): ParamKind {
     if (!activity) return 'NONE'
     if (activity.type === 'PRINTING') return 'PRINTING'
     if (activity.type === 'MANUAL') return 'MINUTES'
     if (activity.type === 'FINISHING' && activity.finishingSubtype === 'MANUAL') return 'MINUTES'
-    // Acabamento de MÁQUINA: quem decide a pergunta é o tipo dela. Sem essa informação a tela
-    // mostraria "nada a configurar" numa etapa que precisa saber quantos grampos o talão leva.
+    // ACABAMENTO FEITO POR MÁQUINA (atividade 035): as máquinas estão na CONFIGURAÇÃO, e é o tipo
+    // dela que diz o que perguntar. A atividade aqui não declara máquina nenhuma — perguntar pelo
+    // que ela declara daria "nada a configurar" numa etapa que precisa saber quantos grampos.
+    if (activity.type === 'FINISHING' && activity.finishingTaskType === 'STAPLING') return 'STAPLES'
+    // Acabamento AUTOMATIZADO (uma máquina só, declarada na atividade): a máquina é quem diz.
     if (activity.type === 'FINISHING' && activity.finishingSubtype === 'AUTOMATED') {
       const tipos = (activity.machineIds ?? []).map((id) => findMachine(id)?.machineType)
       if (tipos.includes('STITCHING')) return 'STAPLES'
