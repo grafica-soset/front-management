@@ -63,6 +63,23 @@ export interface ActivityKeyValue {
   type: ActivityType
   /** Acompanha o tipo porque muda o que a tela pergunta: acabamento MANUAL é hora-homem. */
   finishingSubtype: ActivityFinishingSubtype | null
+  /**
+   * Máquinas que executam a atividade (atividade 035).
+   *
+   * É a MÁQUINA que diz o que o passo 3 precisa perguntar: picotadeira pede quantos picotes e em
+   * quantas vias; grampeadeira pede quantos grampos. Sem isso, a tela só saberia "acabamento
+   * automatizado" e não teria como montar os campos.
+   */
+  machineIds?: number[]
+  /**
+   * A configuração de acabamento da atividade e o TIPO dela (atividade 035).
+   *
+   * No acabamento feito por máquina — Grampear — as máquinas moram na configuração, não na
+   * atividade: sem o tipo aqui, a tela não teria como saber que a etapa pede a quantidade de
+   * grampos, porque a atividade não declara máquina nenhuma.
+   */
+  finishingTaskId?: number | null
+  finishingTaskType?: string | null
   active: boolean
 }
 

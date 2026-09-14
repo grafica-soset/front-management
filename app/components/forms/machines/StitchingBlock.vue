@@ -24,6 +24,13 @@ const handlingAreaWidth = computed<number>({
 })
 
 // Espessura máx. de grampeamento: editada/exibida na unidade da empresa; canônico em mm (atividade 027).
+// LARGURA (coroa) do grampo — atividade 035. É ela que fecha o consumo de arame: cada grampo
+// gasta a coroa mais as duas pernas, e a perna tem a altura do bloco.
+const stapleWidth = computed<number>({
+  get: () => fromMillimeters(props.block.stapleWidthMm) ?? 0,
+  set: (v) => (props.block.stapleWidthMm = toMillimeters(v) ?? 0),
+})
+
 const maxStaplingThickness = computed<number>({
   get: () => fromMillimeters(props.block.maxStaplingThicknessMm) ?? 0,
   set: (v) => (props.block.maxStaplingThicknessMm = toMillimeters(v) ?? 0),
@@ -108,6 +115,18 @@ const inputClass = (err?: string) => [
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Tempo de uma descida.</p>
           <p v-if="errors.headDescentSeconds" class="mt-1 text-xs text-rose-600">{{ errors.headDescentSeconds }}</p>
         </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Movimentação lateral</label>
+          <div class="relative">
+            <input v-model.number="block.lateralMoveSeconds" type="number" min="0" step="1" :class="inputClass(errors.lateralMoveSeconds)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">seg</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Tempo para mover o talão entre um grampo e o seguinte — os cabeçotes descem sempre no
+            mesmo lugar, quem anda é o talão.
+          </p>
+          <p v-if="errors.lateralMoveSeconds" class="mt-1 text-xs text-rose-600">{{ errors.lateralMoveSeconds }}</p>
+        </div>
       </div>
     </fieldset>
 
@@ -139,6 +158,18 @@ const inputClass = (err?: string) => [
           </div>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Altura máxima do bloco.</p>
           <p v-if="errors.maxStaplingThicknessMm" class="mt-1 text-xs text-rose-600">{{ errors.maxStaplingThicknessMm }}</p>
+        </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura do grampo</label>
+          <div class="relative">
+            <input v-model.number="stapleWidth" type="number" min="0" step="0.001" :class="inputClass(errors.stapleWidthMm)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">{{ lengthUnit }}</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            A coroa do grampo (o usual é 1 cm). Com ela sai o arame: (altura do bloco + coroa) × 2
+            por grampo.
+          </p>
+          <p v-if="errors.stapleWidthMm" class="mt-1 text-xs text-rose-600">{{ errors.stapleWidthMm }}</p>
         </div>
       </div>
     </fieldset>

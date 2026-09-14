@@ -60,6 +60,13 @@ export interface QuoteStepRequest {
     /** Atividade manual: o usuário informa MINUTOS. */
     laborMinutes?: number | null
     numberingUnits?: number
+    /** Picote (atividade 035): picotes por folha e em quantas vias (nulo = todas). */
+    perforationCount?: number
+    perforatedSheetCount?: number | null
+    /** Grampo (atividade 035): quantos grampos o talão leva. */
+    stapleCount?: number
+    /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
+    machineId?: number | null
   }
   printing?: QuotePrintingRequest | null
 }
@@ -231,6 +238,33 @@ export interface StepCostingResponse {
   countedInStepsTotal: boolean
   /** O tempo etapa por etapa, quando a máquina da etapa tem composição (guilhotina, por exemplo). */
   timeStages: MachineTimeStageResponse[]
+  /** Máquinas avaliadas para a etapa (atividade 035): a escolhida e as recusadas, com o motivo. */
+  machineOptions?: FinishingMachineOptionResponse[]
+  /** Insumo consumido pela etapa — hoje o arame do grampo. */
+  supplyUsage?: StepSupplyUsageResponse | null
+}
+
+/**
+ * Uma máquina avaliada para a etapa. `minutes`/`cost` vêm nulos na recusada, e `reason` diz o que
+ * impede — a grampeadeira de 2 cabeçotes recusada por 3 grampos aparece dizendo isso.
+ */
+export interface FinishingMachineOptionResponse {
+  machineId: number
+  machineName: string
+  minutes: number | null
+  cost: number | null
+  chosen: boolean
+  reason: string | null
+}
+
+/** O insumo consumido pela etapa, com a conta por extenso. */
+export interface StepSupplyUsageResponse {
+  supplyName: string
+  quantity: number
+  unitLabel: string
+  unitCost: number
+  cost: number
+  detail: string
 }
 
 /** O peso de uma folha do produto no pacote: área do formato final × gramatura × folhas. */

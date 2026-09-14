@@ -11,17 +11,38 @@
  * tamanho cheio pesaria mais que o próprio título.
  */
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+const props = withDefaults(
+  defineProps<{
+    compact?: boolean
+    /**
+     * RELÊ OS CADASTROS antes de calcular.
+     *
+     * O rascunho não muda quando a MÁQUINA muda: quem corrige a espessura da grampeadeira em outra
+     * tela volta para o orçamento e não tem o que mexer para disparar um cálculo novo — e a tela
+     * segue mostrando a recusa antiga. Este botão fecha esse buraco.
+     */
+    refresh?: boolean
+    label?: string
+  }>(),
+  { compact: false, refresh: false, label: 'Calcular' },
+)
 
 const store = useQuoteDraftStore()
+const catalogs = useQuoteCatalogs()
+
+const run = async () => {
+  if (props.refresh) await catalogs.load(true)
+  await store.calculateDraft()
+}
 </script>
 
 <template>
   <button
     type="button"
     :disabled="store.calculating"
-    @click="store.calculateDraft()"
+    @click="run()"
     class="flex items-center gap-1.5 rounded-lg bg-indigo-600 font-medium text-white shadow-md shadow-indigo-500/20 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
     :class="compact ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'"
   >
@@ -36,6 +57,6 @@ const store = useQuoteDraftStore()
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
-    {{ store.calculating ? 'Calculando...' : 'Calcular' }}
+    {{ store.calculating ? 'Calculando...' : label }}
   </button>
 </template>

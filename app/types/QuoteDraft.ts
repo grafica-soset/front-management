@@ -101,6 +101,21 @@ export interface StepParameters {
   numberingUnits?: number
   /** Insumo concreto escolhido dentro de um grupo consumido pela atividade. */
   supplyId?: number | null
+
+  // ---- Talão (atividade 035) ----
+  /** PICOTE: quantos picotes a folha leva — cada um ocupa uma ferramenta da picotadeira. */
+  perforationCount?: number
+  /**
+   * PICOTE: em quantas vias/lâminas ele é feito. Nulo = em todas.
+   *
+   * No talão é comum picotar só a primeira via, a que o cliente destaca. Como cada via pode ter
+   * papel diferente, a picotadeira roda em velocidades diferentes — por isso a conta é por via.
+   */
+  perforatedSheetCount?: number | null
+  /** GRAMPO: quantos grampos o talão leva. Decide descidas, movimentos laterais e arame. */
+  stapleCount?: number
+  /** Máquina escolhida para a etapa automatizada. Nula = a mais barata que dá conta. */
+  machineId?: number | null
 }
 
 /** Uma etapa ativada no produto. A mesma atividade pode entrar mais de uma vez. */

@@ -15,8 +15,13 @@ import type { MachineKeyValue } from '@/types/Machine'
 import type { PaperType } from '@/types/PaperType'
 import type { SupplyKeyValue } from '@/types/Supply'
 
-/** O que a etapa pergunta no passo 3, derivado do TIPO da atividade. */
-export type ParamKind = 'NONE' | 'MINUTES' | 'PRINTING'
+/**
+ * O que a etapa pergunta no passo 3.
+ *
+ * Vem do TIPO da atividade — e, no acabamento automatizado, da MÁQUINA por trás dela (atividade
+ * 035): a picotadeira pergunta quantos picotes e em quantas vias; a grampeadeira, quantos grampos.
+ */
+export type ParamKind = 'NONE' | 'MINUTES' | 'PRINTING' | 'PERFORATION' | 'STAPLES'
 
 const paperTypes = ref<PaperType[]>([])
 const activities = ref<ActivityKeyValue[]>([])
@@ -73,13 +78,31 @@ export function useQuoteCatalogs() {
    * o motor pede os minutos e cobra o valor da hora da atividade. Enquanto isso olhava só o tipo,
    * esses acabamentos nunca ganhavam o campo de tempo e saíam do orçamento custando zero.
    */
-  function paramKindOf(activity: Pick<ActivityKeyValue, 'type' | 'finishingSubtype'> | undefined): ParamKind {
+  function paramKindOf(
+    activity:
+      | Pick<ActivityKeyValue, 'type' | 'finishingSubtype' | 'machineIds' | 'finishingTaskType'>
+      | undefined
+  ): ParamKind {
     if (!activity) return 'NONE'
     if (activity.type === 'PRINTING') return 'PRINTING'
     if (activity.type === 'MANUAL') return 'MINUTES'
     if (activity.type === 'FINISHING' && activity.finishingSubtype === 'MANUAL') return 'MINUTES'
+    // ACABAMENTO FEITO POR MÁQUINA (atividade 035): as máquinas estão na CONFIGURAÇÃO, e é o tipo
+    // dela que diz o que perguntar. A atividade aqui não declara máquina nenhuma — perguntar pelo
+    // que ela declara daria "nada a configurar" numa etapa que precisa saber quantos grampos.
+    if (activity.type === 'FINISHING' && activity.finishingTaskType === 'STAPLING') return 'STAPLES'
+    // Acabamento AUTOMATIZADO (uma máquina só, declarada na atividade): a máquina é quem diz.
+    if (activity.type === 'FINISHING' && activity.finishingSubtype === 'AUTOMATED') {
+      const tipos = (activity.machineIds ?? []).map((id) => findMachine(id)?.machineType)
+      if (tipos.includes('STITCHING')) return 'STAPLES'
+      if (tipos.includes('PERFORATING')) return 'PERFORATION'
+    }
     return 'NONE'
   }
+
+  /** As máquinas de uma atividade — o passo 3 mostra tempo e escolha entre elas. */
+  const machinesOfActivity = (activity: ActivityKeyValue | undefined) =>
+    (activity?.machineIds ?? []).map((id) => findMachine(id)).filter((m) => m !== undefined)
 
   /** Atividades de corte: com impressão, o produto precisa de duas. */
   const cuttingActivities = computed(() => activities.value.filter((a) => a.type === 'CUTTING'))
@@ -89,6 +112,6 @@ export function useQuoteCatalogs() {
     paperTypes, activities, machines, inks, plates,
     cuttingActivities,
     findActivity, findMachine, findPaperType, findInk, findPlate,
-    paramKindOf,
+    paramKindOf, machinesOfActivity,
   }
 }

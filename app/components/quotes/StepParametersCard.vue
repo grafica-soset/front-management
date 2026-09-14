@@ -15,7 +15,9 @@
  */
 import { computed } from 'vue'
 import type { QuoteStep } from '@/types/QuoteDraft'
+import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { brl } from '@/utils/quoteModel'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import PrintingParameters from '@/components/quotes/PrintingParameters.vue'
 
@@ -27,14 +29,53 @@ const props = defineProps<{
 }>()
 
 const catalogs = useQuoteCatalogs()
+const store = useQuoteDraftStore()
 const activity = computed(() => catalogs.findActivity(props.step.activityId))
 const paramKind = computed(() => catalogs.paramKindOf(activity.value))
 const params = computed(() => props.step.parameters)
 
-const setNumber = (key: 'laborMinutes' | 'numberingUnits', value: string) => {
+const setNumber = (
+  key: 'laborMinutes' | 'numberingUnits' | 'perforationCount' | 'stapleCount',
+  value: string
+) => {
   const parsed = Number(value.replace(',', '.'))
   props.step.parameters[key] = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }
+
+// ---- Talão (atividade 035) ----------------------------------------------------------------
+
+const product = computed(() => store.draft!)
+
+/** Quantas vias/lâminas o produto tem: é o teto do "em quantas vias" do picote. */
+const artworkCount = computed(() =>
+  product.value.structure === 'BLOCK' ? product.value.vias : product.value.blades,
+)
+const artworkNoun = computed(() => (product.value.structure === 'BLOCK' ? 'vias' : 'lâminas'))
+
+/**
+ * Em quantas vias o picote é feito. Nasce em TODAS porque é o caso do talão simples; quem picota
+ * só a primeira reduz aqui, e é isso que muda o tempo — cada via passa pela máquina uma vez.
+ */
+const perforatedSheets = computed<number>({
+  get: () => props.step.parameters.perforatedSheetCount ?? artworkCount.value,
+  set: (value) => {
+    const limite = Math.min(artworkCount.value, Math.max(1, Math.floor(value) || 1))
+    props.step.parameters.perforatedSheetCount = limite
+  },
+})
+
+/**
+ * O resultado do cálculo para ESTA etapa, quando já houve cálculo.
+ *
+ * Aqui é só CONFERÊNCIA: a escolha da máquina e as recusadas moram no resumo, onde a memória do
+ * cálculo está inteira. Este passo pergunta o que o trabalho pede; quem responde "em qual máquina"
+ * é o motor, com o resumo mostrando o porquê.
+ */
+const costing = computed(() =>
+  store.draftCost?.steps?.find((s) => s.activityId === props.step.activityId) ?? null,
+)
+/** Só vale mostrar o tempo quando o cálculo achou máquina — zero aqui é ruído, não informação. */
+const calculated = computed(() => (costing.value?.machineName ? costing.value : null))
 
 const inputClass =
   'w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -78,6 +119,118 @@ const inputClass =
           ao valor da hora cadastrado na atividade
         </span>
       </div>
+    </div>
+
+    <!--
+      PICOTE (atividade 035). A folha entra, passa pela máquina e cai na bandeja. O que o orçamento
+      precisa saber é quantos picotes ela leva e em quantas vias — o resto (velocidade pela
+      gramatura, levas, retirada da bandeja) sai do cadastro da máquina.
+    -->
+    <div v-else-if="paramKind === 'PERFORATION'" class="mt-3 space-y-4">
+      <div class="flex flex-wrap items-end gap-6">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Picotes por folha <span class="text-rose-500">*</span>
+          </label>
+          <input
+            :value="params.perforationCount ?? 1"
+            type="number"
+            min="1"
+            step="1"
+            @input="setNumber('perforationCount', ($event.target as HTMLInputElement).value)"
+            :class="inputClass"
+          />
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Cada picote ocupa uma ferramenta da máquina — e tem o seu tempo de acerto.
+          </p>
+        </div>
+        <div v-if="artworkCount > 1">
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Em quantas {{ artworkNoun }}?
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              v-model.number="perforatedSheets"
+              type="number"
+              min="1"
+              :max="artworkCount"
+              :class="inputClass"
+            />
+            <span class="text-sm text-slate-500 dark:text-slate-400">de {{ artworkCount }}</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            As primeiras — no talão, é comum picotar só a via que o cliente destaca.
+          </p>
+        </div>
+      </div>
+
+      <!-- Conferência: o tempo da máquina, quando o cálculo já rodou -->
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <ul class="mt-1 space-y-0.5">
+          <li v-for="stage in calculated.timeStages" :key="stage.name">
+            {{ stage.name }}: {{ stage.detail }} =
+            {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }} min
+          </li>
+        </ul>
+      </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver o tempo desta máquina — o detalhamento fica no resumo.
+      </p>
+    </div>
+
+    <!--
+      GRAMPO (atividade 035). A grampeadeira fecha um talão por vez; o que muda o trabalho é quantos
+      grampos ele leva — e é isso que decide QUAL máquina pode fazer: os cabeçotes descem juntos.
+    -->
+    <div v-else-if="paramKind === 'STAPLES'" class="mt-3 space-y-4">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+          Quantos grampos <span class="text-rose-500">*</span>
+        </label>
+        <input
+          :value="params.stapleCount ?? ''"
+          type="number"
+          min="1"
+          step="1"
+          placeholder="0"
+          @input="setNumber('stapleCount', ($event.target as HTMLInputElement).value)"
+          :class="inputClass"
+        />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Por talão. Decide as descidas do cabeçote, os movimentos laterais e o arame consumido.
+        </p>
+      </div>
+
+      <!--
+        Conferência. A escolha da grampeadeira e as recusadas ficam no RESUMO: é lá que a memória
+        do cálculo está inteira, e o número de grampos é a única coisa que se decide aqui.
+      -->
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <p v-if="calculated.supplyUsage" class="mt-1">
+          {{ calculated.supplyUsage.supplyName }}: {{ calculated.supplyUsage.detail }} —
+          {{ brl(calculated.supplyUsage.cost) }}
+        </p>
+      </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver a grampeadeira escolhida e o arame — o detalhamento,
+        com as máquinas que não dão conta e o porquê, fica no resumo.
+      </p>
     </div>
 
     <!-- Impressão: cada etapa tem a sua configuração completa, e os custos se somam -->
