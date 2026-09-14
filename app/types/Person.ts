@@ -6,7 +6,7 @@
  */
 export type PersonType = 'PHYSICAL' | 'LEGAL'
 
-export type GlobalRole = 'ADMIN' | 'USER' | 'CUSTOMER' | 'PROVIDER'
+export type GlobalRole = 'ADMIN' | 'USER' | 'CUSTOMER' | 'CLIENT' | 'PROVIDER'
 
 export interface Person {
   id: number

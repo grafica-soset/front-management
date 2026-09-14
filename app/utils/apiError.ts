@@ -19,6 +19,12 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   NotCustomerAdminException: 'Você precisa ser administrador da empresa para executar esta ação.',
   CustomerUserNotFoundException: 'Usuário não encontrado nesta empresa.',
   CredentialNotFoundException: 'Este usuário não possui credencial de senha cadastrada.',
+  InvalidBrazilianDocumentException: 'O CPF ou CNPJ informado não é válido.',
+  InvalidClientConfigurationException: 'Revise os endereços e contatos principais do cliente.',
+  ClientAlreadyActiveException: 'Este cliente já está ativo para a empresa.',
+  ClientNotFoundException: 'Cliente não encontrado nesta empresa.',
+  ClientAddressNotFoundException: 'Endereço não encontrado para este cliente.',
+  ClientContactNotFoundException: 'Contato não encontrado para este cliente.',
 }
 
 /**
