@@ -458,6 +458,13 @@ export interface StitchingBlockRequest {
   headCount: number
   /** Tempo (s) de uma descida do cabeçote. */
   headDescentSeconds: number
+  /**
+   * Tempo (s) do MOVIMENTO LATERAL do talão entre uma descida e a seguinte (atividade 035).
+   * Os cabeçotes descem sempre no mesmo lugar: quem anda é o talão, na mão do operador.
+   */
+  lateralMoveSeconds: number
+  /** Largura (coroa) do grampo em mm canônico — é ela que fecha o consumo de arame. */
+  stapleWidthMm: number
 }
 
 /** Bloco grampeadeira devolvido pela API (área de manuseio como dimensão formatada). */
@@ -472,6 +479,10 @@ export interface StitchingBlockResponse {
   maxStaplingThickness: FormattedDimension
   headCount: number
   headDescentSeconds: number
+  lateralMoveSeconds: number
+  /** Largura do grampo já convertida para a unidade da empresa. */
+  stapleWidth?: FormattedDimension
+  stapleWidthMm?: number
 }
 
 /** Corpo de POST/PUT /stitching-machines. Sem margem da pinça; alimentador opcional. */
@@ -695,8 +706,13 @@ export interface PerforatingBlockRequest {
   maxFormat: PerforatingFormatPointRequest
   belowMinFormatReducerPercent: string
   aboveMaxFormatReducerPercent: string
-  /** Retirada na mesa de saída (min) por cada 10 cm de altura da pilha. */
-  outputRemovalMinutesPer10Cm: number
+  /**
+   * BANDEJA DE SAÍDA (atividade 035): altura em mm canônico e o tempo para esvaziá-la uma vez.
+   * O papel picotado cai nela; quando enche, alguém para e tira. É a altura da bandeja que diz
+   * de quantas em quantas folhas isso acontece — antes o sistema supunha 10 cm.
+   */
+  outputTrayHeightMm: number
+  outputRemovalMinutesPerTray: number
 }
 
 /** Ponto do formato ideal devolvido pela API (dimensões formatadas). */
@@ -723,7 +739,10 @@ export interface PerforatingBlockResponse {
   maxFormat: PerforatingFormatPointResponse
   belowMinFormatReducerPercent: number
   aboveMaxFormatReducerPercent: number
-  outputRemovalMinutesPer10Cm: number
+  /** Bandeja de saída já convertida para a unidade da empresa, e o tempo de uma retirada. */
+  outputTrayHeight?: FormattedDimension
+  outputTrayHeightMm?: number
+  outputRemovalMinutesPerTray: number
 }
 
 /** Corpo de POST/PUT /perforating-machines. Sem margem da pinça; alimentador obrigatório. */

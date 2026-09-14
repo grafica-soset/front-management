@@ -272,6 +272,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           parameters: {
             laborMinutes: step.parameters.laborMinutes ?? null,
             numberingUnits: step.parameters.numberingUnits ?? 0,
+            // Talão (atividade 035): picote e grampo. O picote vai com 1 por padrão — a folha que
+            // leva picote leva pelo menos um —, e "em quantas vias" nulo significa em todas.
+            perforationCount: step.parameters.perforationCount ?? 1,
+            perforatedSheetCount: step.parameters.perforatedSheetCount ?? null,
+            stapleCount: step.parameters.stapleCount ?? 0,
+            machineId: step.parameters.machineId ?? null,
           },
         }
         if (!step.printing) return base

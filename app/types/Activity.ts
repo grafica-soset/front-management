@@ -63,6 +63,14 @@ export interface ActivityKeyValue {
   type: ActivityType
   /** Acompanha o tipo porque muda o que a tela pergunta: acabamento MANUAL é hora-homem. */
   finishingSubtype: ActivityFinishingSubtype | null
+  /**
+   * Máquinas que executam a atividade (atividade 035).
+   *
+   * É a MÁQUINA que diz o que o passo 3 precisa perguntar: picotadeira pede quantos picotes e em
+   * quantas vias; grampeadeira pede quantos grampos. Sem isso, a tela só saberia "acabamento
+   * automatizado" e não teria como montar os campos.
+   */
+  machineIds?: number[]
   active: boolean
 }
 

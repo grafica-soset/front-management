@@ -321,6 +321,9 @@ export function defaultStitchingBlock(): StitchingBlockRequest {
     maxStaplingThicknessMm: 0,
     headCount: 1,
     headDescentSeconds: 0,
+    // Atividade 035: o movimento lateral do talão e a coroa do grampo (1 cm é o usual).
+    lateralMoveSeconds: 0,
+    stapleWidthMm: 10,
   }
 }
 
@@ -338,6 +341,9 @@ export function hydrateStitchingBlock(block: StitchingBlockResponse | null): Sti
     maxStaplingThicknessMm: block.maxStaplingThickness?.millimeters ?? 0,
     headCount: block.headCount ?? base.headCount,
     headDescentSeconds: block.headDescentSeconds ?? 0,
+    lateralMoveSeconds: block.lateralMoveSeconds ?? 0,
+    // Cadastro anterior à 035 volta sem a coroa: cai no padrão de 1 cm em vez de zerar o arame.
+    stapleWidthMm: block.stapleWidth?.millimeters ?? block.stapleWidthMm ?? base.stapleWidthMm,
   }
 }
 
@@ -349,6 +355,7 @@ export function validateStitching(block: StitchingBlockRequest): Record<string, 
   const errors: Record<string, string> = {}
   const nonNeg: (keyof StitchingBlockRequest)[] = [
     'stapleSetupMinutes', 'feedTimeSecondsPerLoad', 'minWireThicknessMicrons', 'headDescentSeconds',
+    'lateralMoveSeconds',
   ]
   for (const k of nonNeg) {
     if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
@@ -358,6 +365,10 @@ export function validateStitching(block: StitchingBlockRequest): Record<string, 
   if (!(block.maxWireThicknessMicrons >= block.minWireThicknessMicrons)) errors['maxWireThicknessMicrons'] = 'Deve ser ≥ espessura mínima.'
   if (!isNumberAtLeast(block.maxStaplingThicknessMm, 1)) errors['maxStaplingThicknessMm'] = 'Informe a espessura máxima de grampeamento (≥ 1).'
   if (!(block.headCount >= 1 && block.headCount <= 4)) errors['headCount'] = 'A máquina deve ter de 1 a 4 cabeçotes.'
+  // Sem a coroa do grampo não há como calcular o arame: o consumo sairia zerado no orçamento.
+  if (!isNumberAtLeast(block.stapleWidthMm, 1)) {
+    errors['stapleWidthMm'] = 'Informe a largura do grampo (≥ 1).'
+  }
   return errors
 }
 
@@ -506,7 +517,9 @@ export function defaultPerforatingBlock(): PerforatingBlockRequest {
     maxFormat: { widthMm: 0, lengthMm: 0 },
     belowMinFormatReducerPercent: '0',
     aboveMaxFormatReducerPercent: '0',
-    outputRemovalMinutesPer10Cm: 0,
+    // Bandeja de saída (atividade 035): 10 cm é o que o sistema supunha antes de perguntar.
+    outputTrayHeightMm: 100,
+    outputRemovalMinutesPerTray: 0,
   }
 }
 
@@ -531,7 +544,8 @@ export function hydratePerforatingBlock(block: PerforatingBlockResponse | null):
     maxFormat: { widthMm: block.maxFormat.width.millimeters, lengthMm: block.maxFormat.length.millimeters },
     belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
     aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
-    outputRemovalMinutesPer10Cm: block.outputRemovalMinutesPer10Cm ?? 0,
+    outputTrayHeightMm: block.outputTrayHeight?.millimeters ?? block.outputTrayHeightMm ?? base.outputTrayHeightMm,
+    outputRemovalMinutesPerTray: block.outputRemovalMinutesPerTray ?? 0,
   }
 }
 
@@ -543,7 +557,7 @@ export function validatePerforating(block: PerforatingBlockRequest): Record<stri
   const errors: Record<string, string> = {}
   const nonNeg: (keyof PerforatingBlockRequest)[] = [
     'toolSetupMinutes', 'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'minWeightGsm',
-    'maxWeightGsm', 'idealWeightMinGsm', 'idealWeightMaxGsm', 'outputRemovalMinutesPer10Cm',
+    'maxWeightGsm', 'idealWeightMinGsm', 'idealWeightMaxGsm', 'outputRemovalMinutesPerTray',
   ]
   for (const k of nonNeg) {
     if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'
@@ -555,6 +569,10 @@ export function validatePerforating(block: PerforatingBlockRequest): Record<stri
   if (!(block.maxWeightGsm >= block.minWeightGsm)) errors['maxWeightGsm'] = 'Deve ser ≥ gramatura mínima.'
   if (!(block.idealWeightMaxGsm >= block.idealWeightMinGsm)) errors['idealWeightMaxGsm'] = 'Deve ser ≥ gramatura mínima.'
   if (!isNumberAtLeast(block.feedLoadIncrementMm, 1)) errors['feedLoadIncrementMm'] = 'Valor mínimo: 1.'
+  // Bandeja zerada faria a conta dividir por zero — e "retirar a cada 0 cm" não quer dizer nada.
+  if (!isNumberAtLeast(block.outputTrayHeightMm, 1)) {
+    errors['outputTrayHeightMm'] = 'Informe a altura da bandeja de saída (≥ 1).'
+  }
 
   for (const which of ['minFormat', 'maxFormat'] as const) {
     if (!isNumberAtLeast(block[which].widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'

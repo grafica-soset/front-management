@@ -492,7 +492,12 @@ const printingTables = computed(() => {
               <th class="px-5 py-3 font-semibold">Impressora</th>
               <th class="px-5 py-3 text-right font-semibold">Tiragem</th>
               <th class="px-5 py-3 text-right font-semibold">Folhas inteiras</th>
-              <th class="px-5 py-3 text-right font-semibold">Custo da folha</th>
+              <!--
+                O número desta coluna é o custo TOTAL da combinação — papel, chapa, tinta e máquina.
+                Chamá-lo de "custo da folha" fazia o orçamentista procurar o preço do papel e não
+                achar: o que está ali é a folha já impressa.
+              -->
+              <th class="px-5 py-3 text-right font-semibold">Custo da folha + impressão</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
