@@ -106,6 +106,8 @@ export default function useMenu() {
         { name: 'Fechamento de Envelope', href: '/acabamentos?type=ENVELOPE_SEALING' },
         { name: 'Intercalação de Vias', href: '/acabamentos?type=COLLATION' },
         { name: 'Contagem Manual de Vias', href: '/acabamentos?type=MANUAL_COUNTING' },
+        // Grampear (atividade 035): o único acabamento que guarda MÁQUINAS em vez de tempo.
+        { name: 'Grampear', href: '/acabamentos?type=STAPLING' },
       ],
     },
     {

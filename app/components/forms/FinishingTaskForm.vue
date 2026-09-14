@@ -168,8 +168,11 @@ const inputClass = (errKey: string) => [
 function validate(): Record<string, string> {
   const e: Record<string, string> = {}
   if (!form.name.trim()) e['name'] = 'Informe o nome.'
-  const cost = Number(form.hourlyCost)
-  if (isBlank(form.hourlyCost) || !Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe o valor-hora (≥ 0).'
+  // O acabamento de máquina não tem valor-hora próprio: o custo vem da máquina escolhida.
+  if (!isMachineBacked.value) {
+    const cost = Number(form.hourlyCost)
+    if (isBlank(form.hourlyCost) || !Number.isFinite(cost) || cost < 0) e['hourlyCost'] = 'Informe o valor-hora (≥ 0).'
+  }
 
   for (const f of currentFields.value) {
     const raw = config[f.key]
@@ -224,10 +227,13 @@ const handleSubmit = () => {
     typeConfig.machineIds = [...selectedMachines.value]
   }
 
+  // Zero explícito no acabamento de máquina: o campo não é perguntado, e mandar o que estava na
+  // tela guardaria um valor-hora fantasma no cadastro.
+  const hourlyCost = isMachineBacked.value ? '0' : form.hourlyCost
   if (isEditing.value) {
-    emit('submit', { customerId: 0, name: form.name.trim(), hourlyCost: form.hourlyCost, active: form.active, ...typeConfig }, 'update')
+    emit('submit', { customerId: 0, name: form.name.trim(), hourlyCost, active: form.active, ...typeConfig }, 'update')
   } else {
-    emit('submit', { customerId: 0, type: form.type, name: form.name.trim(), hourlyCost: form.hourlyCost, ...typeConfig }, 'create')
+    emit('submit', { customerId: 0, type: form.type, name: form.name.trim(), hourlyCost, ...typeConfig }, 'create')
   }
 }
 
@@ -247,12 +253,17 @@ watch(() => form.type, () => { errors.value = {} })
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="md:col-span-2">
+      <div :class="isMachineBacked ? 'md:col-span-3' : 'md:col-span-2'">
         <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Nome <span class="text-rose-500">*</span></label>
         <input v-model="form.name" type="text" maxlength="150" placeholder="Ex.: Aplicação de Espiral" :class="inputClass('name')" />
         <p v-if="errors['name']" class="mt-1 text-xs text-rose-600">{{ errors['name'] }}</p>
       </div>
-      <div>
+      <!--
+        No acabamento feito por MÁQUINA não há valor-hora a pedir: o custo é o da máquina que
+        executar. Perguntar aqui seria pedir um número que o orçamento nunca usa — e que o
+        usuário preencheria achando que muda o preço.
+      -->
+      <div v-if="!isMachineBacked">
         <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Valor-hora (R$/h) <span class="text-rose-500">*</span></label>
         <input v-model="form.hourlyCost" type="number" min="0" step="0.01" :class="inputClass('hourlyCost')" />
         <p v-if="errors['hourlyCost']" class="mt-1 text-xs text-rose-600">{{ errors['hourlyCost'] }}</p>
