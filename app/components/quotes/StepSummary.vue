@@ -11,6 +11,7 @@
  */
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import type { SelectionEntryResponse } from '@/types/Quote'
 import { brl, formatLabel, printRun } from '@/utils/quoteModel'
@@ -198,6 +199,12 @@ const printingTables = computed(() => {
           </svg>
           Imprimir resumo
         </button>
+        <!--
+          ATUALIZAR: relê os cadastros e refaz a conta. O rascunho não muda quando a MÁQUINA muda —
+          quem arruma a espessura da grampeadeira em outra tela volta para cá e vê o cálculo velho,
+          sem nada para mexer que dispare um novo.
+        -->
+        <CalculateButton refresh label="Atualizar cálculo" />
       </div>
       <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div>
@@ -653,7 +660,12 @@ const printingTables = computed(() => {
         picotes, quantos grampos.
       </p>
 
-      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      <!--
+        Uma etapa por LINHA, e não lado a lado: picote e grampo são máquinas de aplicações
+        diferentes, com memórias que não se comparam — emparelhá-las sugere uma relação que não
+        existe, e ainda espreme a tabela de tempos de cada uma.
+      -->
+      <div class="mt-4 space-y-4">
         <div
           v-for="step in machineFinishingSteps"
           :key="`acab-${step.activityId}-${step.detail}`"
