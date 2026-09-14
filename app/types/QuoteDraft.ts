@@ -1,17 +1,17 @@
 /**
- * Rascunho de ORÇAMENTO (atividade 034) — protótipo navegável.
+ * Rascunho de ORÇAMENTO (atividade 034).
  *
  * Um orçamento tem N produtos. Cada produto tem uma ESTRUTURA que decide quantas folhas ele usa:
  *
  *   LÂMINA — impressão de folha única (folder, cartaz). O produto tem N lâminas independentes.
- *   BLOCO  — jogos × vias. Um bloco de 50 jogos com 2 vias tem 100 folhas; na tiragem de 10
+ *   BLOCO  — jogos × vias. Um bloco de 50 jogos com 2 vias tem 100 folhas; na encomenda de 10
  *            blocos são 1.000 folhas, 500 de cada via.
  *
  * Capas entram como folhas à parte: são configuradas como uma via/lâmina qualquer (papel, lados,
  * cores), mas contam pela quantidade de capas, não pelos jogos.
  *
- * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. O cálculo é de demonstração
- * (`utils/quoteDemoData.ts`) até o motor do backend existir.
+ * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. A store o traduz no contrato do
+ * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
 
 /** O que a folha é dentro do produto. */
@@ -33,6 +33,11 @@ export interface QuoteSheet {
   index: number
   /** Família de papéis (`/paper-types`) — o sistema escolhe o tamanho dentro dela. */
   paperTypeId: number | null
+  /**
+   * Formato de impressão escolhido pelo usuário — o número do formato na folha inteira. Nulo deixa o
+   * motor escolher pelo custo, que é o caminho normal.
+   */
+  printFormatNumber: number | null
 }
 
 /**
@@ -67,6 +72,8 @@ export interface PrintingSheetSetup {
 export interface PrintingSetup {
   /** Configuração de cada folha, indexada pelo `uid` dela. */
   bySheet: Record<string, PrintingSheetSetup>
+  /** Chapa escolhida pelo usuário quando a impressora aceita mais de um tipo. */
+  plateSupplyId?: number | null
   /** Impressora do produto inteiro (quando não está por folha). */
   machineId: number | null
   /** "Selecionar impressora diferente por via/lâmina". */
@@ -81,8 +88,8 @@ export interface PrintingSetup {
 
 /** Parâmetros que uma etapa pede quando é ativada no orçamento. */
 export interface StepParameters {
-  /** Atividade manual: quantas horas de trabalho. */
-  laborHours?: number
+  /** Atividade manual: quantos MINUTOS de trabalho (a tela pergunta assim). */
+  laborMinutes?: number
   /** Dobradeira. */
   parallelFolds?: number
   crossFolds?: number
@@ -113,7 +120,12 @@ export interface QuoteProduct {
   /** Formato final da peça, em milímetros (representação canônica do sistema). */
   widthMm: number | null
   heightMm: number | null
-  /** Tiragem: peças finais (lâminas) ou blocos a produzir. */
+  /**
+   * QUANTIDADE encomendada: peças finais (lâminas) ou blocos a produzir.
+   *
+   * Não confundir com TIRAGEM, que no jargão gráfico é o total de FOLHAS IMPRESSAS — 10 blocos de
+   * 50 jogos com 2 vias dão 125 folhas por via, 250 de tiragem.
+   */
   quantity: number | null
 
   structure: ProductStructure
@@ -123,6 +135,20 @@ export interface QuoteProduct {
   sets: number
   /** Vias por jogo, 1 a 9 (estrutura BLOCO). */
   vias: number
+
+  /**
+   * "Vias/lâminas iguais?" — todas com o MESMO desenho.
+   *
+   * Nasce SEM RESPOSTA (null) e é perguntada assim que o produto tem mais de uma via/lâmina: é ela
+   * que decide se o trabalho paga uma chapa ou várias, e nenhum dos dois lados pode ser assumido no
+   * silêncio — um cobra a mais, o outro a menos.
+   */
+  identicalArtwork: boolean | null
+  /**
+   * Quando a resposta é NÃO: quantos desenhos DIFERENTES existem entre as vias/lâminas. Dois de
+   * quatro vias significam dois jogos de chapa — as outras duas reaproveitam.
+   */
+  distinctArtworks: number | null
 
   hasCovers: boolean
   coverCount: number
@@ -144,7 +170,7 @@ export interface ProductCost {
   lines: CostLine[]
   total: number
   unitCost: number
-  /** Folhas de impressão da tiragem inteira, somando todas as vias/lâminas e capas. */
+  /** Folhas do produto na encomenda inteira, somando todas as vias/lâminas e capas. */
   totalSheets: number
   totalMinutes: number
   machinesUsed: string[]

@@ -7,16 +7,18 @@
  */
 import { computed } from 'vue'
 import type { QuoteSheet } from '@/types/QuoteDraft'
-import { DEMO_PAPER_TYPES, sheetLabel } from '@/utils/quoteDemoData'
+import { sheetLabel } from '@/utils/quoteModel'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 
 const props = defineProps<{
   sheet: QuoteSheet
-  /** Quantas folhas desta via/lâmina/capa a tiragem consome. */
+  /** Quantas folhas desta via/lâmina/capa a encomenda consome. */
   sheetCount: number
 }>()
 
 const emit = defineEmits<{ (e: 'update', paperTypeId: number | null): void }>()
 
+const catalogs = useQuoteCatalogs()
 const label = computed(() => sheetLabel(props.sheet))
 
 const onChange = (event: Event) => {
@@ -46,7 +48,7 @@ const onChange = (event: Event) => {
       class="block w-full min-w-0 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
     >
       <option value="">Selecione a família de papéis...</option>
-      <option v-for="paper in DEMO_PAPER_TYPES" :key="paper.id" :value="paper.id">{{ paper.name }}</option>
+      <option v-for="paper in catalogs.paperTypes.value" :key="paper.id" :value="paper.id">{{ paper.name }}</option>
     </select>
 
     <span class="shrink-0 text-xs text-slate-500 sm:w-36 sm:text-right dark:text-slate-400">

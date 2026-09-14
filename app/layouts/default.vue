@@ -63,7 +63,7 @@ onUnmounted(() => {
 <template>
   <div class="antialiased bg-slate-50 dark:bg-slate-900 min-h-screen">
     <!-- Navbar -->
-    <nav class="bg-indigo-600 border-b border-indigo-700 px-4 py-2.5 dark:bg-indigo-900 dark:border-indigo-800 fixed left-0 right-0 top-0 z-50 shadow-md">
+    <nav class="bg-indigo-600 border-b border-indigo-700 px-4 py-2.5 dark:bg-indigo-900 dark:border-indigo-800 fixed left-0 right-0 top-0 z-50 shadow-md print:hidden">
       <div class="flex flex-wrap justify-between items-center">
         <div class="flex justify-start items-center">
           <button @click="toggleSidebar" class="p-2 mr-2 text-indigo-100 rounded-lg cursor-pointer md:hidden hover:text-white hover:bg-indigo-500 focus:bg-indigo-500 dark:focus:bg-indigo-700 focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 dark:text-indigo-200 dark:hover:bg-indigo-700">
@@ -123,7 +123,7 @@ onUnmounted(() => {
     <!-- Sidebar -->
     <aside
       :class="[isSidebarOpen ? 'translate-x-0' : '-translate-x-full']"
-      class="fixed top-0 left-0 z-40 w-64 h-screen pt-16 transition-transform bg-white border-r border-slate-200 md:translate-x-0 dark:bg-slate-800 dark:border-slate-700 shadow-sm"
+      class="fixed top-0 left-0 z-40 w-64 h-screen pt-16 transition-transform bg-white border-r border-slate-200 md:translate-x-0 dark:bg-slate-800 dark:border-slate-700 shadow-sm print:hidden"
       aria-label="Menu Lateral"
     >
       <div class="overflow-y-auto py-5 px-3 h-full bg-white dark:bg-slate-800">
@@ -187,7 +187,7 @@ onUnmounted(() => {
     </aside>
 
     <!-- Overlay no Mobile -->
-    <div v-show="isSidebarOpen" @click="toggleSidebar" class="bg-slate-900/50 backdrop-blur-sm dark:bg-slate-900/80 fixed inset-0 z-30 md:hidden transition-opacity"></div>
+    <div v-show="isSidebarOpen" @click="toggleSidebar" class="bg-slate-900/50 backdrop-blur-sm dark:bg-slate-900/80 fixed inset-0 z-30 md:hidden transition-opacity print:hidden"></div>
 
     <!-- Conteúdo Principal -->
     <main class="p-4 md:ml-64 h-auto pt-20">
@@ -195,6 +195,6 @@ onUnmounted(() => {
     </main>
 
     <!-- Notificações globais -->
-    <ToastContainer />
+    <ToastContainer class="print:hidden" />
   </div>
 </template>

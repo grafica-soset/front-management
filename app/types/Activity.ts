@@ -61,6 +61,8 @@ export interface ActivityKeyValue {
   id: number
   value: string
   type: ActivityType
+  /** Acompanha o tipo porque muda o que a tela pergunta: acabamento MANUAL é hora-homem. */
+  finishingSubtype: ActivityFinishingSubtype | null
   active: boolean
 }
 

@@ -7,8 +7,10 @@
  * mesmo produto (dois cortes, duas impressões). Por isso nada aparece desabilitado; as já
  * escolhidas só ganham a contagem "já no produto ×2", como informação, não como bloqueio.
  */
-import { computed, ref, watch } from 'vue'
-import { ACTIVITY_TYPE_LABEL, DEMO_ACTIVITIES, type DemoActivity } from '@/utils/quoteDemoData'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
+import type { ActivityKeyValue } from '@/types/Activity'
 
 const props = defineProps<{
   isOpen: boolean
@@ -21,19 +23,40 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const catalogs = useQuoteCatalogs()
 const search = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+
+/**
+ * Escolher uma atividade limpa a busca e devolve o foco a ela: montar a sequência é uma escolha
+ * atrás da outra, e apagar o termo anterior à mão a cada vez é o que torna isso lento.
+ */
+const choose = async (activityId: number) => {
+  emit('pick', activityId)
+  search.value = ''
+  await nextTick()
+  searchInput.value?.focus()
+}
+
+/** Quantas etapas o produto já tem — o retorno de que os cliques estão surtindo efeito. */
+const addedCount = computed(() =>
+  Object.values(props.usageCount).reduce((total, count) => total + count, 0),
+)
 
 watch(
   () => props.isOpen,
-  (open) => {
-    if (open) search.value = ''
+  async (open) => {
+    if (!open) return
+    search.value = ''
+    await nextTick()
+    searchInput.value?.focus()
   },
 )
 
 const groups = computed(() => {
   const term = search.value.trim().toLowerCase()
-  const matches = DEMO_ACTIVITIES.filter((a) => !term || a.name.toLowerCase().includes(term))
-  const byType = new Map<DemoActivity['type'], DemoActivity[]>()
+  const matches = catalogs.activities.value.filter((a) => !term || a.value.toLowerCase().includes(term))
+  const byType = new Map<ActivityKeyValue['type'], ActivityKeyValue[]>()
   for (const activity of matches) {
     const list = byType.get(activity.type) ?? []
     list.push(activity)
@@ -42,7 +65,7 @@ const groups = computed(() => {
   return Array.from(byType.entries())
 })
 
-const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
+const needsSetup = (activity: ActivityKeyValue) => catalogs.paramKindOf(activity) !== 'NONE'
 </script>
 
 <template>
@@ -55,7 +78,7 @@ const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
         <div>
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Adicionar atividade</h3>
           <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            A mesma atividade pode entrar mais de uma vez no produto.
+            Escolha quantas quiser — o modal fica aberto. A mesma atividade pode entrar mais de uma vez.
           </p>
         </div>
         <button
@@ -72,27 +95,28 @@ const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
 
       <div class="space-y-4 p-5">
         <input
+          ref="searchInput"
           v-model="search"
           type="search"
           placeholder="Buscar atividade..."
           class="block w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
         />
 
-        <div class="max-h-80 space-y-4 overflow-y-auto pr-1">
+        <div class="max-h-72 space-y-4 overflow-y-auto pr-1">
           <div v-for="[type, activities] in groups" :key="type">
             <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-              {{ ACTIVITY_TYPE_LABEL[type] }}
+              {{ ACTIVITY_TYPE_LABELS[type] }}
             </p>
             <div class="space-y-1.5">
               <button
                 v-for="activity in activities"
                 :key="activity.id"
                 type="button"
-                @click="emit('pick', activity.id)"
+                @click="choose(activity.id)"
                 class="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50/60 dark:border-slate-700 dark:hover:bg-slate-700/60"
               >
                 <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ activity.name }}</span>
+                  <span class="block truncate text-sm font-medium text-slate-900 dark:text-white">{{ activity.value }}</span>
                   <span v-if="needsSetup(activity)" class="text-xs text-amber-600 dark:text-amber-400">pede configuração no passo 3</span>
                   <span v-else class="text-xs text-slate-400 dark:text-slate-500">calculada pelo sistema</span>
                 </span>
@@ -109,6 +133,22 @@ const needsSetup = (activity: DemoActivity) => activity.paramKind !== 'NONE'
             Nenhuma atividade encontrada.
           </p>
         </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <span class="text-sm text-slate-600 dark:text-slate-300">
+          <template v-if="addedCount">
+            {{ addedCount }} etapa(s) no produto
+          </template>
+          <template v-else>Nenhuma etapa ainda</template>
+        </span>
+        <button
+          type="button"
+          @click="emit('close')"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-indigo-500/20 hover:bg-indigo-700"
+        >
+          Concluir
+        </button>
       </div>
     </div>
   </div>

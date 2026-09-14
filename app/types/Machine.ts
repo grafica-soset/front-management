@@ -127,6 +127,12 @@ export interface OffsetBlock {
   /** Subtipo da tinta da máquina — seleção única. */
   inkSubtype: InkSubtype
   /**
+   * COR PADRÃO da máquina (insumo de tinta) — atividade 034. É a tinta que fica nela entre um
+   * trabalho e outro, na prática o preto. O orçamento não cobra LAVAGEM quando o trabalho pede
+   * justamente essa cor: não há troca de cor a fazer. Nula = toda impressão paga lavagem.
+   */
+  defaultInkSupplyId: number | null
+  /**
    * AS CHAPAS DESTA MÁQUINA (ids de insumos do tipo CHAPA) — atividade 034.
    *
    * `acceptedPlateTypes` diz o que a máquina SABE GRAVAR; esta lista diz quais chapas a gráfica tem
@@ -917,6 +923,11 @@ export interface MachineKeyValue {
   value: string
   machineType: MachineType
   active: boolean
+  /**
+   * Chapas que a máquina aceita — vazio na digital, que não usa matriz. É o que permite ao
+   * orçamento pedir a escolha da chapa só quando ela existe e há mais de uma opção.
+   */
+  acceptedPlateTypes?: PlateType[]
   /**
    * Tintas que a máquina aceita — vazio para quem não imprime. É o que permite ao seletor da
    * atividade de impressão oferecer só as impressoras capazes daquela tinta.

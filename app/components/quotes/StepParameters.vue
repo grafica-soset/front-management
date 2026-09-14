@@ -10,9 +10,11 @@
 import { computed, ref } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import StepParametersCard from '@/components/quotes/StepParametersCard.vue'
-import { ACTIVITY_TYPE_LABEL, findActivity } from '@/utils/quoteDemoData'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 
 const store = useQuoteDraftStore()
+const catalogs = useQuoteCatalogs()
 const product = computed(() => store.draft!)
 
 /** Posição de cada etapa de impressão (1ª, 2ª...): cada uma tem configuração própria. */
@@ -20,7 +22,7 @@ const printingOrder = computed(() => {
   const order: Record<string, number> = {}
   let n = 0
   for (const step of product.value.steps) {
-    if (findActivity(step.activityId)?.type === 'PRINTING') {
+    if (catalogs.findActivity(step.activityId)?.type === 'PRINTING') {
       n += 1
       order[step.uid] = n
     }
@@ -30,10 +32,10 @@ const printingOrder = computed(() => {
 const printingTotal = computed(() => Object.keys(printingOrder.value).length)
 
 const configurable = computed(() =>
-  product.value.steps.filter((s) => findActivity(s.activityId)?.paramKind !== 'NONE'),
+  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)) !== 'NONE'),
 )
 const automatic = computed(() =>
-  product.value.steps.filter((s) => findActivity(s.activityId)?.paramKind === 'NONE'),
+  product.value.steps.filter((s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)) === 'NONE'),
 )
 
 const showAutomatic = ref(false)
@@ -67,7 +69,7 @@ const showAutomatic = ref(false)
             {{ automatic.length }} etapa(s) sem nada a configurar
           </span>
           <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-            {{ automatic.map((s) => findActivity(s.activityId)?.name).join(' · ') }}
+            {{ automatic.map((s) => catalogs.findActivity(s.activityId)?.value).join(' · ') }}
           </span>
         </span>
         <svg
@@ -83,11 +85,11 @@ const showAutomatic = ref(false)
 
       <ul v-if="showAutomatic" class="divide-y divide-slate-100 border-t border-slate-200 dark:divide-slate-700/60 dark:border-slate-700">
         <li v-for="step in automatic" :key="step.uid" class="px-5 py-3">
-          <span class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ findActivity(step.activityId)?.name }}</span>
+          <span class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ catalogs.findActivity(step.activityId)?.value }}</span>
           <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-            {{ ACTIVITY_TYPE_LABEL[findActivity(step.activityId)!.type] }}
+            {{ ACTIVITY_TYPE_LABELS[catalogs.findActivity(step.activityId)!.type] }}
           </span>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ findActivity(step.activityId)?.autoNote }}</p>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Calculada pelo motor a partir do cadastro.</p>
         </li>
       </ul>
     </div>
