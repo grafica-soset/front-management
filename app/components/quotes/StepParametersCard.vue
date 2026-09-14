@@ -65,20 +65,17 @@ const perforatedSheets = computed<number>({
 })
 
 /**
- * O resultado do cálculo para ESTA etapa — é dele que saem as máquinas avaliadas, com tempo, e as
- * recusadas com o motivo. Sem cálculo ainda, a tela pede o cálculo em vez de inventar uma lista.
+ * O resultado do cálculo para ESTA etapa, quando já houve cálculo.
+ *
+ * Aqui é só CONFERÊNCIA: a escolha da máquina e as recusadas moram no resumo, onde a memória do
+ * cálculo está inteira. Este passo pergunta o que o trabalho pede; quem responde "em qual máquina"
+ * é o motor, com o resumo mostrando o porquê.
  */
 const costing = computed(() =>
   store.draftCost?.steps?.find((s) => s.activityId === props.step.activityId) ?? null,
 )
-const machineOptions = computed(() => costing.value?.machineOptions ?? [])
-const viableOptions = computed(() => machineOptions.value.filter((o) => !o.reason))
-const rejectedOptions = computed(() => machineOptions.value.filter((o) => o.reason))
-
-const chooseMachine = (machineId: number | null) => {
-  props.step.parameters.machineId = machineId
-  store.calculateDraft()
-}
+/** Só vale mostrar o tempo quando o cálculo achou máquina — zero aqui é ruído, não informação. */
+const calculated = computed(() => (costing.value?.machineName ? costing.value : null))
 
 const inputClass =
   'w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -167,17 +164,26 @@ const inputClass =
         </div>
       </div>
 
-      <!-- O tempo da máquina, quando o cálculo já rodou -->
-      <div v-if="costing" class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
+      <!-- Conferência: o tempo da máquina, quando o cálculo já rodou -->
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
         <p class="font-medium text-slate-800 dark:text-slate-100">
-          {{ costing.machineName }} — {{ costing.totalMinutes.toFixed(1) }} min ({{ brl(costing.totalCost) }})
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
         </p>
         <ul class="mt-1 space-y-0.5">
-          <li v-for="stage in costing.timeStages" :key="stage.name">
-            {{ stage.name }}: {{ stage.detail }} = {{ stage.minutes.toFixed(2) }} min
+          <li v-for="stage in calculated.timeStages" :key="stage.name">
+            {{ stage.name }}: {{ stage.detail }} =
+            {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }} min
           </li>
         </ul>
       </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver o tempo desta máquina — o detalhamento fica no resumo.
+      </p>
     </div>
 
     <!--
@@ -203,61 +209,27 @@ const inputClass =
         </p>
       </div>
 
-      <!-- As máquinas que dão conta, com o tempo de cada uma — a escolha é do usuário -->
-      <div v-if="viableOptions.length">
-        <span class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Grampeadeira</span>
-        <div class="space-y-2">
-          <button
-            v-for="option in viableOptions"
-            :key="option.machineId"
-            type="button"
-            @click="chooseMachine(option.machineId)"
-            class="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-2.5 text-left transition-colors"
-            :class="
-              option.chosen
-                ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10'
-                : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/50'
-            "
-          >
-            <span class="text-sm text-slate-800 dark:text-slate-100">
-              {{ option.machineName }}
-              <span v-if="option.chosen" class="ml-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                — em uso
-              </span>
-            </span>
-            <span class="text-xs text-slate-600 dark:text-slate-300">
-              {{ option.minutes?.toFixed(1) }} min · {{ brl(option.cost ?? 0) }}
-            </span>
-          </button>
-        </div>
-        <button
-          v-if="params.machineId != null"
-          type="button"
-          @click="chooseMachine(null)"
-          class="mt-2 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-        >
-          Voltar à escolha do sistema (a mais barata)
-        </button>
-      </div>
-
-      <!-- As recusadas, com o motivo: some com a máquina e o orçamentista vai procurá-la -->
-      <ul v-if="rejectedOptions.length" class="space-y-1">
-        <li
-          v-for="option in rejectedOptions"
-          :key="option.machineId"
-          class="rounded-lg bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200"
-        >
-          {{ option.reason }}
-        </li>
-      </ul>
-
-      <!-- O arame, aberto: é a parte que o cliente contesta -->
-      <p
-        v-if="costing?.supplyUsage"
+      <!--
+        Conferência. A escolha da grampeadeira e as recusadas ficam no RESUMO: é lá que a memória
+        do cálculo está inteira, e o número de grampos é a única coisa que se decide aqui.
+      -->
+      <div
+        v-if="calculated"
         class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
       >
-        <strong>{{ costing.supplyUsage.supplyName }}</strong>:
-        {{ costing.supplyUsage.detail }} — {{ brl(costing.supplyUsage.cost) }}
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <p v-if="calculated.supplyUsage" class="mt-1">
+          {{ calculated.supplyUsage.supplyName }}: {{ calculated.supplyUsage.detail }} —
+          {{ brl(calculated.supplyUsage.cost) }}
+        </p>
+      </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver a grampeadeira escolhida e o arame — o detalhamento,
+        com as máquinas que não dão conta e o porquê, fica no resumo.
       </p>
     </div>
 

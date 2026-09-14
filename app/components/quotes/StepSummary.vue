@@ -98,9 +98,30 @@ const weightMath = (gsm: number, sheets: number) => {
   return `${largura} × ${altura} × ${gsm} g/m² × ${sheets.toLocaleString('pt-BR')} folhas`
 }
 
-/** As etapas de corte, que levam a memória da guilhotina para dentro da seção "Cortes". */
+/**
+ * As etapas de CORTE, que levam a memória da guilhotina para dentro da seção "Cortes".
+ *
+ * O filtro era "toda etapa com memória de tempo", e isso passou a varrer demais: quando o picote e
+ * o grampo ganharam cálculo (atividade 035), eles apareceram dentro de Cortes — que não é onde o
+ * orçamentista procura o grampo do talão.
+ */
 const cuttingSteps = computed(() =>
-  cost.value?.steps.filter((step) => step.timeStages.length > 0) ?? [],
+  cost.value?.steps.filter((step) => step.activityType === 'CUTTING' && step.timeStages.length > 0) ?? [],
+)
+
+/**
+ * ACABAMENTO FEITO POR MÁQUINA — picote, grampo (atividade 035).
+ *
+ * Seção própria: são máquinas com memória de tempo, consumo de insumo e máquinas recusadas, e cada
+ * uma dessas coisas responde a uma pergunta diferente da do corte.
+ */
+const machineFinishingSteps = computed(
+  () =>
+    cost.value?.steps.filter(
+      (step) =>
+        step.activityType === 'FINISHING' &&
+        (step.timeStages.length > 0 || (step.machineOptions?.length ?? 0) > 0),
+    ) ?? [],
 )
 
 /**
@@ -617,6 +638,84 @@ const printingTables = computed(() => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Acabamento nas máquinas: picote e grampo, cada um com a sua memória (atividade 035) -->
+    <section
+      v-if="machineFinishingSteps.length"
+      class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+    >
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Acabamento nas máquinas</h3>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        O tempo sai do cadastro de cada máquina; a etapa só informa o que o trabalho pede — quantos
+        picotes, quantos grampos.
+      </p>
+
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <div
+          v-for="step in machineFinishingSteps"
+          :key="`acab-${step.activityId}-${step.detail}`"
+          class="rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+        >
+          <p class="text-xs font-medium text-slate-900 dark:text-white">
+            {{ step.activityName }}
+            <span v-if="step.machineName" class="font-normal text-slate-500 dark:text-slate-400">
+              — {{ step.machineName }}
+            </span>
+            <span class="block font-normal text-slate-500 dark:text-slate-400">{{ step.detail }}</span>
+          </p>
+
+          <table v-if="step.timeStages.length" class="mt-2 w-full text-left text-xs">
+            <tbody>
+              <tr v-for="stage in step.timeStages" :key="stage.name" class="align-baseline">
+                <td class="py-0.5 pr-2 text-slate-700 dark:text-slate-200">{{ stage.name }}</td>
+                <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">{{ stage.detail }}</td>
+                <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+              <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                <td class="py-1 pr-2 text-slate-900 dark:text-white">Total</td>
+                <td class="py-1 pr-2 text-slate-500 dark:text-slate-400">{{ brl(step.totalCost) }}</td>
+                <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                  {{ step.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- O insumo consumido, aberto: é a parte que o cliente contesta -->
+          <p
+            v-if="step.supplyUsage"
+            class="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+          >
+            <strong>{{ step.supplyUsage.supplyName }}</strong>: {{ step.supplyUsage.detail }} ×
+            {{ brl(step.supplyUsage.unitCost) }}/{{ step.supplyUsage.unitLabel }} =
+            {{ brl(step.supplyUsage.cost) }}
+          </p>
+
+          <!-- As máquinas avaliadas: a escolhida, as outras que dariam conta e as recusadas -->
+          <ul v-if="(step.machineOptions?.length ?? 0) > 1" class="mt-2 space-y-1 text-xs">
+            <li
+              v-for="option in step.machineOptions"
+              :key="option.machineId"
+              :class="
+                option.reason
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-slate-600 dark:text-slate-300'
+              "
+            >
+              <template v-if="option.reason">{{ option.reason }}</template>
+              <template v-else>
+                {{ option.machineName }}:
+                {{ option.minutes?.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min ·
+                {{ brl(option.cost ?? 0) }}
+                <span v-if="option.chosen" class="font-medium text-emerald-700 dark:text-emerald-300">— usada</span>
+              </template>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
