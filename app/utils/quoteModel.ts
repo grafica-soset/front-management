@@ -6,7 +6,7 @@
  * `POST /quotes/calculate`.
  */
 import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
-import type { ProductCostingResponse } from '@/types/Quote'
+import type { ProductCostingResponse, QuoteNumberingResponse } from '@/types/Quote'
 import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyKeyValue } from '@/types/Supply'
 
@@ -173,4 +173,15 @@ export function brl(value: number): string {
 /** "Chapa CTP 66x96 — R$ 40,00": o nome não decide nada na escolha da chapa; o preço decide. */
 export function plateLabel(plate: SupplyKeyValue): string {
   return plate.unitCost == null ? plate.value : `${plate.value} — ${brl(plate.unitCost)}`
+}
+
+/**
+ * A SEQUÊNCIA NUMERADA, escrita como sai do numerador (atividade 036).
+ *
+ * "000001 a 000010", não "1 a 10": é assim que o número aparece na folha, e é assim que a produção
+ * confere a primeira. Os dígitos que o cadastro pede são justamente o que se vê aqui.
+ */
+export function numberingRange(numbering: QuoteNumberingResponse): string {
+  const pad = (n: number) => String(n).padStart(numbering.digits, '0')
+  return `${pad(numbering.startNumber)} a ${pad(numbering.lastNumber)}`
 }

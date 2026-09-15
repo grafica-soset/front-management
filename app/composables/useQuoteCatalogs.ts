@@ -107,10 +107,32 @@ export function useQuoteCatalogs() {
   /** Atividades de corte: com impressão, o produto precisa de duas. */
   const cuttingActivities = computed(() => activities.value.filter((a) => a.type === 'CUTTING'))
 
+  /**
+   * NUMERAÇÃO — o que o parque da empresa comporta (atividade 036).
+   *
+   * `maxUnits` é o maior teto entre as OFFSETS ativas que numeram. A digital numera sem numerador
+   * (teto nulo) e por isso não entra nessa conta — mas conta para `any`: havendo digital, o
+   * trabalho numerado sempre tem onde rodar.
+   *
+   * É orientação para a tela, não trava: quem decide a elegibilidade é o motor, máquina a máquina.
+   */
+  const numberingCapacity = computed(() => {
+    const ativas = machines.value.filter((m) => m.active && m.supportsNumbering)
+    const tetos = ativas
+      .map((m) => m.maxNumberingUnits)
+      .filter((n): n is number => typeof n === 'number' && n > 0)
+    return {
+      any: ativas.length > 0,
+      /** Há digital ativa: numera qualquer quantidade, porque não usa numerador. */
+      unlimited: ativas.some((m) => m.machineType === 'DIGITAL'),
+      maxUnits: tetos.length > 0 ? Math.max(...tetos) : null,
+    }
+  })
+
   return {
     load, loading, loaded, error,
     paperTypes, activities, machines, inks, plates,
-    cuttingActivities,
+    cuttingActivities, numberingCapacity,
     findActivity, findMachine, findPaperType, findInk, findPlate,
     paramKindOf, machinesOfActivity,
   }

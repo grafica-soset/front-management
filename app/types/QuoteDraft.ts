@@ -168,6 +168,21 @@ export interface QuoteProduct {
   hasCovers: boolean
   coverCount: number
 
+  /**
+   * "TEM NUMERAÇÃO?" — atividade 036.
+   *
+   * Nasce SEM RESPOSTA (null), como "as vias são iguais?": numerar decide quais impressoras podem
+   * fazer o trabalho — só algumas offsets numeram — e assumir qualquer um dos lados no silêncio
+   * erraria a escolha da máquina.
+   */
+  hasNumbering: boolean | null
+  /** Quantos numeradores. Bate com o "Máx. de numeradores" da offset: acima disso, ela sai. */
+  numberingUnits: number
+  /** Numeração inicial — não muda o preço, é o que a produção monta no numerador. */
+  numberingStart: number
+  /** Quantidade de dígitos do numerador (6 ⇒ 000001). */
+  numberingDigits: number
+
   sheets: QuoteSheet[]
   steps: QuoteStep[]
 }

@@ -60,6 +60,12 @@ export function emptyProduct(): QuoteProduct {
     distinctArtworks: null,
     hasCovers: false,
     coverCount: 1,
+    // Numeração (atividade 036): sem resposta até o usuário dizer. Os defaults abaixo só entram
+    // em cena depois do "sim".
+    hasNumbering: null,
+    numberingUnits: 1,
+    numberingStart: 1,
+    numberingDigits: 6,
     sheets: [emptySheet('BLADE', 1)],
     steps: [],
   }
@@ -180,6 +186,40 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       if (!draft) return
       const total = artworkSheetCount(draft)
       draft.distinctArtworks = Math.min(total, Math.max(1, Math.floor(count) || 1))
+    },
+
+    /**
+     * Responde "tem numeração?" (atividade 036).
+     *
+     * O SIM repõe os valores de partida — um numerador, a partir de 1, com 6 dígitos —, para o
+     * usuário não herdar o que digitou antes de dizer "não".
+     */
+    setHasNumbering(has: boolean) {
+      const draft = this.draft
+      if (!draft) return
+      draft.hasNumbering = has
+      if (has && draft.numberingUnits < 1) draft.numberingUnits = 1
+    },
+
+    /** Quantos numeradores o trabalho usa. Acima do que a offset comporta, ela fica inelegível. */
+    setNumberingUnits(units: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingUnits = Math.max(1, Math.floor(Number(units)) || 1)
+    },
+
+    /** Numeração inicial: não muda o preço, muda o que a produção monta no numerador. */
+    setNumberingStart(start: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingStart = Math.max(0, Math.floor(Number(start)) || 0)
+    },
+
+    /** Dígitos do numerador (1 a 12). */
+    setNumberingDigits(digits: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingDigits = Math.min(12, Math.max(1, Math.floor(Number(digits)) || 1))
     },
 
     /**
@@ -318,6 +358,16 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         // Só viaja quando é a resposta "não são todas iguais, são N": com vias iguais o motor
         // recusaria os dois campos juntos, e sem resposta o default dele já é "todas diferentes".
         distinctArtworkCount: product.identicalArtwork === false ? product.distinctArtworks : null,
+        // Numeração (atividade 036): só viaja quando o usuário disse SIM. Nula = produto sem
+        // numeração, e aí nenhuma impressora é descartada por causa dela.
+        numbering:
+          product.hasNumbering === true
+            ? {
+                units: product.numberingUnits,
+                startNumber: product.numberingStart,
+                digits: product.numberingDigits,
+              }
+            : null,
         sheets: product.sheets.map((sheet) => ({
           number: sheet.index,
           kind: sheet.kind,
