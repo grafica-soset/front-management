@@ -84,22 +84,22 @@ const onNumberingUnitsChange = (value: string) => store.setNumberingUnits(Number
 const onNumberingStartChange = (value: string) => store.setNumberingStart(Number(value))
 const onNumberingDigitsChange = (value: string) => store.setNumberingDigits(Number(value))
 
-/** O que o parque comporta — orientação no campo, para o limite não aparecer só no cálculo. */
+/**
+ * O que o parque comporta — ORIENTAÇÃO, não trava.
+ *
+ * O número que a máquina precisa comportar não é o que se digita aqui: é ele × as aplicações que o
+ * formato de impressão rende (1 numerador em 9 aplicações são 9 numeradores montados). E as
+ * aplicações só se sabem depois do cálculo, que é quem escolhe o formato — por isso a tela informa
+ * o teto e explica a conta, em vez de barrar um número que pode estar certo.
+ */
 const numberingHint = computed(() => {
   const cap = numberingCapacity.value
   if (!cap.any) return 'Nenhuma impressora cadastrada numera — o cálculo não vai achar máquina.'
   if (cap.unlimited && cap.maxUnits) {
-    return `As offsets comportam até ${cap.maxUnits} numerador(es); a digital numera sem numerador.`
+    return `As offsets comportam até ${cap.maxUnits} numeradores montados; a digital numera sem numerador.`
   }
   if (cap.unlimited) return 'A digital numera sem numerador, em qualquer quantidade.'
-  return `As suas offsets comportam até ${cap.maxUnits} numerador(es).`
-})
-
-/** Passou do que qualquer offset comporta — e não há digital para socorrer. */
-const numberingOverCapacity = computed(() => {
-  const cap = numberingCapacity.value
-  if (product.value.hasNumbering !== true || cap.unlimited) return false
-  return cap.maxUnits != null && product.value.numberingUnits > cap.maxUnits
+  return `As suas offsets comportam até ${cap.maxUnits} numeradores montados.`
 })
 
 /** O último número da tiragem, e se os dígitos o comportam. */
@@ -383,15 +383,14 @@ const inputClass =
         <div v-if="product.hasNumbering === true" class="mt-4 flex flex-wrap items-end gap-4">
           <div>
             <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Quantos numeradores
+              Quantos numeradores <span class="font-normal text-slate-500">por {{ unitLabel }}</span>
             </label>
             <input
               :value="product.numberingUnits"
               type="number"
               min="1"
               @input="onNumberingUnitsChange(($event.target as HTMLInputElement).value)"
-              class="w-28 rounded-lg border bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
-              :class="numberingOverCapacity ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-600'"
+              class="w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
             />
           </div>
           <div>
@@ -422,13 +421,9 @@ const inputClass =
           </div>
         </div>
 
-        <p
-          v-if="product.hasNumbering === true && numberingOverCapacity"
-          class="mt-2 text-xs text-rose-600 dark:text-rose-400"
-        >
-          {{ numberingHint }} Com {{ product.numberingUnits }}, nenhuma delas entra no cálculo.
-        </p>
-        <p v-else-if="product.hasNumbering === true" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        <p v-if="product.hasNumbering === true" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Cada aplicação da folha leva os seus numeradores, e cada um tem o seu acerto: 1 por
+          {{ unitLabel }} num formato de 9 aplicações são 9 numeradores montados, e 9 acertos.
           {{ numberingHint }}
         </p>
 

@@ -80,7 +80,10 @@ export interface QuoteStepRequest {
  * um número de numeradores); a digital numera sempre.
  */
 export interface QuoteNumberingRequest {
-  /** Quantos numeradores o trabalho usa; ≥ 1. Offset que comporta menos fica inelegível. */
+  /**
+   * Numeradores POR APLICAÇÃO; ≥ 1. Os MONTADOS são este número × as aplicações do formato, e são
+   * eles que o teto da offset limita e que o acerto cobra, um por um.
+   */
   units: number
   /** Primeiro número da sequência. Não muda o preço — a produção precisa dele. */
   startNumber: number
