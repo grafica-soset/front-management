@@ -17,6 +17,7 @@
  */
 import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import SheetPaperRow from '@/components/quotes/SheetPaperRow.vue'
 import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
@@ -24,6 +25,7 @@ import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
 const store = useQuoteDraftStore()
 const product = computed(() => store.draft!)
 const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
+const { numberingCapacity } = useQuoteCatalogs()
 
 /** Dimensões trafegam em mm na store; o formulário mostra a unidade da empresa. */
 const width = computed({
@@ -68,6 +70,51 @@ const structureSummary = computed(() => {
   parts.push(`${perUnit} folha(s) por ${unitLabel.value}`)
   if (runs > 0) parts.push(`${(perUnit * runs).toLocaleString('pt-BR')} folhas do produto`)
   return parts.join(' · ')
+})
+
+/**
+ * NUMERAÇÃO (atividade 036).
+ *
+ * Numerar é do TRABALHO, não de uma etapa: o talão numerado é numerado na tiragem inteira, e é
+ * isso que decide quais impressoras podem fazê-lo. Por isso a pergunta mora aqui, em Estrutura,
+ * ao lado de "as vias são iguais?" — as duas escolhem a máquina antes de qualquer cálculo.
+ */
+const setHasNumbering = (value: boolean) => store.setHasNumbering(value)
+const onNumberingUnitsChange = (value: string) => store.setNumberingUnits(Number(value))
+const onNumberingStartChange = (value: string) => store.setNumberingStart(Number(value))
+const onNumberingDigitsChange = (value: string) => store.setNumberingDigits(Number(value))
+
+/**
+ * O que o parque comporta — ORIENTAÇÃO, não trava.
+ *
+ * O número que a máquina precisa comportar não é o que se digita aqui: é ele × as aplicações que o
+ * formato de impressão rende (1 numerador em 9 aplicações são 9 numeradores montados). E as
+ * aplicações só se sabem depois do cálculo, que é quem escolhe o formato — por isso a tela informa
+ * o teto e explica a conta, em vez de barrar um número que pode estar certo.
+ */
+const numberingHint = computed(() => {
+  const cap = numberingCapacity.value
+  if (!cap.any) return 'Nenhuma impressora cadastrada numera — o cálculo não vai achar máquina.'
+  if (cap.unlimited && cap.maxUnits) {
+    return `As offsets comportam até ${cap.maxUnits} numeradores montados; a digital numera sem numerador.`
+  }
+  if (cap.unlimited) return 'A digital numera sem numerador, em qualquer quantidade.'
+  return `As suas offsets comportam até ${cap.maxUnits} numeradores montados.`
+})
+
+/** O último número da tiragem, e se os dígitos o comportam. */
+const numberingRange = computed(() => {
+  const p = product.value
+  const quantity = p.quantity ?? 0
+  if (p.hasNumbering !== true || quantity <= 0) return null
+  const last = p.numberingStart + quantity - 1
+  const pad = (n: number) => String(n).padStart(p.numberingDigits, '0')
+  return {
+    first: pad(p.numberingStart),
+    last: pad(last),
+    // Estourou os dígitos: o numerador vira o zero antes do fim da tiragem.
+    overflow: String(last).length > p.numberingDigits,
+  }
 })
 
 const setStructure = (structure: 'BLADE' | 'BLOCK') => store.setStructure(structure)
@@ -289,6 +336,107 @@ const inputClass =
         <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
           {{ artworkLabel === 'vias' ? 'Vias' : 'Lâminas' }} com o mesmo desenho saem da mesma
           chapa: cobra-se uma matriz e uma montagem, e todas rodam na mesma impressora.
+        </p>
+      </div>
+
+      <!--
+        NUMERAÇÃO (atividade 036). Mesma anatomia da pergunta das vias iguais, e pelo mesmo motivo:
+        é ela que decide quais impressoras podem fazer o trabalho — só algumas offsets numeram —,
+        então nasce sem resposta em vez de assumir "não".
+      -->
+      <div
+        class="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+        :class="product.hasNumbering === null ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : ''"
+      >
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Tem numeração? <span class="text-rose-500">*</span>
+          </span>
+          <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+            <button
+              type="button"
+              @click="setHasNumbering(true)"
+              class="px-4 py-1.5 text-sm transition-colors"
+              :class="
+                product.hasNumbering === true
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Sim
+            </button>
+            <button
+              type="button"
+              @click="setHasNumbering(false)"
+              class="border-l border-slate-300 px-4 py-1.5 text-sm transition-colors dark:border-slate-600"
+              :class="
+                product.hasNumbering === false
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Não
+            </button>
+          </div>
+        </div>
+
+        <div v-if="product.hasNumbering === true" class="mt-4 flex flex-wrap items-end gap-4">
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Quantos numeradores <span class="font-normal text-slate-500">por {{ unitLabel }}</span>
+            </label>
+            <input
+              :value="product.numberingUnits"
+              type="number"
+              min="1"
+              @input="onNumberingUnitsChange(($event.target as HTMLInputElement).value)"
+              class="w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Numeração inicial
+            </label>
+            <input
+              :value="product.numberingStart"
+              type="number"
+              min="0"
+              @input="onNumberingStartChange(($event.target as HTMLInputElement).value)"
+              class="w-32 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Dígitos
+            </label>
+            <input
+              :value="product.numberingDigits"
+              type="number"
+              min="1"
+              max="12"
+              @input="onNumberingDigitsChange(($event.target as HTMLInputElement).value)"
+              class="w-24 rounded-lg border bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
+              :class="numberingRange?.overflow ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-600'"
+            />
+          </div>
+        </div>
+
+        <p v-if="product.hasNumbering === true" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Cada aplicação da folha leva os seus numeradores, e cada um tem o seu acerto: 1 por
+          {{ unitLabel }} num formato de 9 aplicações são 9 numeradores montados, e 9 acertos.
+          {{ numberingHint }}
+        </p>
+
+        <p
+          v-if="numberingRange"
+          class="mt-1 text-xs"
+          :class="numberingRange.overflow ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'"
+        >
+          Sequência de {{ numberingRange.first }} a {{ numberingRange.last }}<template v-if="numberingRange.overflow">
+            — não cabe em {{ product.numberingDigits }} dígito(s): o numerador vira o zero antes do fim.</template>
+        </p>
+        <p v-else-if="product.hasNumbering === false" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Sem numeração, todas as impressoras da atividade continuam disputando o trabalho.
         </p>
       </div>
 

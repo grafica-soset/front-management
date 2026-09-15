@@ -63,7 +63,7 @@ const toggleInkColor = (color: InkColorType) => {
     </p>
 
     <!-- Cor + setup -->
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div>
         <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Número de cores</label>
         <select v-model="block.colorMode" :class="selectClass">
@@ -77,6 +77,22 @@ const toggleInkColor = (color: InkColorType) => {
           <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
         </div>
         <p v-if="errors.setupMinutes" class="mt-1 text-xs text-rose-600">{{ errors.setupMinutes }}</p>
+      </div>
+      <!--
+        Atividade 036. A digital numera sem numerador: a sequência é impressa junto com o resto do
+        desenho. Por isso aqui não há "máximo de numeradores" nem redutor de velocidade, como na
+        offset — só o acerto, que entra uma vez e apenas quando o trabalho numera.
+      -->
+      <div>
+        <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup de numeração</label>
+        <div class="relative">
+          <input v-model.number="block.numberingSetupMinutes" type="number" min="0" step="1" :class="inputClass(errors.numberingSetupMinutes)" />
+          <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
+        </div>
+        <p v-if="errors.numberingSetupMinutes" class="mt-1 text-xs text-rose-600">{{ errors.numberingSetupMinutes }}</p>
+        <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Só é cobrado quando o trabalho numera. A velocidade não muda.
+        </p>
       </div>
       <div>
         <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Quebra de folhas</label>
