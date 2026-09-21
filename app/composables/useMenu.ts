@@ -128,6 +128,8 @@ export default function useMenu() {
       ],
     },
     { name: 'Clientes', href: '/clientes', icon: 'users' },
+    { name: 'Vendedores', href: '/vendedores', icon: 'users' },
+    { name: 'CFOP', href: '/cfop', icon: 'cadastros' },
     { name: 'Usuários', href: '/usuarios', icon: 'users' },
     {
       name: 'Configurações',

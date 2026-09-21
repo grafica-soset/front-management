@@ -1,6 +1,5 @@
 import type { Person } from './Person'
-
-export type TenantRole = 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'SELLER'
+import type { TenantRole } from './CustomerUser'
 
 /** Resposta de POST /customers. */
 export interface CustomerResponse {

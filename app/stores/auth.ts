@@ -3,6 +3,7 @@ import type { GlobalRole } from '@/types/Person'
 import type { LoginResponse } from '@/types/LoginResponse'
 import type { CustomerKeyValue } from '@/types/CustomerKeyValue'
 import type { MeasurementUnit } from '@/types/MeasurementUnit'
+import { canManageTenantRecords } from '@/utils/tenantPermissions'
 
 /**
  * Sessão do usuário autenticado.
@@ -47,6 +48,12 @@ export const useAuthStore = defineStore('auth', {
       state.companies.find((c) => c.id === state.activeCompanyId) ?? null,
     /** Atalho para o usuário ser ADMIN global. */
     isAdmin: (state): boolean => state.user?.roles?.includes('ADMIN') ?? false,
+    /** Usuário pode cadastrar/editar/inativar registros restritos ao ADMIN da empresa ativa. */
+    canManageActiveCompany(state): boolean {
+      const isGlobalAdmin = state.user?.roles?.includes('ADMIN') ?? false
+      const company = state.companies.find((c) => c.id === state.activeCompanyId)
+      return canManageTenantRecords(isGlobalAdmin, company?.role)
+    },
   },
 
   actions: {
