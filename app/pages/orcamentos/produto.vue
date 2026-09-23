@@ -80,6 +80,9 @@ const calcBlockers = computed(() => {
   if (viasOuLaminas >= 2 && p.identicalArtwork === null) {
     list.push(`Informar se as ${p.structure === 'BLOCK' ? 'vias' : 'lâminas'} são iguais`)
   }
+  // Numeração (atividade 036): pela mesma razão. Só algumas offsets numeram, e assumir "não" no
+  // silêncio escolheria uma impressora que não faz o trabalho.
+  if (p.hasNumbering === null) list.push('Informar se o produto tem numeração')
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
 
   // A CHAPA da impressão: com mais de uma cadastrada na impressora, a escolha é de preço e é do

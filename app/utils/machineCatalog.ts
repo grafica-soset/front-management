@@ -596,6 +596,7 @@ export function defaultDigitalBlock(): DigitalBlockRequest {
   return {
     colorMode: 'COLOR',
     setupMinutes: 0,
+    numberingSetupMinutes: 0,
     paperFeedSetupMinutes: 0,
     feedTimeSecondsPerLoad: 0,
     feedLoadIncrementMm: 40,
@@ -624,6 +625,9 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
   return {
     colorMode: block.colorMode,
     setupMinutes: block.setupMinutes ?? 0,
+    // Máquina cadastrada antes da atividade 036 volta sem o campo: numerar nela não cobra acerto
+    // até alguém preenchê-lo.
+    numberingSetupMinutes: block.numberingSetupMinutes ?? 0,
     paperFeedSetupMinutes: block.paperFeedSetupMinutes ?? 0,
     feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
     feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
@@ -665,7 +669,8 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
 export function validateDigital(block: DigitalBlockRequest): Record<string, string> {
   const errors: Record<string, string> = {}
   const nonNeg: (keyof DigitalBlockRequest)[] = [
-    'setupMinutes', 'paperFeedSetupMinutes', 'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'wasteSheets',
+    'setupMinutes', 'numberingSetupMinutes', 'paperFeedSetupMinutes', 'feedTimeSecondsPerLoad',
+    'feedLoadIncrementMm', 'wasteSheets',
   ]
   for (const k of nonNeg) {
     if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'

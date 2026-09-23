@@ -9,6 +9,7 @@ import {
   formatLabel,
   inkIssues,
   isSheetPrinted,
+  numberingRange,
   plateLabel,
   platesForMachine,
   printRun,
@@ -189,5 +190,20 @@ describe('Chapas da impressora no orçamento (atividade 034)', () => {
 
   it('sem preço no catálogo, o rótulo fica só com o nome — nunca "R$ NaN"', () => {
     expect(plateLabel({ ...chapaCtp, unitCost: undefined })).toBe('Chapa CTP 66x96')
+  })
+})
+
+describe('numeração: a sequência como ela sai do numerador (atividade 036)', () => {
+  it('escreve os dois extremos com os dígitos do cadastro', () => {
+    // É assim que o número aparece na folha — e é assim que a produção confere a primeira.
+    expect(numberingRange({ units: 2, startNumber: 1001, lastNumber: 1010, digits: 6 })).toBe(
+      '001001 a 001010'
+    )
+  })
+
+  it('número maior que os dígitos não é cortado — quem avisa é o motor', () => {
+    expect(numberingRange({ units: 1, startNumber: 95, lastNumber: 104, digits: 2 })).toBe(
+      '95 a 104'
+    )
   })
 })
