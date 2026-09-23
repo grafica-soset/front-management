@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { z } from 'zod'
+import type { PersonType } from '@/types/Client'
 import type { SellerRequest } from '@/types/Seller'
-import { digitsOnly, formatPhone } from '@/utils/clientFormatting'
-import { sanitizeSellerCode } from '@/utils/salesFormatting'
+import { digitsOnly, formatBrazilianDocument, formatPhone } from '@/utils/clientFormatting'
+import { isValidBrazilianDocument } from '@/utils/clientValidation'
 
 interface SellerFormInitial {
+  personType?: PersonType
   name?: string
-  lastName?: string
+  corporateName?: string | null
+  document?: string
+  email?: string | null
   phone?: string | null
   mobile?: string | null
-  code?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -22,26 +25,36 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ submit: [payload: SellerRequest]; cancel: [] }>()
 const form = reactive({
+  personType: (props.initial?.personType ?? 'PHYSICAL') as PersonType,
   name: props.initial?.name ?? '',
-  lastName: props.initial?.lastName ?? '',
+  corporateName: props.initial?.corporateName ?? '',
+  document: formatBrazilianDocument(props.initial?.document),
+  email: props.initial?.email ?? '',
   phone: formatPhone(props.initial?.phone),
   mobile: formatPhone(props.initial?.mobile),
-  code: sanitizeSellerCode(props.initial?.code),
 })
 const errors = ref<Record<string, string>>({})
+const isLegal = computed(() => form.personType === 'LEGAL')
 
-const schema = z.object({
-  name: z.string().trim().min(1, 'Informe o nome.').max(255, 'Use no máximo 255 caracteres.'),
-  lastName: z.string().trim().min(1, 'Informe o sobrenome.').max(255, 'Use no máximo 255 caracteres.'),
-  phone: z.string().max(30, 'Use no máximo 30 caracteres.'),
-  mobile: z.string().max(30, 'Use no máximo 30 caracteres.'),
-  code: z.string().regex(/^[A-Z]{2}$/u, 'O código deve ter exatamente duas letras.'),
+watch(() => form.personType, (personType) => {
+  const maxDigits = personType === 'PHYSICAL' ? 11 : 14
+  form.document = formatBrazilianDocument(digitsOnly(form.document).slice(0, maxDigits))
+  if (personType === 'PHYSICAL') form.corporateName = ''
 })
 
-function updateCode(event: Event) {
-  const input = event.target as HTMLInputElement
-  form.code = sanitizeSellerCode(input.value)
-  input.value = form.code
+const schema = z.object({
+  personType: z.enum(['PHYSICAL', 'LEGAL']),
+  name: z.string().trim().min(1, 'Informe o nome.').max(255, 'Use no máximo 255 caracteres.'),
+  corporateName: z.string().max(255, 'Use no máximo 255 caracteres.'),
+  document: z.string().min(1, 'Informe o documento.'),
+  email: z.string().max(255, 'Use no máximo 255 caracteres.').email('E-mail inválido.').or(z.literal('')),
+  phone: z.string().max(30, 'Use no máximo 30 caracteres.'),
+  mobile: z.string().max(30, 'Use no máximo 30 caracteres.'),
+})
+
+function updateDocument(event: Event) {
+  const maxDigits = form.personType === 'PHYSICAL' ? 11 : 14
+  form.document = formatBrazilianDocument(digitsOnly((event.target as HTMLInputElement).value).slice(0, maxDigits))
 }
 function updatePhone(field: 'phone' | 'mobile', event: Event) {
   form[field] = formatPhone((event.target as HTMLInputElement).value)
@@ -57,36 +70,59 @@ function handleSubmit() {
     }
     return
   }
+  if (!isValidBrazilianDocument(form.document, form.personType)) {
+    errors.value.document = isLegal.value ? 'Informe um CNPJ válido.' : 'Informe um CPF válido.'
+    return
+  }
   emit('submit', {
+    personType: form.personType,
     name: form.name.trim(),
-    lastName: form.lastName.trim(),
+    corporateName: isLegal.value ? (form.corporateName.trim() || undefined) : undefined,
+    document: digitsOnly(form.document),
+    email: form.email.trim() || undefined,
     phone: digitsOnly(form.phone) || undefined,
     mobile: digitsOnly(form.mobile) || undefined,
-    code: form.code,
   })
 }
 </script>
 
 <template>
   <form class="space-y-5" @submit.prevent="handleSubmit">
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-        <label for="seller-code" class="label">Código <span class="text-rose-500">*</span></label>
-        <input id="seller-code" :value="form.code" type="text" maxlength="2" autocomplete="off" placeholder="AC" class="field uppercase" :class="{ 'field-error': errors.code }" @input="updateCode" />
-        <p v-if="errors.code" class="error">{{ errors.code }}</p>
+    <fieldset>
+      <legend class="label">Tipo de pessoa <span class="text-rose-500">*</span></legend>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="choice" :class="form.personType === 'PHYSICAL' ? 'choice-active' : ''">
+          <input v-model="form.personType" type="radio" value="PHYSICAL" class="text-indigo-600 focus:ring-indigo-500" />
+          Pessoa física
+        </label>
+        <label class="choice" :class="form.personType === 'LEGAL' ? 'choice-active' : ''">
+          <input v-model="form.personType" type="radio" value="LEGAL" class="text-indigo-600 focus:ring-indigo-500" />
+          Pessoa jurídica
+        </label>
       </div>
-      <div>
-        <label for="seller-name" class="label">Nome <span class="text-rose-500">*</span></label>
-        <input id="seller-name" v-model="form.name" type="text" maxlength="255" autocomplete="given-name" class="field" :class="{ 'field-error': errors.name }" />
+    </fieldset>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div :class="{ 'sm:col-span-2': !isLegal }">
+        <label for="seller-name" class="label">{{ isLegal ? 'Nome fantasia' : 'Nome' }} <span class="text-rose-500">*</span></label>
+        <input id="seller-name" v-model="form.name" type="text" maxlength="255" autocomplete="name" class="field" :class="{ 'field-error': errors.name }" />
         <p v-if="errors.name" class="error">{{ errors.name }}</p>
       </div>
-      <div>
-        <label for="seller-last-name" class="label">Sobrenome <span class="text-rose-500">*</span></label>
-        <input id="seller-last-name" v-model="form.lastName" type="text" maxlength="255" autocomplete="family-name" class="field" :class="{ 'field-error': errors.lastName }" />
-        <p v-if="errors.lastName" class="error">{{ errors.lastName }}</p>
+      <div v-if="isLegal">
+        <label for="seller-corporate-name" class="label">Razão social</label>
+        <input id="seller-corporate-name" v-model="form.corporateName" type="text" maxlength="255" class="field" :class="{ 'field-error': errors.corporateName }" />
+        <p v-if="errors.corporateName" class="error">{{ errors.corporateName }}</p>
       </div>
-    </div>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <label for="seller-document" class="label">{{ isLegal ? 'CNPJ' : 'CPF' }} <span class="text-rose-500">*</span></label>
+        <input id="seller-document" :value="form.document" type="text" inputmode="numeric" :maxlength="isLegal ? 18 : 14" class="field" :class="{ 'field-error': errors.document }" @input="updateDocument" />
+        <p v-if="errors.document" class="error">{{ errors.document }}</p>
+      </div>
+      <div>
+        <label for="seller-email" class="label">E-mail</label>
+        <input id="seller-email" v-model="form.email" type="email" maxlength="255" autocomplete="email" class="field" :class="{ 'field-error': errors.email }" />
+        <p v-if="errors.email" class="error">{{ errors.email }}</p>
+      </div>
       <div>
         <label for="seller-phone" class="label">Telefone</label>
         <input id="seller-phone" :value="form.phone" type="tel" inputmode="numeric" maxlength="15" autocomplete="tel" placeholder="(11) 3333-4444" class="field" @input="updatePhone('phone', $event)" />
@@ -110,6 +146,8 @@ function handleSubmit() {
 .field { @apply block w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white; }
 .field-error { @apply border-rose-500 focus:border-rose-500 focus:ring-rose-500; }
 .error { @apply mt-1 text-xs text-rose-600 dark:text-rose-400; }
+.choice { @apply flex cursor-pointer items-center gap-3 rounded-lg border border-slate-300 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700; }
+.choice-active { @apply border-indigo-500 bg-indigo-50 text-indigo-800 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-200; }
 .btn-primary { @apply rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-indigo-500/20 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60; }
 .btn-secondary { @apply rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:ring-4 focus:ring-slate-200 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700; }
 </style>

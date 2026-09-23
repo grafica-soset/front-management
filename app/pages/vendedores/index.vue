@@ -14,13 +14,12 @@ import {
   pageToReloadAfterEmptyResult,
   removeStatusMutation,
 } from '@/utils/clientPageState'
-import { formatPhone } from '@/utils/clientFormatting'
-import { sellerFullName } from '@/utils/salesFormatting'
+import { formatBrazilianDocument, formatPhone } from '@/utils/clientFormatting'
 
 definePageMeta({ middleware: 'auth' })
 
 const PAGE_SIZE = 20
-// O código do vendedor tem duas letras, então a busca começa a partir de dois caracteres.
+// A busca por nome ou documento começa a partir de dois caracteres.
 const MIN_SEARCH_CHARS = 2
 const auth = useAuthStore()
 const toast = useToast()
@@ -46,7 +45,7 @@ let editRequestVersion = 0
 const canManage = computed(() => auth.canManageActiveCompany)
 const items = computed<SellerPageItem[]>(() => data.value?.items ?? [])
 const totalPages = computed(() => data.value?.totalPages ?? 0)
-const modalTitle = computed(() => editing.value ? `Editar vendedor — ${sellerFullName(editing.value)}` : 'Novo vendedor')
+const modalTitle = computed(() => editing.value ? `Editar vendedor — ${editing.value.name}` : 'Novo vendedor')
 
 async function refresh(targetPage = page.value) {
   const customerId = auth.activeCompanyId
@@ -173,7 +172,7 @@ async function save(payload: SellerRequest) {
 
 async function changeStatus(item: SellerPageItem) {
   const action = item.active ? 'inativar' : 'reativar'
-  if (typeof window !== 'undefined' && !window.confirm(`Deseja ${action} o vendedor "${sellerFullName(item)}"?`)) return
+  if (typeof window !== 'undefined' && !window.confirm(`Deseja ${action} o vendedor "${item.name}"?`)) return
   const currentTenantVersion = tenantVersion
   changingStatusIds.value = addStatusMutation(changingStatusIds.value, item.id)
   try {
@@ -211,7 +210,7 @@ async function changeStatus(item: SellerPageItem) {
       <div class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_180px] dark:border-slate-700 dark:bg-slate-800" role="search">
         <div>
           <label for="seller-search" class="sr-only">Buscar vendedor</label>
-          <input id="seller-search" v-model="searchInput" type="search" placeholder="Buscar por nome ou código" class="field" />
+          <input id="seller-search" v-model="searchInput" type="search" placeholder="Buscar por nome ou documento" class="field" />
         </div>
         <div>
           <label for="seller-status" class="sr-only">Filtrar por status</label>
@@ -235,13 +234,13 @@ async function changeStatus(item: SellerPageItem) {
           <table class="w-full min-w-[640px] text-left text-sm text-slate-700 dark:text-slate-200">
             <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-900/50 dark:text-slate-400">
               <tr>
-                <th scope="col" class="px-5 py-3">Código</th><th scope="col" class="px-5 py-3">Nome</th><th scope="col" class="px-5 py-3">Celular</th><th scope="col" class="px-5 py-3">Status</th><th v-if="canManage" scope="col" class="px-5 py-3 text-right">Ações</th>
+                <th scope="col" class="px-5 py-3">Nome</th><th scope="col" class="px-5 py-3">Documento</th><th scope="col" class="px-5 py-3">Celular</th><th scope="col" class="px-5 py-3">Status</th><th v-if="canManage" scope="col" class="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
               <tr v-for="item in items" :key="item.id" class="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-700/30" :class="{ 'opacity-65': !item.active }">
-                <td class="px-5 py-3 font-mono font-semibold text-slate-900 dark:text-white">{{ item.code }}</td>
-                <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">{{ sellerFullName(item) }}</td>
+                <td class="px-5 py-3 font-medium text-slate-900 dark:text-white">{{ item.name }}</td>
+                <td class="px-5 py-3 font-mono">{{ formatBrazilianDocument(item.document) }}</td>
                 <td class="px-5 py-3">{{ formatPhone(item.mobile) || '—' }}</td>
                 <td class="px-5 py-3"><span class="status-badge" :class="item.active ? 'status-active' : 'status-inactive'">{{ item.active ? 'Ativo' : 'Inativo' }}</span></td>
                 <td v-if="canManage" class="px-5 py-3"><div class="flex justify-end gap-1"><button type="button" class="link-button" @click="openEdit(item)">Editar</button><button type="button" class="link-button" :class="item.active ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'" :disabled="changingStatusIds.includes(item.id)" @click="changeStatus(item)">{{ changingStatusIds.includes(item.id) ? 'Aguarde...' : item.active ? 'Inativar' : 'Reativar' }}</button></div></td>

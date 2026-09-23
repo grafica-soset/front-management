@@ -1,21 +1,30 @@
+import type { PersonType } from './Client'
+
 export type RecordStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
 
-/** Payload de POST /sellers e PUT /sellers/{id}. Telefones vão só com dígitos. */
+/**
+ * Payload de POST /sellers e PUT /sellers/{id}. Documento e telefones vão só com dígitos.
+ * A razão social só é gravada para pessoa jurídica.
+ */
 export interface SellerRequest {
+  personType: PersonType
   name: string
-  lastName: string
+  corporateName?: string
+  document: string
+  email?: string
   phone?: string
   mobile?: string
-  code: string
 }
 
 /** Resposta de GET/POST/PUT/PATCH /sellers. */
 export interface Seller {
   id: number
   personId: number
-  code: string
+  personType: PersonType
   name: string
-  lastName: string
+  corporateName?: string | null
+  document: string
+  email?: string | null
   phone?: string | null
   mobile?: string | null
   active: boolean
@@ -24,15 +33,15 @@ export interface Seller {
 /** Item de GET /sellers — apenas vendedores ativos, para selects. */
 export interface SellerListItem {
   id: number
-  code: string
   name: string
 }
 
 export interface SellerPageItem {
   id: number
-  code: string
+  personType: PersonType
   name: string
-  lastName: string
+  document: string
+  email?: string | null
   phone?: string | null
   mobile?: string | null
   active: boolean
