@@ -52,7 +52,12 @@ const lines = computed(() => {
 </script>
 
 <template>
-  <aside class="lg:sticky lg:top-6">
+  <!--
+    Fica visível enquanto a página rola. `self-start` é o que faz o sticky funcionar: sem ele o grid
+    estica o aside até a altura da coluna de conteúdo e não sobra espaço para ele "grudar". O top
+    desconta a barra superior fixa do layout; com mais linhas do que cabe na tela, rola por dentro.
+  -->
+  <aside class="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto">
     <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div class="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Resumo</h2>
