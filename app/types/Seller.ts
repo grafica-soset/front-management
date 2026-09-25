@@ -3,13 +3,11 @@ import type { PersonType } from './Client'
 export type RecordStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
 
 /**
- * Payload de POST /sellers e PUT /sellers/{id}. Documento e telefones vão só com dígitos.
- * A razão social só é gravada para pessoa jurídica.
+ * Payload de POST /sellers e PUT /sellers/{id}. CPF e telefones vão só com dígitos.
  */
 export interface SellerRequest {
-  personType: PersonType
+  personType: 'PHYSICAL'
   name: string
-  corporateName?: string
   document: string
   email?: string
   phone?: string

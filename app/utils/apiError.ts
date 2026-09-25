@@ -25,7 +25,7 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   ClientNotFoundException: 'Cliente não encontrado nesta empresa.',
   ClientAddressNotFoundException: 'Endereço não encontrado para este cliente.',
   ClientContactNotFoundException: 'Contato não encontrado para este cliente.',
-  InvalidSellerConfigurationException: 'Revise o vendedor: tipo de pessoa, nome e CPF ou CNPJ são obrigatórios.',
+  InvalidSellerConfigurationException: 'Revise o vendedor: nome e CPF válido são obrigatórios.',
   SellerNotFoundException: 'Vendedor não encontrado nesta empresa.',
   SellerAlreadyRegisteredException: 'Esta pessoa já é vendedor desta empresa. Se estiver inativa, reative pela lista.',
   InvalidSaleOperationConfigurationException: 'Revise o CFOP: nome obrigatório, código com exatamente 4 números e descrição na NF-e obrigatória com até 60 caracteres.',
