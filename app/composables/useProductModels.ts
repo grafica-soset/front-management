@@ -1,6 +1,7 @@
 /**
- * Composable de CRUD de Modelos de Produto (/product-models) — atividade 028.
- * GET/DELETE usam X-Customer-Id; POST/PUT preenchem customerId quando ausente.
+ * Composable dos Modelos (/product-models) — a família do produto: "Blocos", "Talões".
+ * Desde a atividade 037 o modelo é só o nome. GET/DELETE usam X-Customer-Id; POST/PUT preenchem
+ * customerId quando ausente.
  */
 import type {
   CreateProductModelRequest,

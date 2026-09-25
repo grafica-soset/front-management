@@ -20,6 +20,8 @@ import StepProductDefinition from '@/components/quotes/StepProductDefinition.vue
 import StepActivities from '@/components/quotes/StepActivities.vue'
 import StepParameters from '@/components/quotes/StepParameters.vue'
 import StepSummary from '@/components/quotes/StepSummary.vue'
+import StepTaxesMarkup from '@/components/quotes/StepTaxesMarkup.vue'
+import { priceFromCost, pricingIssues } from '@/utils/pricing'
 import {
   coverageIssues,
   inkIssues,
@@ -40,6 +42,8 @@ const STEPS = [
   { key: 'produto', label: 'Formato e papéis' },
   { key: 'atividades', label: 'Atividades' },
   { key: 'parametros', label: 'Parâmetros' },
+  // Atividade 037: impostos, comissão e markup — daqui sai o preço de venda.
+  { key: 'impostos', label: 'Impostos e Markup' },
   { key: 'resumo', label: 'Resumo' },
 ]
 
@@ -142,6 +146,17 @@ const blockers = computed(() => {
   return list
 })
 
+/** Percentuais que o servidor recusaria (atividade 037) — seguram o salvar, não os parâmetros. */
+const priceBlockers = computed(() => (product.value ? pricingIssues(product.value.pricing, product.value.taxes) : []))
+const allBlockers = computed(() => [...blockers.value, ...priceBlockers.value])
+
+/** Preço de venda do produto em edição, para o trilho. */
+const price = computed(() =>
+  store.draftCost && product.value
+    ? priceFromCost(store.draftCost.totalCost, product.value.pricing, product.value.taxes)
+    : null,
+)
+
 /**
  * Recalcula no motor a cada mexida, com debounce — o usuário mexe em cores e dimensões o tempo
  * todo, e uma chamada por tecla digitada não ajudaria ninguém.
@@ -168,18 +183,19 @@ watch(
 /** Cada passo só libera o seguinte quando tem o que ele precisa. */
 const stepValid = computed(() => {
   const p = product.value
-  if (!p) return [false, false, false, false]
+  if (!p) return [false, false, false, false, false]
   const step1 = !!p.name.trim() && !!p.widthMm && !!p.heightMm && !!p.quantity && p.sheets.every((s) => s.paperTypeId != null)
   const step2 = step1 && p.steps.length > 0
   const step3 = step2 && blockers.value.length === 0
-  return [step1, step2, step3, step3]
+  const step4 = step3 && priceBlockers.value.length === 0
+  return [step1, step2, step3, step4, step4]
 })
 
 const maxReachable = computed(() => {
   const valid = stepValid.value
-  if (valid[2]) return 3
-  if (valid[1]) return 2
-  if (valid[0]) return 1
+  for (let index = valid.length - 2; index >= 0; index -= 1) {
+    if (valid[index]) return index + 1
+  }
   return 0
 })
 
@@ -195,12 +211,12 @@ const back = () => {
 
 const save = () => {
   store.commit()
-  router.push('/orcamentos')
+  router.push('/orcamentos/editar')
 }
 
 const cancel = () => {
   store.discard()
-  router.push('/orcamentos')
+  router.push('/orcamentos/editar')
 }
 </script>
 
@@ -241,6 +257,7 @@ const cancel = () => {
         <StepProductDefinition v-if="current === 0" />
         <StepActivities v-else-if="current === 1" />
         <StepParameters v-else-if="current === 2" />
+        <StepTaxesMarkup v-else-if="current === 3" />
         <StepSummary v-else />
 
         <div class="flex items-center justify-between gap-3 print:hidden">
@@ -267,10 +284,11 @@ const cancel = () => {
       <QuotePriceRail
         class="print:hidden"
         :cost="store.draftCost"
-        :blockers="blockers"
+        :price="price"
+        :blockers="allBlockers"
         :sheets-per-unit="sheetsPerUnit(product)"
         :unit-label="unitLabel"
-        :can-save="blockers.length === 0 && !!store.draftCost"
+        :can-save="allBlockers.length === 0 && !!store.draftCost"
         :save-label="store.editingUid ? 'Salvar alterações' : 'Salvar produto'"
         @save="save"
       />

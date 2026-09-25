@@ -10,9 +10,12 @@
 import { computed } from 'vue'
 import type { ProductCostingResponse } from '@/types/Quote'
 import { brl } from '@/utils/quoteModel'
+import { formatPercent, type PriceBreakdown } from '@/utils/pricing'
 
 const props = defineProps<{
   cost: ProductCostingResponse | null
+  /** Preço de venda (atividade 037): o custo passado pelo divisor de comissão, impostos e markup. */
+  price?: PriceBreakdown | null
   /** Pendências que impedem o cálculo (ex.: "informe a quantidade"). */
   blockers: string[]
   sheetsPerUnit: number
@@ -80,13 +83,25 @@ const lines = computed(() => {
 
         <div class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
           <div class="flex items-baseline justify-between gap-3">
-            <span class="text-sm font-semibold text-slate-900 dark:text-white">Total</span>
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">Custo</span>
             <span class="text-xl font-bold tabular-nums text-indigo-700 dark:text-indigo-300">{{ brl(cost!.totalCost) }}</span>
           </div>
           <div class="mt-1 flex items-baseline justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
             <span>por {{ unitLabel }}</span>
             <span class="tabular-nums">{{ brl(cost!.unitCost) }}</span>
           </div>
+        </div>
+
+        <!-- Preço de venda: aparece quando há percentual; sem nenhum, ele é o próprio custo. -->
+        <div v-if="price && price.totalPercent > 0" class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">Preço</span>
+            <span v-if="price.price != null" class="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ brl(price.price) }}</span>
+            <span v-else class="text-sm font-medium text-rose-600 dark:text-rose-400">sem preço</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            custo ÷ (100% − {{ formatPercent(price.totalPercent) }})
+          </p>
         </div>
 
         <dl class="grid grid-cols-2 gap-px border-t border-slate-200 bg-slate-100 text-center dark:border-slate-700 dark:bg-slate-700/60">
