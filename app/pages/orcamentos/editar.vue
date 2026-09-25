@@ -23,7 +23,9 @@ import { useProductCatalog } from '@/composables/useProductCatalog'
 import { useProductTemplates } from '@/composables/useProductTemplates'
 import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
-import type { ClientKeyValue } from '@/types/Client'
+import type { ClientSearchItem } from '@/types/Client'
+import { useClientSearch } from '@/composables/useClientSearch'
+import ClientSearchCombobox from '@/components/clients/ClientSearchCombobox.vue'
 import type { QuoteStatus } from '@/types/SavedQuote'
 import TemplatePickerModal from '@/components/quotes/TemplatePickerModal.vue'
 
@@ -39,13 +41,38 @@ const toast = useToast()
 const productCatalog = useProductCatalog()
 const productTemplates = useProductTemplates()
 
-const clients = ref<ClientKeyValue[]>([])
+// Cliente por BUSCA (são muitos): o escolhido fica com nome, e-mail e documento à vista.
+const clientSearch = useClientSearch()
+const selectedClient = ref<ClientSearchItem | null>(null)
+
+const selectClient = (client: ClientSearchItem | null) => {
+  selectedClient.value = client
+  store.clientId = client?.id ?? null
+}
+
+/** Orçamento aberto (ou de volta do assistente) com cliente: busca os dados para exibir. */
+const loadSelectedClient = async () => {
+  const id = store.clientId
+  if (!id || selectedClient.value?.id === id) return
+  try {
+    const c = await useClients().getById(id)
+    selectedClient.value = {
+      id: c.id,
+      personType: c.personType,
+      name: c.name,
+      corporateName: c.corporateName ?? null,
+      email: c.email ?? null,
+      document: c.document,
+    }
+  } catch {
+    selectedClient.value = null
+  }
+}
 const loadingQuote = ref(false)
 const changingStatus = ref(false)
 
 onMounted(async () => {
   catalogs.load()
-  useClients().list().then((list) => { clients.value = list }).catch(() => {})
 
   const id = Number(route.query.id)
   if (id && store.quoteId !== id) {
@@ -58,6 +85,7 @@ onMounted(async () => {
       loadingQuote.value = false
     }
   }
+  loadSelectedClient()
   // Produto sem custo (orçamento recém-aberto): recalcula tudo de uma vez, com o catálogo de agora.
   if (store.products.some((p) => !store.costs[p.uid])) await store.recalculateAll()
 })
@@ -224,10 +252,15 @@ const inputClass =
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
             Cliente <span class="text-rose-500">*</span>
           </label>
-          <select v-model="store.clientId" :disabled="store.readOnly" :class="inputClass">
-            <option :value="null" disabled>Selecione o cliente</option>
-            <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.value }}</option>
-          </select>
+          <ClientSearchCombobox
+            :selected="selectedClient"
+            :results="clientSearch.results.value"
+            :loading="clientSearch.loading.value"
+            :error="clientSearch.error.value"
+            :disabled="store.readOnly"
+            @search="clientSearch.search"
+            @select="selectClient"
+          />
         </div>
         <div>
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Comissão de agência (%)</label>
