@@ -4,6 +4,7 @@ import type {
   ClientContactInput,
   ClientKeyValue,
   ClientPage,
+  ClientSearchItem,
   ClientStatusFilter,
   RegisterClientRequest,
   UpdateClientRequest,
@@ -34,6 +35,10 @@ export function useClients() {
     },
   })
 
+  /** Busca full text do combobox do orçamento: nome, razão social, e-mail ou documento. */
+  const search = (term: string, limit = 20) =>
+    request<ClientSearchItem[]>('/clients/search', { query: { q: term.trim() || undefined, limit } })
+
   const getById = (clientId: number) => request<Client>(`/clients/${clientId}`)
   const create = (payload: RegisterClientRequest) => request<Client>('/clients', { method: 'POST', body: payload })
   const update = (clientId: number, payload: UpdateClientRequest) =>
@@ -58,6 +63,7 @@ export function useClients() {
   return {
     list,
     listPage,
+    search,
     getById,
     create,
     update,

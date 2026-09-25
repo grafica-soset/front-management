@@ -2,7 +2,10 @@
 /**
  * Passo 1 do assistente — DEFINIÇÃO DO PRODUTO (atividade 034).
  *
- * Nome, formato final, quantidade, estrutura (lâmina ou bloco), papéis e capas.
+ * Modelo + Tipo, nome, formato final, quantidade, estrutura (lâmina ou bloco), papéis e capas.
+ *
+ * Modelo + Tipo (atividade 037) vêm antes do nome: são opcionais no orçamento, mas são a chave do
+ * catálogo — sem eles o produto não pode ser salvo como modelo.
  *
  * Decisão de usabilidade sobre lâminas × jogos/vias: em vez de "preencher lâmina desabilita jogos
  * e vias" — que deixa na tela campos mortos e faz o usuário testar para descobrir a regra —, a
@@ -15,17 +18,38 @@
  * Aqui não se fala em TIRAGEM: no jargão gráfico ela é o total de folhas IMPRESSAS, que só o
  * motor sabe — depende de quantas aplicações cabem no formato de impressão.
  */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { useProductCatalog } from '@/composables/useProductCatalog'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { useToast } from '@/composables/useToast'
+import { extractApiError } from '@/utils/apiError'
 import SheetPaperRow from '@/components/quotes/SheetPaperRow.vue'
+import ModelTypeFields from '@/components/quotes/ModelTypeFields.vue'
 import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const product = computed(() => store.draft!)
 const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
 const { numberingCapacity } = useQuoteCatalogs()
+const productCatalog = useProductCatalog()
+const toast = useToast()
+
+onMounted(() => {
+  productCatalog.load().catch((err) => toast.error(extractApiError(err, 'Não foi possível carregar os modelos.')))
+})
+
+/** Modelo digitado que não existe: cadastra ali mesmo e já deixa escolhido. */
+const createModel = async (name: string) => {
+  try {
+    const created = await productCatalog.createModel(name)
+    product.value.productModelId = created.id
+    product.value.productModelName = created.value
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível cadastrar o modelo.'))
+  }
+}
 
 /** Dimensões trafegam em mm na store; o formulário mostra a unidade da empresa. */
 const width = computed({
@@ -154,6 +178,23 @@ const inputClass =
       <h2 class="text-base font-semibold text-slate-900 dark:text-white">Identificação</h2>
 
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <ModelTypeFields
+            :models="productCatalog.models.value"
+            :templates="productCatalog.templates.value"
+            :product-model-id="product.productModelId"
+            :product-model-name="product.productModelName"
+            :type-name="product.typeName"
+            :creating-model="productCatalog.creatingModel.value"
+            @update:product-model-id="product.productModelId = $event"
+            @update:product-model-name="product.productModelName = $event"
+            @update:type-name="product.typeName = $event"
+            @create-model="createModel"
+          />
+          <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Opcionais no orçamento — necessários para salvar o produto como modelo.
+          </p>
+        </div>
         <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
             Nome do produto <span class="text-rose-500">*</span>

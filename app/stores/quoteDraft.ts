@@ -1,8 +1,9 @@
 /**
  * Store do RASCUNHO DE ORÇAMENTO (atividade 034).
  *
- * Guarda os produtos do orçamento em edição e o produto que está no assistente. Vive só no
- * navegador: nada é enviado para a API nesta fase.
+ * Guarda os produtos do orçamento em edição e o produto que está no assistente. Desde a atividade
+ * 037 o orçamento também é SALVO (cliente, comissão de agência, número e status) — mas o rascunho
+ * continua morando aqui enquanto o usuário edita; a API só entra no "Salvar orçamento".
  *
  * A responsabilidade mais delicada daqui é manter as FOLHAS em sincronia com a estrutura: mexer em
  * lâmina/jogos/vias/capas reconstrói a lista PRESERVANDO o que já estava configurado nas folhas
@@ -11,7 +12,19 @@
 import { defineStore } from 'pinia'
 import type { PrintingSetup, ProductStructure, QuoteProduct, QuoteSheet, QuoteStep, SheetKind } from '@/types/QuoteDraft'
 import type { ProductCostingResponse, QuoteProductRequest, QuoteStepRequest } from '@/types/Quote'
+import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
+import type { QuoteStatus, SaveQuoteRequest, SavedQuote } from '@/types/SavedQuote'
 import { defaultSheetSetup, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
+import {
+  agencyCommissionAmount,
+  emptyPricing,
+  emptyTaxes,
+  normalizePricing,
+  normalizeTaxes,
+  priceFromCost,
+  round2,
+  type PriceBreakdown,
+} from '@/utils/pricing'
 import { useQuotes } from '@/composables/useQuotes'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { extractApiError } from '@/utils/apiError'
@@ -48,6 +61,10 @@ function emptyPrintingSetup(sheets: QuoteSheet[]): PrintingSetup {
 export function emptyProduct(): QuoteProduct {
   return {
     uid: uid('produto'),
+    productModelId: null,
+    productModelName: '',
+    typeName: '',
+    productTemplateId: null,
     name: '',
     widthMm: null,
     heightMm: null,
@@ -68,6 +85,52 @@ export function emptyProduct(): QuoteProduct {
     numberingDigits: 6,
     sheets: [emptySheet('BLADE', 1)],
     steps: [],
+    taxes: emptyTaxes(),
+    pricing: emptyPricing(),
+  }
+}
+
+/**
+ * Completa um rascunho vindo de fora — o `editorState` de um orçamento salvo — com os campos que
+ * ele não tinha quando foi gravado. Sem isso, um orçamento salvo antes de um campo existir abriria
+ * o assistente com `undefined` onde a tela espera número.
+ */
+export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduct {
+  const base = emptyProduct()
+  return {
+    ...base,
+    ...product,
+    uid: product.uid || base.uid,
+    productModelName: product.productModelName ?? '',
+    typeName: product.typeName ?? '',
+    taxes: normalizeTaxes(product.taxes),
+    pricing: normalizePricing(product.pricing),
+  } as QuoteProduct
+}
+
+/**
+ * O rascunho vira o corpo de `POST /product-templates` — só o que se repete entre pedidos: Modelo,
+ * Tipo, estrutura, etapas na ordem e impostos. Formato, quantidade, papéis e os parâmetros das
+ * etapas ficam de fora de propósito (decisão do usuário, atividade 037).
+ */
+export function templateRequestFromProduct(product: QuoteProduct, customerId: number): ProductTemplateRequest {
+  const artworkSheets = artworkSheetCount(product)
+  return {
+    customerId,
+    productModelId: product.productModelId ?? 0,
+    typeName: product.typeName.trim(),
+    structure: product.structure,
+    blades: Math.max(1, product.blades || 1),
+    vias: Math.min(9, Math.max(1, product.vias || 1)),
+    hasCovers: product.hasCovers,
+    coverCount: product.hasCovers ? Math.max(1, product.coverCount || 1) : 0,
+    // Com uma via/lâmina só a pergunta não existe; o servidor recusa resposta para ela.
+    identicalArtwork: artworkSheets >= 2 ? product.identicalArtwork : null,
+    distinctArtworks: artworkSheets >= 2 && product.identicalArtwork === false ? product.distinctArtworks : null,
+    activityIds: product.steps.map((s) => s.activityId),
+    taxes: product.taxes,
+    pricing: product.pricing,
+    active: true,
   }
 }
 
@@ -86,12 +149,57 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Recusa do motor: o cadastro não sustenta o cálculo. */
     calcError: null as string | null,
     calculating: false,
+
+    // ---- O orçamento em si (atividade 037) ----
+    /** Nulo enquanto o orçamento nunca foi salvo. */
+    quoteId: null as number | null,
+    quoteNumber: null as number | null,
+    quoteStatus: null as QuoteStatus | null,
+    clientId: null as number | null,
+    /** Comissão de agência: percentual SOBRE o total dos produtos. */
+    agencyCommissionPercent: 0,
+    notes: '',
+    saving: false,
   }),
 
   getters: {
-    /** Total do orçamento: soma dos produtos já salvos. */
+    /** Custo do orçamento: soma dos custos dos produtos. */
     quoteTotal(state): number {
       return Object.values(state.costs).reduce((sum, cost) => sum + cost.totalCost, 0)
+    },
+
+    /** Preço de cada produto: o custo calculado passado pelo divisor de comissão, impostos e markup. */
+    productPrices(state): Record<string, PriceBreakdown> {
+      const prices: Record<string, PriceBreakdown> = {}
+      for (const product of state.products) {
+        const cost = state.costs[product.uid]
+        if (cost) prices[product.uid] = priceFromCost(cost.totalCost, product.pricing, product.taxes)
+      }
+      return prices
+    },
+
+    /** Soma dos preços. Nulo se algum produto ainda não tem custo ou tem percentuais impossíveis. */
+    productsTotal(): number | null {
+      let total = 0
+      for (const product of this.products) {
+        const price = this.productPrices[product.uid]?.price
+        if (price == null) return null
+        total += price
+      }
+      return round2(total)
+    },
+
+    agencyCommission(): number {
+      return agencyCommissionAmount(this.productsTotal ?? 0, this.agencyCommissionPercent)
+    },
+
+    grandTotal(): number | null {
+      return this.productsTotal == null ? null : round2(this.productsTotal + this.agencyCommission)
+    },
+
+    /** Aprovado ou rejeitado: o orçamento é o que foi enviado e não se altera. */
+    readOnly(state): boolean {
+      return state.quoteStatus != null && state.quoteStatus !== 'PENDING_APPROVAL'
     },
   },
 
@@ -154,6 +262,117 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.draft = null
       this.editingUid = null
       this.draftCost = null
+      this.quoteId = null
+      this.quoteNumber = null
+      this.quoteStatus = null
+      this.clientId = null
+      this.agencyCommissionPercent = 0
+      this.notes = ''
+    },
+
+    /**
+     * Abre o assistente a partir de um MODELO DE PRODUTO do catálogo (atividade 037).
+     *
+     * Traz o que o modelo guarda — estrutura, etapas na ordem, impostos e markup — e deixa o resto
+     * para o pedido: nome, formato, quantidade, papéis e os parâmetros de cada etapa. As etapas
+     * entram pelo mesmo `addStep` da tela, para a impressão nascer com a sua configuração por folha.
+     */
+    startFromTemplate(template: ProductTemplate) {
+      this.startNew()
+      const draft = this.draft!
+      draft.productModelId = template.productModelId
+      draft.productModelName = template.productModelName ?? ''
+      draft.typeName = template.typeName
+      draft.productTemplateId = template.id
+      draft.structure = template.structure
+      draft.blades = Math.max(1, template.blades)
+      draft.vias = Math.min(9, Math.max(1, template.vias))
+      draft.hasCovers = template.hasCovers
+      draft.coverCount = template.hasCovers ? Math.max(1, template.coverCount) : 1
+      this.syncSheets()
+      // Depois do sync: é ele que zera a resposta quando o número de vias muda.
+      draft.identicalArtwork = template.identicalArtwork
+      draft.distinctArtworks = template.distinctArtworks
+      draft.taxes = normalizeTaxes(template.taxes)
+      draft.pricing = normalizePricing(template.pricing)
+      for (const activityId of template.activityIds) this.addStep(activityId)
+    },
+
+    /**
+     * Carrega um orçamento salvo para edição. Cada produto volta pelo `editorState` — o rascunho
+     * como o usuário o deixou —, e os custos são recalculados em seguida (o catálogo pode ter
+     * mudado desde que o orçamento foi salvo).
+     */
+    loadSaved(saved: SavedQuote) {
+      this.clearQuote()
+      this.quoteId = saved.id
+      this.quoteNumber = saved.number
+      this.quoteStatus = saved.status
+      this.clientId = saved.clientId
+      this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
+      this.notes = saved.notes ?? ''
+      this.products = saved.products.map((p) =>
+        withProductDefaults({
+          ...(p.editorState ?? {}),
+          productModelId: p.productModelId,
+          productModelName: p.productModelName ?? p.editorState?.productModelName ?? '',
+          typeName: p.typeName ?? '',
+          productTemplateId: p.productTemplateId,
+          taxes: p.taxes,
+          pricing: p.pricing,
+        }),
+      )
+    },
+
+    /** Recalcula TODOS os produtos do orçamento numa chamada só. */
+    async recalculateAll() {
+      if (this.products.length === 0) return
+      this.calcError = null
+      try {
+        const result = await useQuotes().calculate({ products: this.products.map((p) => this.toPayload(p)) })
+        const costs: Record<string, ProductCostingResponse> = {}
+        this.products.forEach((p, index) => {
+          const cost = result.products[index]
+          if (cost) costs[p.uid] = cost
+        })
+        this.costs = costs
+      } catch (err) {
+        this.calcError = extractApiError(err, 'Não foi possível recalcular o orçamento.')
+      }
+    },
+
+    /** O corpo de `POST/PUT /quotes`. O custo não vai: o servidor recalcula. */
+    toSaveRequest(): Omit<SaveQuoteRequest, 'customerId'> {
+      return {
+        clientId: this.clientId ?? 0,
+        agencyCommissionPercent: Number(this.agencyCommissionPercent) || 0,
+        notes: this.notes.trim() || null,
+        products: this.products.map((p) => ({
+          configuration: this.toPayload(p),
+          editorState: JSON.parse(JSON.stringify(p)) as QuoteProduct,
+          productModelId: p.productModelId,
+          typeName: p.typeName.trim() || null,
+          productTemplateId: p.productTemplateId,
+          taxes: p.taxes,
+          pricing: p.pricing,
+        })),
+      }
+    },
+
+    /** Salva (cria ou atualiza). Devolve o orçamento gravado; o erro sobe para a tela exibir. */
+    async saveQuote(): Promise<SavedQuote> {
+      this.saving = true
+      try {
+        const api = useQuotes()
+        const body = this.toSaveRequest()
+        const saved = this.quoteId ? await api.update(this.quoteId, body) : await api.create(body)
+        this.quoteId = saved.id
+        this.quoteNumber = saved.number
+        this.quoteStatus = saved.status
+        return saved
+      } finally {
+        this.saving = false
+      }
     },
 
     /** Troca a estrutura do produto (lâmina ⇄ bloco) e refaz as folhas. */

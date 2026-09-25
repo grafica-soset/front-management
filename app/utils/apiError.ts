@@ -25,6 +25,10 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   ClientNotFoundException: 'Cliente não encontrado nesta empresa.',
   ClientAddressNotFoundException: 'Endereço não encontrado para este cliente.',
   ClientContactNotFoundException: 'Contato não encontrado para este cliente.',
+  // Atividade 037 — orçamento salvo e modelos de produto. A mensagem do servidor é a mais útil
+  // (traz o número do orçamento / o Modelo > Tipo), então só as genéricas ganham texto próprio.
+  QuoteNotFoundException: 'Orçamento não encontrado nesta empresa.',
+  ProductTemplateNotFoundException: 'Modelo de produto não encontrado nesta empresa.',
 }
 
 /**

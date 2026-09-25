@@ -1,21 +1,13 @@
 /**
- * Modelo de produto (atividade 028): reúne atividades marcadas como fixas (obrigatórias) ou
- * complementares (opcionais). Base do orçamento.
+ * MODELO — a família do produto: "Blocos", "Talões", "Calendários" (atividade 028, redesenhado na
+ * 037). É só o nome: a configuração do produto está no Modelo de Produto salvo (ProductTemplate),
+ * identificado por Modelo + Tipo.
  */
-
-/** Atividade do modelo: id + fixa/complementar. */
-export interface ModelActivity {
-  activityId: number
-  /** true = fixa/obrigatória; false = complementar/opcional. */
-  required: boolean
-}
-
 export interface ProductModel {
   id: number
   customerId: number
   name: string
   active: boolean
-  activities: ModelActivity[]
 }
 
 /** Item KeyValue da listagem de modelos. */
@@ -36,7 +28,6 @@ export interface ProductModelPage {
 export interface CreateProductModelRequest {
   customerId: number
   name: string
-  activities: ModelActivity[]
 }
 
 export interface UpdateProductModelRequest extends CreateProductModelRequest {

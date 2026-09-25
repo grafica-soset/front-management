@@ -13,6 +13,7 @@
  * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. A store o traduz no contrato do
  * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
+import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
 
 /** O que a folha é dentro do produto. */
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
@@ -131,6 +132,16 @@ export interface QuoteStep {
 /** O produto sendo montado no assistente. */
 export interface QuoteProduct {
   uid: string
+  /**
+   * MODELO + TIPO (atividade 037) — "Blocos > Anotações". Opcionais no orçamento; obrigatórios só
+   * para "Salvar como modelo", porque são a chave do catálogo.
+   */
+  productModelId: number | null
+  /** Nome do Modelo, para o combobox exibir sem consultar a lista. */
+  productModelName: string
+  typeName: string
+  /** Modelo de produto do catálogo de onde o produto partiu, se partiu de um. */
+  productTemplateId: number | null
   name: string
   /** Formato final da peça, em milímetros (representação canônica do sistema). */
   widthMm: number | null
@@ -192,6 +203,11 @@ export interface QuoteProduct {
 
   sheets: QuoteSheet[]
   steps: QuoteStep[]
+
+  /** Impostos (atividade 037) — viajam para a nota fiscal quando o orçamento for aprovado. */
+  taxes: ProductTaxes
+  /** Comissões do vendedor e markup — com os impostos, formam o divisor do preço. */
+  pricing: PricingTerms
 }
 
 /** Linha do detalhamento de custo exibido no trilho e no resumo. */
