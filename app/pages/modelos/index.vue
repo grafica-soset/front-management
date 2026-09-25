@@ -229,7 +229,7 @@ const handleDelete = async (t: ProductTemplate) => {
       </div>
     </template>
 
-    <Modal :is-open="editOpen" title="Editar modelo de produto" @close="closeEdit">
+    <Modal :is-open="editOpen" title="Editar modelo de produto" size="5xl" @close="closeEdit">
       <ProductTemplateForm
         v-if="editing"
         mode="edit"
