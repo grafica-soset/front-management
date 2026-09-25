@@ -13,7 +13,7 @@ import { defineStore } from 'pinia'
 import type { PrintingSetup, ProductStructure, QuoteProduct, QuoteSheet, QuoteStep, SheetKind } from '@/types/QuoteDraft'
 import type { ProductCostingResponse, QuoteProductRequest, QuoteStepRequest } from '@/types/Quote'
 import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
-import type { QuoteStatus, SaveQuoteRequest, SavedQuote } from '@/types/SavedQuote'
+import type { QuoteStatus, SaveQuoteRequest, SavedQuote, SupplyConditions } from '@/types/SavedQuote'
 import { defaultSheetSetup, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
 import {
   agencyCommissionAmount,
@@ -57,6 +57,13 @@ function emptyPrintingSetup(sheets: QuoteSheet[]): PrintingSetup {
     coverMachineId: null,
   }
 }
+
+/** Condições de fornecimento vazias — o que ficar vazio não sai na proposta. */
+export function emptyConditions(): SupplyConditions {
+  return { proposalValidity: null, deliveryTerms: null, paymentTerms: null, bankDetails: null }
+}
+
+const blankToNull = (value: string | null | undefined) => value?.trim() || null
 
 export function emptyProduct(): QuoteProduct {
   return {
@@ -159,7 +166,14 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Comissão de agência: percentual SOBRE o total dos produtos. */
     agencyCommissionPercent: 0,
     notes: '',
+    /** Condições de fornecimento da proposta (atividade 038). */
+    conditions: emptyConditions(),
     saving: false,
+    /**
+     * O corpo do salvar como estava na última vez que o orçamento foi salvo ou aberto. A proposta
+     * imprime a versão SALVA; comparar com isto é o que diz à tela que há alteração pendente.
+     */
+    savedSnapshot: null as string | null,
   }),
 
   getters: {
@@ -200,6 +214,15 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Aprovado ou rejeitado: o orçamento é o que foi enviado e não se altera. */
     readOnly(state): boolean {
       return state.quoteStatus != null && state.quoteStatus !== 'PENDING_APPROVAL'
+    },
+
+    /** Há alteração que ainda não foi salva? */
+    dirty(): boolean {
+      if (this.savedSnapshot == null) return this.products.length > 0 || this.clientId != null
+      // Em runtime o `this` do getter é a store inteira, actions incluídas; a tipagem do Pinia é que
+      // só enxerga state e getters.
+      const store = this as unknown as { toSaveRequest(): unknown }
+      return this.savedSnapshot !== JSON.stringify(store.toSaveRequest())
     },
   },
 
@@ -268,6 +291,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.clientId = null
       this.agencyCommissionPercent = 0
       this.notes = ''
+      this.conditions = emptyConditions()
+      this.savedSnapshot = null
     },
 
     /**
@@ -311,6 +336,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.clientId = saved.clientId
       this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
       this.notes = saved.notes ?? ''
+      this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
       this.products = saved.products.map((p) =>
         withProductDefaults({
           ...(p.editorState ?? {}),
@@ -322,6 +348,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           pricing: p.pricing,
         }),
       )
+      this.savedSnapshot = JSON.stringify(this.toSaveRequest())
     },
 
     /** Recalcula TODOS os produtos do orçamento numa chamada só. */
@@ -347,6 +374,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         clientId: this.clientId ?? 0,
         agencyCommissionPercent: Number(this.agencyCommissionPercent) || 0,
         notes: this.notes.trim() || null,
+        conditions: {
+          proposalValidity: blankToNull(this.conditions.proposalValidity),
+          deliveryTerms: blankToNull(this.conditions.deliveryTerms),
+          paymentTerms: blankToNull(this.conditions.paymentTerms),
+          bankDetails: blankToNull(this.conditions.bankDetails),
+        },
         products: this.products.map((p) => ({
           configuration: this.toPayload(p),
           editorState: JSON.parse(JSON.stringify(p)) as QuoteProduct,
@@ -366,6 +399,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         const api = useQuotes()
         const body = this.toSaveRequest()
         const saved = this.quoteId ? await api.update(this.quoteId, body) : await api.create(body)
+        this.savedSnapshot = JSON.stringify(body)
         this.quoteId = saved.id
         this.quoteNumber = saved.number
         this.quoteStatus = saved.status

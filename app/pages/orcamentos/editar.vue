@@ -179,6 +179,15 @@ const setStatus = async (status: QuoteStatus) => {
   }
 }
 
+/**
+ * A proposta imprime o orçamento SALVO. Com alteração pendente o botão fica travado — imprimir a
+ * versão velha achando que é a da tela é o erro que se quer evitar.
+ */
+const printProposal = () => {
+  if (!store.quoteId || store.dirty) return
+  window.open(`/orcamentos/${store.quoteId}/proposta`, '_blank', 'noopener')
+}
+
 const statusClass = (status: QuoteStatus) =>
   ({
     PENDING_APPROVAL: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
@@ -267,7 +276,31 @@ const inputClass =
           <input v-model.number="store.agencyCommissionPercent" type="number" min="0" max="100" step="0.01" :disabled="store.readOnly" :class="inputClass" />
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Aplicada sobre o total dos produtos.</p>
         </div>
-        <div class="sm:col-span-3">
+      </div>
+    </section>
+
+    <!-- Condições de fornecimento (atividade 038) — saem na proposta impressa; vazio não sai. -->
+    <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <h2 class="text-base font-semibold text-slate-900 dark:text-white">Condições de fornecimento</h2>
+      <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Vão para a proposta impressa. O que ficar vazio não aparece.</p>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Validade da proposta</label>
+          <input v-model="store.conditions.proposalValidity" type="text" maxlength="200" placeholder="Ex.: 2 semanas" :disabled="store.readOnly" :class="inputClass" />
+        </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Condições de pagamento</label>
+          <input v-model="store.conditions.paymentTerms" type="text" maxlength="500" placeholder="Ex.: 15 d.d. liq. c/recibo" :disabled="store.readOnly" :class="inputClass" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Prazo de entrega</label>
+          <input v-model="store.conditions.deliveryTerms" type="text" maxlength="500" placeholder="Ex.: 5 dias úteis, após confirmação do pedido e entrega dos dados originais" :disabled="store.readOnly" :class="inputClass" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Dados bancários</label>
+          <input v-model="store.conditions.bankDetails" type="text" maxlength="500" placeholder="Ex.: Banco Bradesco, Ag.: 1965-8, C/C: 1355-2" :disabled="store.readOnly" :class="inputClass" />
+        </div>
+        <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Observações</label>
           <textarea v-model="store.notes" rows="2" maxlength="2000" :disabled="store.readOnly" :class="inputClass" />
         </div>
@@ -385,6 +418,20 @@ const inputClass =
             Voltar para pendente
           </button>
         </template>
+        <button
+          v-if="store.quoteId"
+          type="button"
+          :disabled="store.dirty"
+          :title="store.dirty ? 'Salve as alterações para imprimir a proposta atualizada' : undefined"
+          @click="printProposal"
+          class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-slate-700"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2m-12 0v4h12v-4M6 14h12" /></svg>
+          Imprimir proposta
+        </button>
+        <span v-if="store.quoteId && store.dirty" class="self-center text-xs text-amber-700 dark:text-amber-300">
+          Salve para imprimir a proposta atualizada.
+        </span>
         <button v-if="!store.quoteId && store.products.length" type="button" @click="store.clearQuote()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
           Limpar orçamento
         </button>

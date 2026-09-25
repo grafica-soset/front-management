@@ -7,7 +7,7 @@
  */
 import type { CustomerKeyValue } from '@/types/CustomerKeyValue'
 import type { CustomerProperties } from '@/types/CustomerProperties'
-import type { CustomerSettings, UpdateCustomerSettingsRequest } from '@/types/CustomerSettings'
+import type { CustomerSettings, UpdateCustomerLogoRequest, UpdateCustomerSettingsRequest } from '@/types/CustomerSettings'
 import { useAuthStore } from '@/stores/auth'
 
 export function useCustomers() {
@@ -35,6 +35,11 @@ export function useCustomers() {
    * Quando a empresa alterada é a ativa, sincroniza activeMeasurementUnit
    * para que o useUnitConverter passe a usar a nova unidade imediatamente.
    */
+  /** Logo da empresa por URL (atividade 038). Só a logo muda; a unidade fica como está. */
+  async function updateCustomerLogo(customerId: number, payload: UpdateCustomerLogoRequest): Promise<CustomerSettings> {
+    return await api<CustomerSettings>(`/customers/${customerId}/logo`, { method: 'PUT', body: payload })
+  }
+
   async function updateCustomerSettings(
     customerId: number,
     payload: UpdateCustomerSettingsRequest,
@@ -64,6 +69,7 @@ export function useCustomers() {
     listCustomers,
     getCustomerProperties,
     updateCustomerSettings,
+    updateCustomerLogo,
     syncActiveCompanySettings,
   }
 }

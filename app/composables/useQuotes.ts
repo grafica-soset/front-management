@@ -15,6 +15,7 @@ import type {
   SavedQuote,
   SavedQuotePage,
 } from '@/types/SavedQuote'
+import type { QuoteProposal } from '@/types/QuoteProposal'
 import { useAuthStore } from '@/stores/auth'
 
 interface PageOptions {
@@ -63,9 +64,14 @@ export function useQuotes() {
     })
   }
 
+  /** A proposta de fornecimento pronta para imprimir (atividade 038). */
+  async function getProposal(id: number): Promise<QuoteProposal> {
+    return await api<QuoteProposal>(`/quotes/${id}/proposal`)
+  }
+
   async function remove(id: number): Promise<void> {
     await api(`/quotes/${id}`, { method: 'DELETE' })
   }
 
-  return { calculate, listPage, getById, create, update, changeStatus, remove }
+  return { calculate, listPage, getById, getProposal, create, update, changeStatus, remove }
 }
