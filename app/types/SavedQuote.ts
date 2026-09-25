@@ -10,6 +10,14 @@ import type { QuoteProduct } from '@/types/QuoteDraft'
 
 export type QuoteStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
 
+/** "Das Condições de Fornecimento" da proposta (atividade 038). Texto livre de cada orçamento. */
+export interface SupplyConditions {
+  proposalValidity: string | null
+  deliveryTerms: string | null
+  paymentTerms: string | null
+  bankDetails: string | null
+}
+
 export interface SaveQuoteProductRequest {
   configuration: QuoteProductRequest
   /** O rascunho da tela, guardado como veio — é com ele que o assistente reabre o produto. */
@@ -26,6 +34,7 @@ export interface SaveQuoteRequest {
   clientId: number
   agencyCommissionPercent: number
   notes: string | null
+  conditions: SupplyConditions
   products: SaveQuoteProductRequest[]
 }
 
@@ -62,6 +71,9 @@ export interface SavedQuote {
   status: QuoteStatus
   agencyCommissionPercent: number
   notes: string | null
+  conditions: SupplyConditions
+  /** Quem criou — assina a proposta. */
+  createdByName: string | null
   totalCost: number
   productsTotal: number
   agencyCommissionAmount: number

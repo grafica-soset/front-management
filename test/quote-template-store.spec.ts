@@ -181,3 +181,43 @@ describe('orçamento com preço', () => {
     expect(store.products[0]!.taxes.cbs).toBeDefined()
   })
 })
+
+describe('condições de fornecimento e alteração pendente (atividade 038)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  const saved = {
+    id: 1204,
+    number: 118,
+    clientId: 318,
+    status: 'PENDING_APPROVAL',
+    agencyCommissionPercent: 0,
+    notes: null,
+    conditions: { proposalValidity: '2 semanas', deliveryTerms: null, paymentTerms: '15 d.d.', bankDetails: null },
+    products: [],
+  } as unknown as SavedQuote
+
+  it('abre sem alteração pendente e acusa a primeira mexida', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved)
+    expect(store.conditions.proposalValidity).toBe('2 semanas')
+    expect(store.dirty).toBe(false)
+
+    store.conditions.deliveryTerms = '5 dias úteis'
+    expect(store.dirty).toBe(true)
+  })
+
+  it('campo apagado vai como vazio, não como texto em branco', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved)
+    store.conditions.paymentTerms = '   '
+    expect(store.toSaveRequest().conditions.paymentTerms).toBeNull()
+  })
+
+  it('orçamento novo com produto é alteração pendente', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.commit()
+    expect(store.dirty).toBe(true)
+  })
+})
+

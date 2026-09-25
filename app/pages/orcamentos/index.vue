@@ -152,6 +152,7 @@ const dateOf = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
                 <td class="px-5 py-3 text-right">
                   <div class="inline-flex flex-wrap items-center justify-end gap-1">
                     <NuxtLink :to="{ path: '/orcamentos/editar', query: { id: row.id } }" class="rounded-md px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-slate-700">Abrir</NuxtLink>
+                    <a :href="`/orcamentos/${row.id}/proposta`" target="_blank" rel="noopener" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">Proposta</a>
                     <template v-if="row.status === 'PENDING_APPROVAL'">
                       <button type="button" :disabled="busyId === row.id" class="rounded-md px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-300 dark:hover:bg-slate-700" @click="setStatus(row, 'APPROVED')">Aprovar</button>
                       <button type="button" :disabled="busyId === row.id" class="rounded-md px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-slate-700" @click="setStatus(row, 'REJECTED')">Rejeitar</button>

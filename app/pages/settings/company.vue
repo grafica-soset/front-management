@@ -11,6 +11,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import MeasurementUnitForm from '@/components/forms/MeasurementUnitForm.vue'
+import CompanyLogoForm from '@/components/forms/CompanyLogoForm.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomers } from '@/composables/useCustomers'
 import { extractApiError } from '@/utils/apiError'
@@ -23,7 +24,7 @@ definePageMeta({
 })
 
 const auth = useAuthStore()
-const { getCustomerProperties, updateCustomerSettings } = useCustomers()
+const { getCustomerProperties, updateCustomerSettings, updateCustomerLogo } = useCustomers()
 
 const loadingProperties = ref(false)
 const loadingSave = ref(false)
@@ -81,6 +82,28 @@ const handleSubmit = async (payload: UpdateCustomerSettingsRequest) => {
     saveError.value = extractApiError(err, 'Não foi possível salvar as configurações.')
   } finally {
     loadingSave.value = false
+  }
+}
+
+// ---- Logo (atividade 038) ----
+const logoSaving = ref(false)
+const logoError = ref<string | null>(null)
+const logoSaved = ref(false)
+
+const handleLogo = async (logoUrl: string | null) => {
+  const id = activeCompanyId.value
+  if (!id || !properties.value) return
+  logoSaving.value = true
+  logoError.value = null
+  logoSaved.value = false
+  try {
+    const settings = await updateCustomerLogo(id, { logoUrl })
+    properties.value.settings.logoUrl = settings.logoUrl ?? null
+    logoSaved.value = true
+  } catch (err) {
+    logoError.value = extractApiError(err, 'Não foi possível salvar a logo.')
+  } finally {
+    logoSaving.value = false
   }
 }
 </script>
@@ -176,6 +199,24 @@ const handleSubmit = async (payload: UpdateCustomerSettingsRequest) => {
           :server-error="saveError"
           :saved="saved"
           @submit="handleSubmit"
+        />
+      </section>
+
+      <!-- Logo (atividade 038) -->
+      <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
+        <div class="mb-5">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Logo</h2>
+          <p class="text-sm text-slate-500 dark:text-slate-400">
+            Aparece no cabeçalho da proposta impressa.
+          </p>
+        </div>
+        <CompanyLogoForm
+          v-if="properties"
+          :initial="properties.settings.logoUrl ?? null"
+          :loading="logoSaving"
+          :server-error="logoError"
+          :saved="logoSaved"
+          @submit="handleLogo"
         />
       </section>
     </template>
