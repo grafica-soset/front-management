@@ -158,6 +158,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Recusa do motor: o cadastro não sustenta o cálculo. */
     calcError: null as string | null,
     calculating: false,
+    /** Mexeram no produto enquanto o cálculo corria: a resposta que chegar já é velha. */
+    calcRerun: false,
 
     // ---- O orçamento em si (atividade 037) ----
     /** Nulo enquanto o orçamento nunca foi salvo. */
@@ -177,6 +179,11 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      */
     conditionDefaultsPending: false,
     saving: false,
+    /**
+     * Chave da tentativa de CRIAR o orçamento. Se o servidor gravou e a resposta se perdeu, o
+     * próximo "Salvar" manda a mesma chave e recebe o orçamento já criado — sem duplicar.
+     */
+    createRequestId: null as string | null,
     /**
      * O corpo do salvar como estava na última vez que o orçamento foi salvo ou aberto. A proposta
      * imprime a versão SALVA; comparar com isto é o que diz à tela que há alteração pendente.
@@ -313,6 +320,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.conditions = emptyConditions()
       this.conditionDefaultsPending = true
       this.savedSnapshot = null
+      this.createRequestId = null
     },
 
     /**
@@ -419,7 +427,15 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       try {
         const api = useQuotes()
         const body = this.toSaveRequest()
-        const saved = this.quoteId ? await api.update(this.quoteId, body) : await api.create(body)
+        let saved: SavedQuote
+        if (this.quoteId) {
+          saved = await api.update(this.quoteId, body)
+        } else {
+          // A chave sobrevive ao erro: é ela que faz a nova tentativa achar o que já foi gravado.
+          this.createRequestId ??= crypto.randomUUID()
+          saved = await api.create({ ...body, requestId: this.createRequestId })
+          this.createRequestId = null
+        }
         this.savedSnapshot = JSON.stringify(body)
         this.quoteId = saved.id
         this.quoteNumber = saved.number
@@ -652,18 +668,38 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       }
     },
 
-    /** Recalcula o produto em edição no motor. Quem exibe o erro é a tela. */
+    /**
+     * Recalcula o produto em edição no motor. Quem exibe o erro é a tela.
+     *
+     * UM cálculo por vez, e só a resposta mais nova vale. O cálculo chegou a levar 13 s em
+     * produção; com um disparo a cada mexida, as chamadas se empilhavam no servidor e uma resposta
+     * velha podia chegar por último e mostrar o preço de uma configuração que já não existia.
+     * Mexeu durante o cálculo: a resposta em curso é descartada e roda uma nova, com o estado atual.
+     */
     async calculateDraft() {
-      const product = this.draft
-      if (!product) return
+      if (!this.draft) return
+      if (this.calculating) {
+        this.calcRerun = true
+        return
+      }
       this.calculating = true
-      this.calcError = null
       try {
-        const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
-        this.draftCost = result.products[0] ?? null
-      } catch (err) {
-        this.draftCost = null
-        this.calcError = extractApiError(err, 'Não foi possível calcular o orçamento.')
+        do {
+          this.calcRerun = false
+          const product = this.draft
+          if (!product) break
+          this.calcError = null
+          try {
+            const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
+            // Outro produto no assistente ou nova mexida: esta resposta não é mais a da tela.
+            if (!this.calcRerun && this.draft === product) this.draftCost = result.products[0] ?? null
+          } catch (err) {
+            if (!this.calcRerun && this.draft === product) {
+              this.draftCost = null
+              this.calcError = extractApiError(err, 'Não foi possível calcular o orçamento.')
+            }
+          }
+        } while (this.calcRerun)
       } finally {
         this.calculating = false
       }
