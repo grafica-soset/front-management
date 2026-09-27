@@ -36,6 +36,8 @@ export interface SaveQuoteRequest {
   notes: string | null
   conditions: SupplyConditions
   products: SaveQuoteProductRequest[]
+  /** Só na criação: a chave da tentativa de salvar, para repetir não duplicar (ver quoteDraft). */
+  requestId?: string
 }
 
 export interface SavedQuoteProduct {
