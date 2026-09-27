@@ -29,6 +29,8 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   // (traz o número do orçamento / o Modelo > Tipo), então só as genéricas ganham texto próprio.
   QuoteNotFoundException: 'Orçamento não encontrado nesta empresa.',
   ProductTemplateNotFoundException: 'Modelo de produto não encontrado nesta empresa.',
+  // Atividade 038 — configurações do orçamento.
+  QuoteTermOptionNotFoundException: 'Opção não encontrada nesta empresa.',
 }
 
 /**
