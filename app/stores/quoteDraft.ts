@@ -28,6 +28,8 @@ import {
 import { useQuotes } from '@/composables/useQuotes'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { extractApiError } from '@/utils/apiError'
+import { defaultConditions } from '@/utils/quoteTermOptions'
+import type { QuoteTermOptionKeyValue } from '@/types/QuoteTermOption'
 
 let uidSeq = 0
 function uid(prefix: string): string {
@@ -168,6 +170,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     notes: '',
     /** Condições de fornecimento da proposta (atividade 038). */
     conditions: emptyConditions(),
+    /**
+     * Orçamento novo ainda sem as condições PADRÃO da empresa (Orçamento > Configurações). O editor
+     * aplica uma vez só: depois disso, o que o usuário apagou fica apagado — inclusive na volta do
+     * assistente de produto.
+     */
+    conditionDefaultsPending: false,
     saving: false,
     /**
      * O corpo do salvar como estava na última vez que o orçamento foi salvo ou aberto. A proposta
@@ -279,6 +287,17 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       delete this.costs[productUid]
     },
 
+    /**
+     * Preenche o orçamento NOVO com as condições padrão da empresa (atividade 038, configurações).
+     * Só uma vez e só no novo: o orçamento aberto já tem as suas.
+     */
+    applyConditionDefaults(options: QuoteTermOptionKeyValue[]) {
+      if (!this.conditionDefaultsPending) return
+      this.conditionDefaultsPending = false
+      if (this.quoteId != null) return
+      this.conditions = defaultConditions(options)
+    },
+
     clearQuote() {
       this.products = []
       this.costs = {}
@@ -292,6 +311,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.agencyCommissionPercent = 0
       this.notes = ''
       this.conditions = emptyConditions()
+      this.conditionDefaultsPending = true
       this.savedSnapshot = null
     },
 
@@ -337,6 +357,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
       this.notes = saved.notes ?? ''
       this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
+      this.conditionDefaultsPending = false
       this.products = saved.products.map((p) =>
         withProductDefaults({
           ...(p.editorState ?? {}),

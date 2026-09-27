@@ -28,6 +28,10 @@ import { useClientSearch } from '@/composables/useClientSearch'
 import ClientSearchCombobox from '@/components/clients/ClientSearchCombobox.vue'
 import type { QuoteStatus } from '@/types/SavedQuote'
 import TemplatePickerModal from '@/components/quotes/TemplatePickerModal.vue'
+import TermOptionPickerModal from '@/components/quotes/TermOptionPickerModal.vue'
+import { useQuoteTermOptions } from '@/composables/useQuoteTermOptions'
+import { optionsOfKind, QUOTE_TERM_KINDS, quoteTermKindInfo } from '@/utils/quoteTermOptions'
+import type { QuoteTermKind, QuoteTermOptionKeyValue } from '@/types/QuoteTermOption'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -86,9 +90,31 @@ onMounted(async () => {
     }
   }
   loadSelectedClient()
+  loadTermOptions()
   // Produto sem custo (orçamento recém-aberto): recalcula tudo de uma vez, com o catálogo de agora.
   if (store.products.some((p) => !store.costs[p.uid])) await store.recalculateAll()
 })
+
+// ---- Condições de fornecimento: opções da empresa (atividade 038, Orçamento > Configurações) ----
+const termOptions = ref<QuoteTermOptionKeyValue[]>([])
+const termPickerKind = ref<QuoteTermKind | null>(null)
+
+/** Carrega as opções dos popups e, no orçamento novo, preenche as condições com as padrões. */
+const loadTermOptions = async () => {
+  try {
+    termOptions.value = await useQuoteTermOptions().listKeyValues()
+  } catch {
+    // Sem as opções o orçamento segue com os campos livres; só o popup fica vazio.
+    termOptions.value = []
+  }
+  store.applyConditionDefaults(termOptions.value)
+}
+
+const pickTermOption = (text: string) => {
+  if (!termPickerKind.value) return
+  store.conditions[quoteTermKindInfo(termPickerKind.value).field] = text
+  termPickerKind.value = null
+}
 
 const openNew = () => {
   store.startNew()
@@ -284,21 +310,29 @@ const inputClass =
       <h2 class="text-base font-semibold text-slate-900 dark:text-white">Condições de fornecimento</h2>
       <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Vão para a proposta impressa. O que ficar vazio não aparece.</p>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Validade da proposta</label>
-          <input v-model="store.conditions.proposalValidity" type="text" maxlength="200" placeholder="Ex.: 2 semanas" :disabled="store.readOnly" :class="inputClass" />
-        </div>
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Condições de pagamento</label>
-          <input v-model="store.conditions.paymentTerms" type="text" maxlength="500" placeholder="Ex.: 15 d.d. liq. c/recibo" :disabled="store.readOnly" :class="inputClass" />
-        </div>
-        <div class="sm:col-span-2">
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Prazo de entrega</label>
-          <input v-model="store.conditions.deliveryTerms" type="text" maxlength="500" placeholder="Ex.: 5 dias úteis, após confirmação do pedido e entrega dos dados originais" :disabled="store.readOnly" :class="inputClass" />
-        </div>
-        <div class="sm:col-span-2">
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Dados bancários</label>
-          <input v-model="store.conditions.bankDetails" type="text" maxlength="500" placeholder="Ex.: Banco Bradesco, Ag.: 1965-8, C/C: 1355-2" :disabled="store.readOnly" :class="inputClass" />
+        <!-- Cada campo: texto livre (condição exclusiva do cliente) + "Opções" com as cadastradas em Orçamento > Configurações. -->
+        <div v-for="info in QUOTE_TERM_KINDS" :key="info.kind" :class="{ 'sm:col-span-2': info.maxLength > 200 }">
+          <label :for="`quote-${info.field}`" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ info.label }}</label>
+          <div class="flex gap-2">
+            <input
+              :id="`quote-${info.field}`"
+              v-model="store.conditions[info.field]"
+              type="text"
+              :maxlength="info.maxLength"
+              :placeholder="info.placeholder"
+              :disabled="store.readOnly"
+              :class="inputClass"
+            />
+            <button
+              v-if="!store.readOnly"
+              type="button"
+              class="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              :title="`Escolher entre as opções de ${info.label.toLowerCase()}`"
+              @click="termPickerKind = info.kind"
+            >
+              Opções
+            </button>
+          </div>
         </div>
         <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Observações</label>
@@ -451,6 +485,15 @@ const inputClass =
         </ul>
       </div>
     </div>
+
+    <TermOptionPickerModal
+      :is-open="!!termPickerKind"
+      :title="termPickerKind ? quoteTermKindInfo(termPickerKind).label : ''"
+      :options="termPickerKind ? optionsOfKind(termOptions, termPickerKind) : []"
+      :current="termPickerKind ? store.conditions[quoteTermKindInfo(termPickerKind).field] : null"
+      @pick="pickTermOption"
+      @close="termPickerKind = null"
+    />
 
     <TemplatePickerModal
       :is-open="pickerOpen"

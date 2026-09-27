@@ -74,6 +74,8 @@ export default function useMenu() {
         { name: 'Novo orçamento', href: '/orcamentos/novo' },
         // Atividade 037: o catálogo de produtos salvos (Modelo + Tipo) que o orçamento reaproveita.
         { name: 'Modelo de Produtos', href: '/modelos' },
+        // Atividade 038: as opções de validade, prazo, pagamento e dados bancários da proposta.
+        { name: 'Configurações', href: '/orcamentos/configuracoes' },
       ],
     },
     {
