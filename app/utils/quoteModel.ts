@@ -108,6 +108,20 @@ export function sheetsPerUnit(product: QuoteProduct): number {
 }
 
 /**
+ * A folha SEGUE o formato de impressão da via 1 (atividade 039)?
+ *
+ * No bloco, as vias e a capa são cortadas, impressas e refiladas como um jogo só: quem escolhe o
+ * formato é a via 1, e o motor põe as demais no mesmo (ou no mais próximo, quando o papel não existe
+ * naquela folha inteira). Por isso só a via 1 oferece a escolha de formato. Em lâminas, cada uma
+ * escolhe o seu.
+ */
+export function followsFirstVia(product: QuoteProduct, sheet: QuoteSheet): boolean {
+  if (product.structure !== 'BLOCK') return false
+  const firstVia = Math.min(...product.sheets.filter((s) => s.kind === 'VIA').map((s) => s.index))
+  return !(sheet.kind === 'VIA' && sheet.index === firstVia)
+}
+
+/**
  * Um formato sempre aparece com o SEU NÚMERO: "32x22 (F9)".
  *
  * O número é o que manda no cálculo — é dele que saem as aplicações por folha e as descidas de faca
