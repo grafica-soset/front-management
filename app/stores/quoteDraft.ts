@@ -14,7 +14,7 @@ import type { PrintingSetup, ProductStructure, QuoteProduct, QuoteSheet, QuoteSt
 import type { ProductCostingResponse, QuoteProductRequest, QuoteStepRequest } from '@/types/Quote'
 import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
 import type { QuoteStatus, SaveQuoteRequest, SavedQuote, SupplyConditions } from '@/types/SavedQuote'
-import { defaultSheetSetup, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
+import { defaultSheetSetup, followsFirstVia, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
 import {
   agencyCommissionAmount,
   emptyPricing,
@@ -662,7 +662,10 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           number: sheet.index,
           kind: sheet.kind,
           paperTypeId: sheet.paperTypeId!,
-          printFormatNumber: sheet.printFormatNumber,
+          // No bloco o formato é da via 1 (atividade 039): uma escolha antiga numa outra via ou na
+          // capa não viaja — o motor a ignoraria e devolveria um aviso sobre algo que a tela não
+          // mostra mais.
+          printFormatNumber: followsFirstVia(product, sheet) ? null : sheet.printFormatNumber,
         })),
         steps,
       }

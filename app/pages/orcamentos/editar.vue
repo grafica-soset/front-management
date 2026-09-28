@@ -26,6 +26,7 @@ import { extractApiError } from '@/utils/apiError'
 import type { ClientSearchItem } from '@/types/Client'
 import { useClientSearch } from '@/composables/useClientSearch'
 import ClientSearchCombobox from '@/components/clients/ClientSearchCombobox.vue'
+import QuickClientModal from '@/components/clients/QuickClientModal.vue'
 import type { QuoteStatus } from '@/types/SavedQuote'
 import TemplatePickerModal from '@/components/quotes/TemplatePickerModal.vue'
 import TermOptionPickerModal from '@/components/quotes/TermOptionPickerModal.vue'
@@ -52,6 +53,13 @@ const selectedClient = ref<ClientSearchItem | null>(null)
 const selectClient = (client: ClientSearchItem | null) => {
   selectedClient.value = client
   store.clientId = client?.id ?? null
+}
+
+// Cliente que ainda não existe: cadastro rápido sem sair do orçamento, e ele já fica escolhido.
+const quickClientOpen = ref(false)
+const onClientCreated = (client: ClientSearchItem) => {
+  quickClientOpen.value = false
+  selectClient(client)
 }
 
 /** Orçamento aberto (ou de volta do assistente) com cliente: busca os dados para exibir. */
@@ -284,9 +292,20 @@ const inputClass =
       <h2 class="text-base font-semibold text-slate-900 dark:text-white">Cliente</h2>
       <div class="mt-4 grid gap-4 sm:grid-cols-3">
         <div class="sm:col-span-2">
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Cliente <span class="text-rose-500">*</span>
-          </label>
+          <div class="mb-1.5 flex items-center justify-between gap-2">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Cliente <span class="text-rose-500">*</span>
+            </label>
+            <button
+              v-if="!store.readOnly"
+              type="button"
+              @click="quickClientOpen = true"
+              class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              <svg class="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+              Novo cliente
+            </button>
+          </div>
           <ClientSearchCombobox
             :selected="selectedClient"
             :results="clientSearch.results.value"
@@ -502,5 +521,7 @@ const inputClass =
       @pick="pickTemplate"
       @close="pickerOpen = false"
     />
+
+    <QuickClientModal :is-open="quickClientOpen" @close="quickClientOpen = false" @created="onClientCreated" />
   </div>
 </template>

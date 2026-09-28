@@ -6,6 +6,7 @@ import type { SupplyKeyValue } from '@/types/Supply'
 import {
   colorsLabel,
   coverageIssues,
+  followsFirstVia,
   formatLabel,
   inkIssues,
   isSheetPrinted,
@@ -130,6 +131,18 @@ describe('tiragem', () => {
 
   it('é zero enquanto não há cálculo', () => {
     expect(printRun(null)).toBe(0)
+  })
+})
+
+describe('vias com o mesmo formato da via 1 (atividade 039)', () => {
+  it('no bloco, só a via 1 escolhe o formato — as outras vias e a capa seguem', () => {
+    const p = product({ hasCovers: true, sheets: [sheet('VIA', 1), sheet('VIA', 2), sheet('COVER', 1)] })
+    expect(p.sheets.map((s) => followsFirstVia(p, s))).toEqual([false, true, true])
+  })
+
+  it('em lâminas cada uma escolhe o seu formato', () => {
+    const p = product({ structure: 'BLADE', blades: 2, sheets: [sheet('BLADE', 1), sheet('BLADE', 2)] })
+    expect(p.sheets.map((s) => followsFirstVia(p, s))).toEqual([false, false])
   })
 })
 
