@@ -801,6 +801,13 @@ export interface DigitalCoverageRequest {
 export interface DigitalBlockRequest {
   colorMode: DigitalColorMode
   setupMinutes: number
+  /**
+   * SETUP DE NUMERAÇÃO (min) — atividade 036.
+   *
+   * A digital numera sem numerador: a sequência é impressa junto com o resto, sem perder
+   * velocidade. O que ela cobra é o acerto, e só quando o trabalho numera.
+   */
+  numberingSetupMinutes: number
   paperFeedSetupMinutes: number
   feedTimeSecondsPerLoad: number
   feedLoadIncrementMm: number
@@ -839,6 +846,8 @@ export interface DigitalCoverageResponse {
 export interface DigitalBlockResponse {
   colorMode: DigitalColorMode
   setupMinutes: number
+  /** Setup de numeração (min) — atividade 036. */
+  numberingSetupMinutes: number
   paperFeedSetupMinutes: number
   feedTimeSecondsPerLoad: number
   feedLoadIncrementMm: number
@@ -958,4 +967,14 @@ export interface MachineKeyValue {
    * perguntar QUAL chapa usar sem carregar a máquina inteira.
    */
   plateSupplyIds?: number[]
+  /**
+   * A máquina NUMERA? — atividade 036. Sempre `true` na digital, que numera imprimindo a
+   * sequência junto; na offset, o campo do cadastro.
+   */
+  supportsNumbering?: boolean
+  /**
+   * Teto de numeradores da OFFSET. Nulo na digital: ela numera sem numerador, e não há teto.
+   * A tela usa o maior teto do parque para orientar o campo "quantos numeradores".
+   */
+  maxNumberingUnits?: number | null
 }

@@ -14,7 +14,7 @@ import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import type { SelectionEntryResponse } from '@/types/Quote'
-import { brl, formatLabel, printRun } from '@/utils/quoteModel'
+import { brl, coverLabel, coverPositionOf, formatLabel, numberingRange, printRun } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
@@ -68,7 +68,7 @@ const structureLabel = computed(() => {
 })
 
 const sheetName = (kind: string, number: number) =>
-  `${kind === 'BLADE' ? 'Lâmina' : kind === 'COVER' ? 'Capa' : 'Via'} ${number}`
+  kind === 'COVER' ? coverLabel(coverPositionOf(number)) : `${kind === 'BLADE' ? 'Lâmina' : 'Via'} ${number}`
 
 /**
  * As notas que o motor deixou nos planos escolhidos — entre elas, a composição do acerto de cada
@@ -240,6 +240,19 @@ const printingTables = computed(() => {
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
             {{ printRun(cost).toLocaleString('pt-BR') }} fls
             <span class="text-xs font-normal text-slate-500">impressas</span>
+          </dd>
+        </div>
+        <!--
+          NUMERAÇÃO (atividade 036). Não muda o preço, mas é o que a produção monta no numerador —
+          e a sequência impressa é o que o cliente confere na primeira folha.
+        -->
+        <div v-if="cost.numbering">
+          <dt class="text-xs text-slate-500 dark:text-slate-400">Numeração</dt>
+          <dd class="text-sm font-medium text-slate-900 dark:text-white">
+            {{ numberingRange(cost.numbering) }}
+            <span class="text-xs font-normal text-slate-500">
+              · {{ cost.numbering.units }} numerador(es)
+            </span>
           </dd>
         </div>
       </dl>

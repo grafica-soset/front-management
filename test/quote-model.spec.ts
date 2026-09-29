@@ -5,10 +5,16 @@ import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyKeyValue } from '@/types/Supply'
 import {
   colorsLabel,
+  coverCount,
+  coverPositionOf,
+  coverSidesFromCount,
   coverageIssues,
+  followsFirstVia,
   formatLabel,
   inkIssues,
   isSheetPrinted,
+  numberedUnits,
+  numberingRange,
   plateLabel,
   platesForMachine,
   printRun,
@@ -45,7 +51,8 @@ function setup(front: number, back = 0, frontCoverage: number | null = 30, backC
 function product(overrides: Partial<QuoteProduct> = {}): QuoteProduct {
   return {
     uid: 'p1', name: 'Bloco de Pedidos', widthMm: 105, heightMm: 155, quantity: 10,
-    structure: 'BLOCK', blades: 1, sets: 50, vias: 2, hasCovers: false, coverCount: 1,
+    structure: 'BLOCK', blades: 1, sets: 50, vias: 2, hasCovers: false, coverSides: 'BOTH',
+    coverRepeatsArtwork: false, identicalCovers: false,
     identicalArtwork: null, distinctArtworks: null,
     sheets: [sheet('VIA', 1), sheet('VIA', 2)], steps: [],
     ...overrides,
@@ -69,7 +76,7 @@ describe('estrutura do produto — jogos × vias', () => {
     const lamina = product({ structure: 'BLADE', blades: 1, quantity: 1000, sheets: [sheet('BLADE', 1)] })
     expect(sheetsForSheet(lamina, lamina.sheets[0]!)).toBe(1000)
 
-    const comCapa = product({ hasCovers: true, coverCount: 2, sheets: [sheet('VIA', 1), sheet('COVER', 1)] })
+    const comCapa = product({ hasCovers: true, coverSides: 'BOTH', sheets: [sheet('VIA', 1), sheet('COVER', 1)] })
     expect(sheetsForSheet(comCapa, comCapa.sheets[1]!)).toBe(10)
   })
 })
@@ -84,7 +91,8 @@ describe('folha dentro (ou fora) de uma impressão', () => {
     expect(printedSides(setup(4, 1))).toBe(2)
     expect(printedSides(setup(4, 0))).toBe(1)
     expect(colorsLabel(setup(4, 1))).toBe('4x1')
-    expect(sheetLabel(sheet('COVER', 2))).toBe('Capa 2')
+    expect(sheetLabel(sheet('COVER', 1))).toBe('Capa da frente')
+    expect(sheetLabel(sheet('COVER', 2))).toBe('Capa do verso')
   })
 
   it('cada etapa de impressão tem a sua configuração por folha', () => {
@@ -129,6 +137,18 @@ describe('tiragem', () => {
 
   it('é zero enquanto não há cálculo', () => {
     expect(printRun(null)).toBe(0)
+  })
+})
+
+describe('vias com o mesmo formato da via 1 (atividade 039)', () => {
+  it('no bloco, só a via 1 escolhe o formato — as outras vias e a capa seguem', () => {
+    const p = product({ hasCovers: true, sheets: [sheet('VIA', 1), sheet('VIA', 2), sheet('COVER', 1)] })
+    expect(p.sheets.map((s) => followsFirstVia(p, s))).toEqual([false, true, true])
+  })
+
+  it('em lâminas cada uma escolhe o seu formato', () => {
+    const p = product({ structure: 'BLADE', blades: 2, sheets: [sheet('BLADE', 1), sheet('BLADE', 2)] })
+    expect(p.sheets.map((s) => followsFirstVia(p, s))).toEqual([false, false])
   })
 })
 
@@ -189,5 +209,52 @@ describe('Chapas da impressora no orçamento (atividade 034)', () => {
 
   it('sem preço no catálogo, o rótulo fica só com o nome — nunca "R$ NaN"', () => {
     expect(plateLabel({ ...chapaCtp, unitCost: undefined })).toBe('Chapa CTP 66x96')
+  })
+})
+
+describe('capa: frente, verso ou as duas (atividade 040)', () => {
+  it('bloco de 50 folhas com capa na frente e no verso tem 52 folhas', () => {
+    const p = product({ vias: 1, sheets: [sheet('VIA', 1), sheet('COVER', 1), sheet('COVER', 2)], hasCovers: true, coverSides: 'BOTH' })
+    expect(coverCount(p)).toBe(2)
+    expect(sheetsPerUnit(p)).toBe(52)
+  })
+
+  it('só na frente ou só no verso é uma capa', () => {
+    expect(coverCount(product({ hasCovers: true, coverSides: 'FRONT' }))).toBe(1)
+    expect(coverCount(product({ hasCovers: true, coverSides: 'BACK' }))).toBe(1)
+    expect(coverCount(product({ hasCovers: false, coverSides: 'BOTH' }))).toBe(0)
+  })
+
+  it('a capa 1 é a da frente e a 2 a do verso', () => {
+    expect(coverPositionOf(1)).toBe('FRONT')
+    expect(coverPositionOf(2)).toBe('BACK')
+  })
+
+  it('a quantidade antiga de capas vira a posição', () => {
+    expect(coverSidesFromCount(1)).toBe('FRONT')
+    expect(coverSidesFromCount(2)).toBe('BOTH')
+    expect(coverSidesFromCount(3)).toBe('BOTH')
+    expect(coverSidesFromCount(undefined)).toBe('FRONT')
+  })
+})
+
+describe('numeração: a sequência como ela sai do numerador (atividade 036)', () => {
+  it('no bloco conta um número por JOGO (atividade 040)', () => {
+    // 56 talões de 50 jogos: de 19601 a 22400.
+    expect(numberedUnits(product({ quantity: 56, sets: 50 }))).toBe(2800)
+    expect(numberedUnits(product({ structure: 'BLADE', quantity: 400 }))).toBe(400)
+  })
+
+  it('escreve os dois extremos com os dígitos do cadastro', () => {
+    // É assim que o número aparece na folha — e é assim que a produção confere a primeira.
+    expect(numberingRange({ units: 2, startNumber: 1001, lastNumber: 1010, digits: 6 })).toBe(
+      '001001 a 001010'
+    )
+  })
+
+  it('número maior que os dígitos não é cortado — quem avisa é o motor', () => {
+    expect(numberingRange({ units: 1, startNumber: 95, lastNumber: 104, digits: 2 })).toBe(
+      '95 a 104'
+    )
   })
 })

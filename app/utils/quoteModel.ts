@@ -5,17 +5,91 @@
  * "esta folha entra nesta impressão?". Nada de preço — quem calcula é o motor, em
  * `POST /quotes/calculate`.
  */
-import type { PrintingSheetSetup, QuoteProduct, QuoteSheet, QuoteStep } from '@/types/QuoteDraft'
-import type { ProductCostingResponse } from '@/types/Quote'
+import type {
+  CoverPosition,
+  CoverSelection,
+  CoverSides,
+  PrintingSheetSetup,
+  QuoteProduct,
+  QuoteSheet,
+  QuoteStep,
+} from '@/types/QuoteDraft'
+import type { ProductCostingResponse, QuoteNumberingResponse } from '@/types/Quote'
 import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyKeyValue } from '@/types/Supply'
 
 // ─── Estrutura do produto ────────────────────────────────────────────────────
 
-/** Rótulo da folha: "Via 1", "Lâmina 2", "Capa 1". */
+/** Rótulo da folha: "Via 1", "Lâmina 2", "Capa da frente". */
 export function sheetLabel(sheet: QuoteSheet): string {
-  const prefix = sheet.kind === 'VIA' ? 'Via' : sheet.kind === 'BLADE' ? 'Lâmina' : 'Capa'
+  if (sheet.kind === 'COVER') return coverLabel(coverPositionOf(sheet.index))
+  const prefix = sheet.kind === 'VIA' ? 'Via' : 'Lâmina'
   return `${prefix} ${sheet.index}`
+}
+
+/**
+ * Posição da capa pelo número da folha (atividade 040): a capa 1 é a da frente, a 2 a do verso. A
+ * numeração é fixa por posição — trocar "só frente" por "só verso" não leva o papel da frente junto.
+ */
+export function coverPositionOf(index: number): CoverPosition {
+  return index === 2 ? 'BACK' : 'FRONT'
+}
+
+export function coverLabel(position: CoverPosition | null | undefined): string {
+  return position === 'BACK' ? 'Capa do verso' : 'Capa da frente'
+}
+
+/** As posições de capa que o produto tem. */
+export function coverPositions(sides: CoverSides): CoverPosition[] {
+  if (sides === 'BOTH') return ['FRONT', 'BACK']
+  return [sides]
+}
+
+/** Quantas capas o produto tem (0, 1 ou 2). */
+export function coverCount(product: Pick<QuoteProduct, 'hasCovers' | 'coverSides'>): number {
+  return product.hasCovers ? coverPositions(product.coverSides).length : 0
+}
+
+/** "capa na frente e no verso", "capa só na frente"... */
+export function coverSidesLabel(sides: CoverSides): string {
+  if (sides === 'BOTH') return 'capa na frente e no verso'
+  return sides === 'FRONT' ? 'capa só na frente' : 'capa só no verso'
+}
+
+/** A capa entra nas etapas de impressão? Só a respondida com "não" fica de fora. */
+export function coverIsPrinted(product: Pick<QuoteProduct, 'coverPrinted'>, sheet: QuoteSheet): boolean {
+  if (sheet.kind !== 'COVER') return true
+  return product.coverPrinted?.[coverPositionOf(sheet.index)] !== false
+}
+
+/** As capas impressas do produto (respondidas com "sim"). */
+export function printedCoverPositions(product: Pick<QuoteProduct, 'hasCovers' | 'coverSides' | 'coverPrinted'>): CoverPosition[] {
+  if (!product.hasCovers) return []
+  return coverPositions(product.coverSides).filter((p) => product.coverPrinted?.[p] === true)
+}
+
+/** Um conjunto de posições no formato do modelo de produto. */
+export function selectionOf(positions: CoverPosition[]): CoverSelection {
+  const front = positions.includes('FRONT')
+  const back = positions.includes('BACK')
+  if (front && back) return 'BOTH'
+  if (front) return 'FRONT'
+  if (back) return 'BACK'
+  return 'NONE'
+}
+
+/** As posições de um conjunto do modelo de produto. */
+export function positionsOf(selection: CoverSelection | null | undefined): CoverPosition[] {
+  if (!selection || selection === 'NONE') return []
+  return coverPositions(selection)
+}
+
+/**
+ * O que um rascunho antigo tinha em "quantas capas" vira a posição: 2 ou mais = frente e verso, 1 =
+ * só na frente. É também como o modelo de produto (que guarda a quantidade) chega ao orçamento.
+ */
+export function coverSidesFromCount(count: number | null | undefined): CoverSides {
+  return (count ?? 1) >= 2 ? 'BOTH' : 'FRONT'
 }
 
 /** Cores no formato que a gráfica usa: 4x0, 1x1. */
@@ -102,9 +176,23 @@ export function inkIssues(setup: PrintingSheetSetup): string[] {
 
 /** Folhas por unidade produzida (por bloco ou por peça). */
 export function sheetsPerUnit(product: QuoteProduct): number {
-  const covers = product.hasCovers ? product.coverCount || 0 : 0
+  const covers = coverCount(product)
   if (product.structure === 'BLADE') return (product.blades || 0) + covers
   return (product.sets || 0) * (product.vias || 0) + covers
+}
+
+/**
+ * A folha SEGUE o formato de impressão da via 1 (atividade 039)?
+ *
+ * No bloco, as vias e a capa são cortadas, impressas e refiladas como um jogo só: quem escolhe o
+ * formato é a via 1, e o motor põe as demais no mesmo (ou no mais próximo, quando o papel não existe
+ * naquela folha inteira). Por isso só a via 1 oferece a escolha de formato. Em lâminas, cada uma
+ * escolhe o seu.
+ */
+export function followsFirstVia(product: QuoteProduct, sheet: QuoteSheet): boolean {
+  if (product.structure !== 'BLOCK') return false
+  const firstVia = Math.min(...product.sheets.filter((s) => s.kind === 'VIA').map((s) => s.index))
+  return !(sheet.kind === 'VIA' && sheet.index === firstVia)
 }
 
 /**
@@ -173,4 +261,24 @@ export function brl(value: number): string {
 /** "Chapa CTP 66x96 — R$ 40,00": o nome não decide nada na escolha da chapa; o preço decide. */
 export function plateLabel(plate: SupplyKeyValue): string {
   return plate.unitCost == null ? plate.value : `${plate.value} — ${brl(plate.unitCost)}`
+}
+
+/**
+ * A SEQUÊNCIA NUMERADA, escrita como sai do numerador (atividade 036).
+ *
+ * "000001 a 000010", não "1 a 10": é assim que o número aparece na folha, e é assim que a produção
+ * confere a primeira. Os dígitos que o cadastro pede são justamente o que se vê aqui.
+ */
+/**
+ * Quantos números a numeração gasta (atividade 040): um por JOGO no bloco, um por peça na lâmina.
+ * 56 talões de 50 jogos são 2.800 números — de 19601 a 22400, não a 19656.
+ */
+export function numberedUnits(product: Pick<QuoteProduct, 'structure' | 'quantity' | 'sets'>): number {
+  const quantity = product.quantity ?? 0
+  return product.structure === 'BLOCK' ? quantity * (product.sets || 0) : quantity
+}
+
+export function numberingRange(numbering: QuoteNumberingResponse): string {
+  const pad = (n: number) => String(n).padStart(numbering.digits, '0')
+  return `${pad(numbering.startNumber)} a ${pad(numbering.lastNumber)}`
 }

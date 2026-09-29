@@ -69,7 +69,14 @@ export default function useMenu() {
       name: 'Orçamento',
       icon: 'cadastros',
       expanded: false,
-      children: [{ name: 'Novo orçamento', href: '/orcamentos' }],
+      children: [
+        { name: 'Orçamentos', href: '/orcamentos' },
+        { name: 'Novo orçamento', href: '/orcamentos/novo' },
+        // Atividade 037: o catálogo de produtos salvos (Modelo + Tipo) que o orçamento reaproveita.
+        { name: 'Modelo de Produtos', href: '/modelos' },
+        // Atividade 038: as opções de validade, prazo, pagamento e dados bancários da proposta.
+        { name: 'Configurações', href: '/orcamentos/configuracoes' },
+      ],
     },
     {
       name: 'Produção',
@@ -90,7 +97,6 @@ export default function useMenu() {
             { name: 'Empacotamento', href: '/atividades?type=PACKAGING' },
           ],
         },
-        { name: 'Modelos de Produto', href: '/modelos' },
       ],
     },
     {

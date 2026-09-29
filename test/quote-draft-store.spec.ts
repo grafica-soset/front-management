@@ -121,6 +121,79 @@ describe('store do rascunho de orçamento', () => {
     expect(store.draft!.identicalArtwork).toBeNull()
   })
 
+  // ---- Numeração (atividade 036): a pergunta que decide quais impressoras podem fazer ----
+
+  it('a numeração nasce sem resposta, como a das vias iguais', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+
+    // Assumir "não" escolheria uma impressora que talvez nem numere.
+    expect(store.draft!.hasNumbering).toBeNull()
+    expect(store.toPayload(store.draft!).numbering).toBeNull()
+  })
+
+  it('o NÃO não manda numeração nenhuma — nenhuma impressora é descartada por isso', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+
+    store.setHasNumbering(false)
+
+    expect(store.toPayload(store.draft!).numbering).toBeNull()
+  })
+
+  it('o SIM manda numeradores, número inicial e dígitos', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+
+    store.setHasNumbering(true)
+    store.setNumberingUnits(2)
+    store.setNumberingStart(1001)
+    store.setNumberingDigits(6)
+
+    expect(store.toPayload(store.draft!).numbering).toEqual({
+      units: 2,
+      startNumber: 1001,
+      digits: 6,
+    })
+  })
+
+  it('a numeração parte de um numerador, a partir de 1, com 6 dígitos', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+
+    store.setHasNumbering(true)
+
+    expect(store.toPayload(store.draft!).numbering).toEqual({
+      units: 1,
+      startNumber: 1,
+      digits: 6,
+    })
+  })
+
+  it('numerador zero não existe, e os dígitos param em 12', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setHasNumbering(true)
+
+    store.setNumberingUnits(0)
+    store.setNumberingDigits(99)
+
+    expect(store.draft!.numberingUnits).toBe(1)
+    expect(store.draft!.numberingDigits).toBe(12)
+  })
+
+  it('trocar a estrutura não apaga a numeração — o talão vira lâmina e continua numerado', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.setHasNumbering(true)
+    store.setNumberingUnits(4)
+
+    store.setStructure('BLOCK')
+
+    expect(store.draft!.hasNumbering).toBe(true)
+    expect(store.draft!.numberingUnits).toBe(4)
+  })
+
   it('remover o produto leva junto o custo guardado', () => {
     const store = useQuoteDraftStore()
     store.startNew()

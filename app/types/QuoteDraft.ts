@@ -13,12 +13,25 @@
  * Estes tipos descrevem o RASCUNHO que o usuário monta na tela. A store o traduz no contrato do
  * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
+import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
 
 /** O que a folha é dentro do produto. */
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
 
 /** Estrutura do produto: folha única ou bloco com jogos e vias. */
 export type ProductStructure = 'BLADE' | 'BLOCK'
+
+/**
+ * Onde vai a capa (atividade 040): só na frente, só no verso, ou nas duas posições — que são duas
+ * capas, cada uma com o seu papel. A capa da frente é sempre a folha COVER 1 e a do verso a 2.
+ */
+export type CoverSides = 'FRONT' | 'BACK' | 'BOTH'
+
+/** Posição de UMA capa, como o motor a recebe. */
+export type CoverPosition = 'FRONT' | 'BACK'
+
+/** Um conjunto de capas, como o MODELO DE PRODUTO o guarda: nenhuma, frente, verso ou as duas. */
+export type CoverSelection = 'NONE' | CoverSides
 
 /**
  * Uma folha do produto (lâmina, via ou capa). Guarda só o que é do PAPEL — cores, tintas e
@@ -131,6 +144,16 @@ export interface QuoteStep {
 /** O produto sendo montado no assistente. */
 export interface QuoteProduct {
   uid: string
+  /**
+   * MODELO + TIPO (atividade 037) — "Blocos > Anotações". Opcionais no orçamento; obrigatórios só
+   * para "Salvar como modelo", porque são a chave do catálogo.
+   */
+  productModelId: number | null
+  /** Nome do Modelo, para o combobox exibir sem consultar a lista. */
+  productModelName: string
+  typeName: string
+  /** Modelo de produto do catálogo de onde o produto partiu, se partiu de um. */
+  productTemplateId: number | null
   name: string
   /** Formato final da peça, em milímetros (representação canônica do sistema). */
   widthMm: number | null
@@ -166,10 +189,51 @@ export interface QuoteProduct {
   distinctArtworks: number | null
 
   hasCovers: boolean
-  coverCount: number
+  /** Frente e verso, só frente ou só verso (atividade 040). Substituiu a "quantidade de capas". */
+  coverSides: CoverSides
+  /**
+   * "A capa tem impressão?" — por capa. Nasce SEM RESPOSTA (null), como "as vias são iguais?": a
+   * capa impressa paga chapa, acerto e tinta, e nenhum dos lados pode ser assumido no silêncio. A
+   * capa que não é impressa sai das etapas de impressão — só consome papel.
+   */
+  coverPrinted: Record<CoverPosition, boolean | null>
+  /**
+   * "A capa tem o mesmo desenho da via/lâmina?" — sim = sai da chapa da 1ª via, sem chapa nem
+   * montagem novas. Não = impressão nova: chapa, montagem e acerto. Só pesa se a capa for impressa.
+   */
+  coverRepeatsArtwork: boolean
+  /** "Capa da frente e do verso com o mesmo desenho?" — só com as duas capas. */
+  identicalCovers: boolean
+
+  /**
+   * "TEM NUMERAÇÃO?" — atividade 036.
+   *
+   * Nasce SEM RESPOSTA (null), como "as vias são iguais?": numerar decide quais impressoras podem
+   * fazer o trabalho — só algumas offsets numeram — e assumir qualquer um dos lados no silêncio
+   * erraria a escolha da máquina.
+   */
+  hasNumbering: boolean | null
+  /**
+   * Quantos numeradores CADA APLICAÇÃO leva — não quantos vão na máquina.
+   *
+   * A montagem é este número × as aplicações que o formato de impressão rende (1 numerador em 9
+   * aplicações são 9 numeradores montados, e 9 acertos), e é a montagem que o "Máx. de numeradores"
+   * da offset limita. Como o formato é escolhido pelo motor, a tela não tem como travar no teto:
+   * informa o limite e explica a conta.
+   */
+  numberingUnits: number
+  /** Numeração inicial — não muda o preço, é o que a produção monta no numerador. */
+  numberingStart: number
+  /** Quantidade de dígitos do numerador (6 ⇒ 000001). */
+  numberingDigits: number
 
   sheets: QuoteSheet[]
   steps: QuoteStep[]
+
+  /** Impostos (atividade 037) — viajam para a nota fiscal quando o orçamento for aprovado. */
+  taxes: ProductTaxes
+  /** Comissões do vendedor e markup — com os impostos, formam o divisor do preço. */
+  pricing: PricingTerms
 }
 
 /** Linha do detalhamento de custo exibido no trilho e no resumo. */

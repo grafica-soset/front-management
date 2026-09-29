@@ -1,20 +1,59 @@
 /**
  * Store do RASCUNHO DE ORÇAMENTO (atividade 034).
  *
- * Guarda os produtos do orçamento em edição e o produto que está no assistente. Vive só no
- * navegador: nada é enviado para a API nesta fase.
+ * Guarda os produtos do orçamento em edição e o produto que está no assistente. Desde a atividade
+ * 037 o orçamento também é SALVO (cliente, comissão de agência, número e status) — mas o rascunho
+ * continua morando aqui enquanto o usuário edita; a API só entra no "Salvar orçamento".
  *
  * A responsabilidade mais delicada daqui é manter as FOLHAS em sincronia com a estrutura: mexer em
  * lâmina/jogos/vias/capas reconstrói a lista PRESERVANDO o que já estava configurado nas folhas
  * que continuam existindo — inclusive dentro de cada etapa de impressão.
  */
 import { defineStore } from 'pinia'
-import type { PrintingSetup, ProductStructure, QuoteProduct, QuoteSheet, QuoteStep, SheetKind } from '@/types/QuoteDraft'
+import type {
+  CoverPosition,
+  CoverSelection,
+  PrintingSetup,
+  PrintingSheetSetup,
+  ProductStructure,
+  QuoteProduct,
+  QuoteSheet,
+  QuoteStep,
+  SheetKind,
+} from '@/types/QuoteDraft'
 import type { ProductCostingResponse, QuoteProductRequest, QuoteStepRequest } from '@/types/Quote'
-import { defaultSheetSetup, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
+import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
+import type { QuoteStatus, SaveQuoteRequest, SavedQuote, SupplyConditions } from '@/types/SavedQuote'
+import {
+  coverCount,
+  coverIsPrinted,
+  coverPositionOf,
+  coverPositions,
+  coverSidesFromCount,
+  positionsOf,
+  printedCoverPositions,
+  selectionOf,
+  defaultSheetSetup,
+  followsFirstVia,
+  isSheetPrinted,
+  machineForSheet,
+  setupFor,
+} from '@/utils/quoteModel'
+import {
+  agencyCommissionAmount,
+  emptyPricing,
+  emptyTaxes,
+  normalizePricing,
+  normalizeTaxes,
+  priceFromCost,
+  round2,
+  type PriceBreakdown,
+} from '@/utils/pricing'
 import { useQuotes } from '@/composables/useQuotes'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { extractApiError } from '@/utils/apiError'
+import { defaultConditions } from '@/utils/quoteTermOptions'
+import type { QuoteTermOptionKeyValue } from '@/types/QuoteTermOption'
 
 let uidSeq = 0
 function uid(prefix: string): string {
@@ -31,10 +70,23 @@ function emptySheet(kind: SheetKind, index: number): QuoteSheet {
   return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null }
 }
 
+/** Folha fora da impressão: zero cores nas duas faces. */
+function blankSheetSetup(): PrintingSheetSetup {
+  return { frontColors: 0, backColors: 0, frontInkIds: [], backInkIds: [], frontCoverage: null, backCoverage: null }
+}
+
+/**
+ * Configuração com que a folha nasce numa etapa de impressão: a padrão, menos na capa respondida
+ * como "sem impressão" (atividade 040) — essa nem aparece na etapa.
+ */
+function initialSheetSetup(product: QuoteProduct, sheet: QuoteSheet): PrintingSheetSetup {
+  return coverIsPrinted(product, sheet) ? defaultSheetSetup() : blankSheetSetup()
+}
+
 /** Etapa de impressão nova: nenhuma máquina escolhida e cada folha na configuração padrão. */
-function emptyPrintingSetup(sheets: QuoteSheet[]): PrintingSetup {
+function emptyPrintingSetup(product: QuoteProduct): PrintingSetup {
   const bySheet: PrintingSetup['bySheet'] = {}
-  for (const sheet of sheets) bySheet[sheet.uid] = defaultSheetSetup()
+  for (const sheet of product.sheets) bySheet[sheet.uid] = initialSheetSetup(product, sheet)
   return {
     bySheet,
     machineId: null,
@@ -45,9 +97,20 @@ function emptyPrintingSetup(sheets: QuoteSheet[]): PrintingSetup {
   }
 }
 
+/** Condições de fornecimento vazias — o que ficar vazio não sai na proposta. */
+export function emptyConditions(): SupplyConditions {
+  return { proposalValidity: null, deliveryTerms: null, paymentTerms: null, bankDetails: null }
+}
+
+const blankToNull = (value: string | null | undefined) => value?.trim() || null
+
 export function emptyProduct(): QuoteProduct {
   return {
     uid: uid('produto'),
+    productModelId: null,
+    productModelName: '',
+    typeName: '',
+    productTemplateId: null,
     name: '',
     widthMm: null,
     heightMm: null,
@@ -59,9 +122,103 @@ export function emptyProduct(): QuoteProduct {
     identicalArtwork: null,
     distinctArtworks: null,
     hasCovers: false,
-    coverCount: 1,
+    coverSides: 'BOTH',
+    coverPrinted: { FRONT: null, BACK: null },
+    coverRepeatsArtwork: false,
+    identicalCovers: false,
+    // Numeração (atividade 036): sem resposta até o usuário dizer. Os defaults abaixo só entram
+    // em cena depois do "sim".
+    hasNumbering: null,
+    numberingUnits: 1,
+    numberingStart: 1,
+    numberingDigits: 6,
     sheets: [emptySheet('BLADE', 1)],
     steps: [],
+    taxes: emptyTaxes(),
+    pricing: emptyPricing(),
+  }
+}
+
+/**
+ * Completa um rascunho vindo de fora — o `editorState` de um orçamento salvo — com os campos que
+ * ele não tinha quando foi gravado. Sem isso, um orçamento salvo antes de um campo existir abriria
+ * o assistente com `undefined` onde a tela espera número.
+ */
+export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduct {
+  const base = emptyProduct()
+  // Rascunho anterior à atividade 040 guardava "quantas capas": vira a posição.
+  const legacyCoverCount = (product as { coverCount?: number }).coverCount
+  return {
+    ...base,
+    ...product,
+    coverSides: product.coverSides ?? coverSidesFromCount(legacyCoverCount),
+    coverPrinted: product.coverPrinted ?? inferCoverPrinted(product),
+    coverRepeatsArtwork: product.coverRepeatsArtwork ?? false,
+    identicalCovers: product.identicalCovers ?? false,
+    uid: product.uid || base.uid,
+    productModelName: product.productModelName ?? '',
+    typeName: product.typeName ?? '',
+    taxes: normalizeTaxes(product.taxes),
+    pricing: normalizePricing(product.pricing),
+  } as QuoteProduct
+}
+
+/**
+ * Capas impressas no formato do modelo de produto. Alguma capa sem resposta = nulo: o modelo não
+ * responde, e cada orçamento pergunta.
+ */
+function templatePrintedCovers(product: QuoteProduct): CoverSelection | null {
+  if (!product.hasCovers) return null
+  const positions = coverPositions(product.coverSides)
+  if (positions.some((p) => product.coverPrinted[p] == null)) return null
+  return selectionOf(positions.filter((p) => product.coverPrinted[p] === true))
+}
+
+/**
+ * Rascunho salvo antes da pergunta "a capa tem impressão?": a resposta sai do que ele já tinha —
+ * capa com cor em alguma etapa de impressão é impressa; sem cor em nenhuma, não é.
+ */
+function inferCoverPrinted(product: Partial<QuoteProduct>): QuoteProduct['coverPrinted'] {
+  const answer: QuoteProduct['coverPrinted'] = { FRONT: null, BACK: null }
+  for (const sheet of product.sheets ?? []) {
+    if (sheet.kind !== 'COVER') continue
+    answer[coverPositionOf(sheet.index)] = (product.steps ?? []).some((step) => {
+      const setup = step.printing?.bySheet[sheet.uid]
+      return !!setup && setup.frontColors + setup.backColors > 0
+    })
+  }
+  return answer
+}
+
+/**
+ * O rascunho vira o corpo de `POST /product-templates` — só o que se repete entre pedidos: Modelo,
+ * Tipo, estrutura, etapas na ordem e impostos. Formato, quantidade, papéis e os parâmetros das
+ * etapas ficam de fora de propósito (decisão do usuário, atividade 037).
+ */
+export function templateRequestFromProduct(product: QuoteProduct, customerId: number): ProductTemplateRequest {
+  const artworkSheets = artworkSheetCount(product)
+  return {
+    customerId,
+    productModelId: product.productModelId ?? 0,
+    typeName: product.typeName.trim(),
+    structure: product.structure,
+    blades: Math.max(1, product.blades || 1),
+    vias: Math.min(9, Math.max(1, product.vias || 1)),
+    hasCovers: product.hasCovers,
+    coverCount: coverCount(product),
+    // Atividade 040: onde vai a capa, quais são impressas (sem resposta em alguma = o orçamento
+    // pergunta) e o desenho.
+    coverSides: product.hasCovers ? product.coverSides : 'NONE',
+    printedCovers: templatePrintedCovers(product),
+    coverRepeatsArtwork: product.hasCovers && product.coverRepeatsArtwork,
+    identicalCovers: product.hasCovers && product.identicalCovers,
+    // Com uma via/lâmina só a pergunta não existe; o servidor recusa resposta para ela.
+    identicalArtwork: artworkSheets >= 2 ? product.identicalArtwork : null,
+    distinctArtworks: artworkSheets >= 2 && product.identicalArtwork === false ? product.distinctArtworks : null,
+    activityIds: product.steps.map((s) => s.activityId),
+    taxes: product.taxes,
+    pricing: product.pricing,
+    active: true,
   }
 }
 
@@ -80,12 +237,86 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Recusa do motor: o cadastro não sustenta o cálculo. */
     calcError: null as string | null,
     calculating: false,
+    /** Mexeram no produto enquanto o cálculo corria: a resposta que chegar já é velha. */
+    calcRerun: false,
+
+    // ---- O orçamento em si (atividade 037) ----
+    /** Nulo enquanto o orçamento nunca foi salvo. */
+    quoteId: null as number | null,
+    quoteNumber: null as number | null,
+    quoteStatus: null as QuoteStatus | null,
+    clientId: null as number | null,
+    /** Comissão de agência: percentual SOBRE o total dos produtos. */
+    agencyCommissionPercent: 0,
+    notes: '',
+    /** Condições de fornecimento da proposta (atividade 038). */
+    conditions: emptyConditions(),
+    /**
+     * Orçamento novo ainda sem as condições PADRÃO da empresa (Orçamento > Configurações). O editor
+     * aplica uma vez só: depois disso, o que o usuário apagou fica apagado — inclusive na volta do
+     * assistente de produto.
+     */
+    conditionDefaultsPending: false,
+    saving: false,
+    /**
+     * Chave da tentativa de CRIAR o orçamento. Se o servidor gravou e a resposta se perdeu, o
+     * próximo "Salvar" manda a mesma chave e recebe o orçamento já criado — sem duplicar.
+     */
+    createRequestId: null as string | null,
+    /**
+     * O corpo do salvar como estava na última vez que o orçamento foi salvo ou aberto. A proposta
+     * imprime a versão SALVA; comparar com isto é o que diz à tela que há alteração pendente.
+     */
+    savedSnapshot: null as string | null,
   }),
 
   getters: {
-    /** Total do orçamento: soma dos produtos já salvos. */
+    /** Custo do orçamento: soma dos custos dos produtos. */
     quoteTotal(state): number {
       return Object.values(state.costs).reduce((sum, cost) => sum + cost.totalCost, 0)
+    },
+
+    /** Preço de cada produto: o custo calculado passado pelo divisor de comissão, impostos e markup. */
+    productPrices(state): Record<string, PriceBreakdown> {
+      const prices: Record<string, PriceBreakdown> = {}
+      for (const product of state.products) {
+        const cost = state.costs[product.uid]
+        if (cost) prices[product.uid] = priceFromCost(cost.totalCost, product.pricing, product.taxes)
+      }
+      return prices
+    },
+
+    /** Soma dos preços. Nulo se algum produto ainda não tem custo ou tem percentuais impossíveis. */
+    productsTotal(): number | null {
+      let total = 0
+      for (const product of this.products) {
+        const price = this.productPrices[product.uid]?.price
+        if (price == null) return null
+        total += price
+      }
+      return round2(total)
+    },
+
+    agencyCommission(): number {
+      return agencyCommissionAmount(this.productsTotal ?? 0, this.agencyCommissionPercent)
+    },
+
+    grandTotal(): number | null {
+      return this.productsTotal == null ? null : round2(this.productsTotal + this.agencyCommission)
+    },
+
+    /** Aprovado ou rejeitado: o orçamento é o que foi enviado e não se altera. */
+    readOnly(state): boolean {
+      return state.quoteStatus != null && state.quoteStatus !== 'PENDING_APPROVAL'
+    },
+
+    /** Há alteração que ainda não foi salva? */
+    dirty(): boolean {
+      if (this.savedSnapshot == null) return this.products.length > 0 || this.clientId != null
+      // Em runtime o `this` do getter é a store inteira, actions incluídas; a tipagem do Pinia é que
+      // só enxerga state e getters.
+      const store = this as unknown as { toSaveRequest(): unknown }
+      return this.savedSnapshot !== JSON.stringify(store.toSaveRequest())
     },
   },
 
@@ -142,12 +373,165 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       delete this.costs[productUid]
     },
 
+    /**
+     * Preenche o orçamento NOVO com as condições padrão da empresa (atividade 038, configurações).
+     * Só uma vez e só no novo: o orçamento aberto já tem as suas.
+     */
+    applyConditionDefaults(options: QuoteTermOptionKeyValue[]) {
+      if (!this.conditionDefaultsPending) return
+      this.conditionDefaultsPending = false
+      if (this.quoteId != null) return
+      this.conditions = defaultConditions(options)
+    },
+
     clearQuote() {
       this.products = []
       this.costs = {}
       this.draft = null
       this.editingUid = null
       this.draftCost = null
+      this.quoteId = null
+      this.quoteNumber = null
+      this.quoteStatus = null
+      this.clientId = null
+      this.agencyCommissionPercent = 0
+      this.notes = ''
+      this.conditions = emptyConditions()
+      this.conditionDefaultsPending = true
+      this.savedSnapshot = null
+      this.createRequestId = null
+    },
+
+    /**
+     * Abre o assistente a partir de um MODELO DE PRODUTO do catálogo (atividade 037).
+     *
+     * Traz o que o modelo guarda — estrutura, etapas na ordem, impostos e markup — e deixa o resto
+     * para o pedido: nome, formato, quantidade, papéis e os parâmetros de cada etapa. As etapas
+     * entram pelo mesmo `addStep` da tela, para a impressão nascer com a sua configuração por folha.
+     */
+    startFromTemplate(template: ProductTemplate) {
+      this.startNew()
+      const draft = this.draft!
+      draft.productModelId = template.productModelId
+      draft.productModelName = template.productModelName ?? ''
+      draft.typeName = template.typeName
+      draft.productTemplateId = template.id
+      draft.structure = template.structure
+      draft.blades = Math.max(1, template.blades)
+      draft.vias = Math.min(9, Math.max(1, template.vias))
+      draft.hasCovers = template.hasCovers
+      draft.coverSides =
+        template.coverSides && template.coverSides !== 'NONE' ? template.coverSides : coverSidesFromCount(template.coverCount)
+      // Capas impressas: o modelo que não responde deixa a pergunta para o orçamento.
+      const printed = template.printedCovers == null ? null : positionsOf(template.printedCovers)
+      draft.coverPrinted = {
+        FRONT: printed == null ? null : printed.includes('FRONT'),
+        BACK: printed == null ? null : printed.includes('BACK'),
+      }
+      draft.coverRepeatsArtwork = template.coverRepeatsArtwork ?? false
+      draft.identicalCovers = template.identicalCovers ?? false
+      this.syncSheets()
+      // Depois do sync: é ele que zera a resposta quando o número de vias muda.
+      draft.identicalArtwork = template.identicalArtwork
+      draft.distinctArtworks = template.distinctArtworks
+      draft.taxes = normalizeTaxes(template.taxes)
+      draft.pricing = normalizePricing(template.pricing)
+      for (const activityId of template.activityIds) this.addStep(activityId)
+    },
+
+    /**
+     * Carrega um orçamento salvo para edição. Cada produto volta pelo `editorState` — o rascunho
+     * como o usuário o deixou —, e os custos são recalculados em seguida (o catálogo pode ter
+     * mudado desde que o orçamento foi salvo).
+     */
+    loadSaved(saved: SavedQuote) {
+      this.clearQuote()
+      this.quoteId = saved.id
+      this.quoteNumber = saved.number
+      this.quoteStatus = saved.status
+      this.clientId = saved.clientId
+      this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
+      this.notes = saved.notes ?? ''
+      this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
+      this.conditionDefaultsPending = false
+      this.products = saved.products.map((p) =>
+        withProductDefaults({
+          ...(p.editorState ?? {}),
+          productModelId: p.productModelId,
+          productModelName: p.productModelName ?? p.editorState?.productModelName ?? '',
+          typeName: p.typeName ?? '',
+          productTemplateId: p.productTemplateId,
+          taxes: p.taxes,
+          pricing: p.pricing,
+        }),
+      )
+      this.savedSnapshot = JSON.stringify(this.toSaveRequest())
+    },
+
+    /** Recalcula TODOS os produtos do orçamento numa chamada só. */
+    async recalculateAll() {
+      if (this.products.length === 0) return
+      this.calcError = null
+      try {
+        const result = await useQuotes().calculate({ products: this.products.map((p) => this.toPayload(p)) })
+        const costs: Record<string, ProductCostingResponse> = {}
+        this.products.forEach((p, index) => {
+          const cost = result.products[index]
+          if (cost) costs[p.uid] = cost
+        })
+        this.costs = costs
+      } catch (err) {
+        this.calcError = extractApiError(err, 'Não foi possível recalcular o orçamento.')
+      }
+    },
+
+    /** O corpo de `POST/PUT /quotes`. O custo não vai: o servidor recalcula. */
+    toSaveRequest(): Omit<SaveQuoteRequest, 'customerId'> {
+      return {
+        clientId: this.clientId ?? 0,
+        agencyCommissionPercent: Number(this.agencyCommissionPercent) || 0,
+        notes: this.notes.trim() || null,
+        conditions: {
+          proposalValidity: blankToNull(this.conditions.proposalValidity),
+          deliveryTerms: blankToNull(this.conditions.deliveryTerms),
+          paymentTerms: blankToNull(this.conditions.paymentTerms),
+          bankDetails: blankToNull(this.conditions.bankDetails),
+        },
+        products: this.products.map((p) => ({
+          configuration: this.toPayload(p),
+          editorState: JSON.parse(JSON.stringify(p)) as QuoteProduct,
+          productModelId: p.productModelId,
+          typeName: p.typeName.trim() || null,
+          productTemplateId: p.productTemplateId,
+          taxes: p.taxes,
+          pricing: p.pricing,
+        })),
+      }
+    },
+
+    /** Salva (cria ou atualiza). Devolve o orçamento gravado; o erro sobe para a tela exibir. */
+    async saveQuote(): Promise<SavedQuote> {
+      this.saving = true
+      try {
+        const api = useQuotes()
+        const body = this.toSaveRequest()
+        let saved: SavedQuote
+        if (this.quoteId) {
+          saved = await api.update(this.quoteId, body)
+        } else {
+          // A chave sobrevive ao erro: é ela que faz a nova tentativa achar o que já foi gravado.
+          this.createRequestId ??= crypto.randomUUID()
+          saved = await api.create({ ...body, requestId: this.createRequestId })
+          this.createRequestId = null
+        }
+        this.savedSnapshot = JSON.stringify(body)
+        this.quoteId = saved.id
+        this.quoteNumber = saved.number
+        this.quoteStatus = saved.status
+        return saved
+      } finally {
+        this.saving = false
+      }
     },
 
     /** Troca a estrutura do produto (lâmina ⇄ bloco) e refaz as folhas. */
@@ -167,6 +551,32 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * O NÃO nasce com o pior caso — todas diferentes —, que é o que o sistema sempre cobrou. Daí o
      * usuário reduz o número se algumas se repetem.
      */
+    /**
+     * "A capa tem impressão?" (atividade 040). Não = a capa sai de todas as etapas de impressão
+     * (zero cores) e só consome papel. Sim = volta a elas na configuração padrão, para o usuário
+     * dizer as cores — como qualquer via.
+     */
+    setCoverPrinted(position: CoverPosition, printed: boolean) {
+      const draft = this.draft
+      if (!draft) return
+      draft.coverPrinted[position] = printed
+      const sheet = draft.sheets.find((s) => s.kind === 'COVER' && coverPositionOf(s.index) === position)
+      if (sheet) {
+        for (const step of draft.steps) {
+          const printing = step.printing
+          if (!printing) continue
+          const current = printing.bySheet[sheet.uid]
+          const hasColor = !!current && current.frontColors + current.backColors > 0
+          if (!printed) printing.bySheet[sheet.uid] = blankSheetSetup()
+          else if (!hasColor) printing.bySheet[sheet.uid] = defaultSheetSetup()
+        }
+      }
+      // As perguntas do desenho só existem para capa impressa.
+      const impressas = printedCoverPositions(draft).length
+      if (impressas === 0) draft.coverRepeatsArtwork = false
+      if (impressas < 2) draft.identicalCovers = false
+    },
+
     setIdenticalArtwork(identical: boolean) {
       const draft = this.draft
       if (!draft) return
@@ -180,6 +590,40 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       if (!draft) return
       const total = artworkSheetCount(draft)
       draft.distinctArtworks = Math.min(total, Math.max(1, Math.floor(count) || 1))
+    },
+
+    /**
+     * Responde "tem numeração?" (atividade 036).
+     *
+     * O SIM repõe os valores de partida — um numerador, a partir de 1, com 6 dígitos —, para o
+     * usuário não herdar o que digitou antes de dizer "não".
+     */
+    setHasNumbering(has: boolean) {
+      const draft = this.draft
+      if (!draft) return
+      draft.hasNumbering = has
+      if (has && draft.numberingUnits < 1) draft.numberingUnits = 1
+    },
+
+    /** Quantos numeradores o trabalho usa. Acima do que a offset comporta, ela fica inelegível. */
+    setNumberingUnits(units: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingUnits = Math.max(1, Math.floor(Number(units)) || 1)
+    },
+
+    /** Numeração inicial: não muda o preço, muda o que a produção monta no numerador. */
+    setNumberingStart(start: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingStart = Math.max(0, Math.floor(Number(start)) || 0)
+    },
+
+    /** Dígitos do numerador (1 a 12). */
+    setNumberingDigits(digits: number) {
+      const draft = this.draft
+      if (!draft) return
+      draft.numberingDigits = Math.min(12, Math.max(1, Math.floor(Number(digits)) || 1))
     },
 
     /**
@@ -206,11 +650,15 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         for (let i = 1; i <= vias; i += 1) next.push(take('VIA', i))
       }
       if (draft.hasCovers) {
-        // Uma folha POR CAPA: capa 1 e capa 2 têm papel próprio e podem ter impressão diferente
-        // (é comum a capa de trás não ser impressa).
-        const covers = Math.max(1, draft.coverCount || 1)
-        for (let i = 1; i <= covers; i += 1) next.push(take('COVER', i))
+        // Uma folha POR CAPA, fixa na posição: a da frente é a capa 1 e a do verso a capa 2, cada
+        // uma com papel próprio e impressa ou não (é comum a capa de trás não ser impressa).
+        for (const position of coverPositions(draft.coverSides)) {
+          next.push(take('COVER', position === 'FRONT' ? 1 : 2))
+        }
       }
+      // Capas iguais entre si só existem com as duas capas.
+      if (coverCount(draft) < 2) draft.identicalCovers = false
+      if (!draft.hasCovers) draft.coverRepeatsArtwork = false
 
       draft.sheets = next
 
@@ -231,7 +679,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         const printing = step.printing
         if (!printing) continue
         for (const sheet of next) {
-          if (!printing.bySheet[sheet.uid]) printing.bySheet[sheet.uid] = defaultSheetSetup()
+          if (!printing.bySheet[sheet.uid]) printing.bySheet[sheet.uid] = initialSheetSetup(draft, sheet)
         }
         for (const key of Object.keys(printing.bySheet)) {
           if (!validUids.has(key)) delete printing.bySheet[key]
@@ -253,7 +701,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       // Impressão nasce com a sua própria configuração: duas impressões no mesmo produto são dois
       // acertos independentes, cada um com as suas cores, tintas e máquina.
       if (useQuoteCatalogs().findActivity(activityId)?.type === 'PRINTING') {
-        step.printing = emptyPrintingSetup(draft.sheets)
+        step.printing = emptyPrintingSetup(draft)
       }
       draft.steps.push(step)
     },
@@ -289,7 +737,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             sheets: product.sheets
               .map((sheet) => {
                 const setup = setupFor(step, sheet)
-                if (!isSheetPrinted(sheet, setup)) return null
+                // A capa sem impressão não viaja, qualquer que seja a cor que sobrou nela.
+                if (!coverIsPrinted(product, sheet) || !isSheetPrinted(sheet, setup)) return null
                 return {
                   sheetNumber: sheet.index,
                   kind: sheet.kind,
@@ -318,28 +767,66 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         // Só viaja quando é a resposta "não são todas iguais, são N": com vias iguais o motor
         // recusaria os dois campos juntos, e sem resposta o default dele já é "todas diferentes".
         distinctArtworkCount: product.identicalArtwork === false ? product.distinctArtworks : null,
+        // Numeração (atividade 036): só viaja quando o usuário disse SIM. Nula = produto sem
+        // numeração, e aí nenhuma impressora é descartada por causa dela.
+        numbering:
+          product.hasNumbering === true
+            ? {
+                units: product.numberingUnits,
+                startNumber: product.numberingStart,
+                digits: product.numberingDigits,
+              }
+            : null,
+        // Capa (atividade 040): o desenho repete o da via? E frente igual ao verso? Só pesam em capa
+        // impressa — e "iguais" só com as duas impressas.
+        coverRepeatsArtwork: printedCoverPositions(product).length > 0 && product.coverRepeatsArtwork,
+        identicalCovers: printedCoverPositions(product).length === 2 && product.identicalCovers,
         sheets: product.sheets.map((sheet) => ({
           number: sheet.index,
           kind: sheet.kind,
+          coverPosition: sheet.kind === 'COVER' ? coverPositionOf(sheet.index) : null,
           paperTypeId: sheet.paperTypeId!,
-          printFormatNumber: sheet.printFormatNumber,
+          // No bloco o formato é da via 1 (atividade 039): uma escolha antiga numa outra via ou na
+          // capa não viaja — o motor a ignoraria e devolveria um aviso sobre algo que a tela não
+          // mostra mais.
+          printFormatNumber: followsFirstVia(product, sheet) ? null : sheet.printFormatNumber,
         })),
         steps,
       }
     },
 
-    /** Recalcula o produto em edição no motor. Quem exibe o erro é a tela. */
+    /**
+     * Recalcula o produto em edição no motor. Quem exibe o erro é a tela.
+     *
+     * UM cálculo por vez, e só a resposta mais nova vale. O cálculo chegou a levar 13 s em
+     * produção; com um disparo a cada mexida, as chamadas se empilhavam no servidor e uma resposta
+     * velha podia chegar por último e mostrar o preço de uma configuração que já não existia.
+     * Mexeu durante o cálculo: a resposta em curso é descartada e roda uma nova, com o estado atual.
+     */
     async calculateDraft() {
-      const product = this.draft
-      if (!product) return
+      if (!this.draft) return
+      if (this.calculating) {
+        this.calcRerun = true
+        return
+      }
       this.calculating = true
-      this.calcError = null
       try {
-        const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
-        this.draftCost = result.products[0] ?? null
-      } catch (err) {
-        this.draftCost = null
-        this.calcError = extractApiError(err, 'Não foi possível calcular o orçamento.')
+        do {
+          this.calcRerun = false
+          const product = this.draft
+          if (!product) break
+          this.calcError = null
+          try {
+            const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
+            // Outro produto no assistente ou nova mexida: esta resposta não é mais a da tela.
+            if (!this.calcRerun && this.draft === product) this.draftCost = result.products[0] ?? null
+          } catch (err) {
+            if (!this.calcRerun && this.draft === product) {
+              this.draftCost = null
+              this.calcError = extractApiError(err, 'Não foi possível calcular o orçamento.')
+            }
+          }
+        } while (this.calcRerun)
       } finally {
         this.calculating = false
       }

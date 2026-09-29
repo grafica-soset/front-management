@@ -22,8 +22,10 @@ import {
   brl,
   colorsLabel,
   formatLabel,
+  followsFirstVia,
   coverageIssues,
   coverageLabel,
+  coverIsPrinted,
   inkIssues,
   isSheetPrinted,
   machineForSheet,
@@ -55,7 +57,11 @@ const paperOf = (sheet: QuoteSheet) => findPaperType(sheet.paperTypeId)
 const printsSheet = (sheet: QuoteSheet) => isSheetPrinted(sheet, setup(sheet))
 
 const bodySheets = computed(() => product.value.sheets.filter((s) => s.kind !== 'COVER'))
-const coverSheets = computed(() => product.value.sheets.filter((s) => s.kind === 'COVER'))
+// A capa respondida como "sem impressão" (atividade 040) nem aparece aqui — só consome papel.
+const coverSheets = computed(() =>
+  product.value.sheets.filter((s) => s.kind === 'COVER' && coverIsPrinted(product.value, s)),
+)
+const configurableSheets = computed(() => [...bodySheets.value, ...coverSheets.value])
 const printedBody = computed(() => bodySheets.value.filter(printsSheet))
 const printedSheets = computed(() => product.value.sheets.filter(printsSheet))
 const printedCovers = computed(() => coverSheets.value.filter(printsSheet))
@@ -362,7 +368,7 @@ const toggleSeparateCovers = () => {
       </p>
 
       <div class="mt-3 space-y-3">
-        <div v-for="sheet in product.sheets" :key="sheet.uid" class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+        <div v-for="sheet in configurableSheets" :key="sheet.uid" class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <span
@@ -451,8 +457,26 @@ const toggleSeparateCovers = () => {
             </template>
           </p>
 
+          <!-- No bloco, o formato é da via 1: as demais vias e a capa só mostram o que seguem (atividade 039). -->
+          <div
+            v-if="printsSheet(sheet) && followsFirstVia(product, sheet)"
+            class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700"
+          >
+            <h5 class="text-xs font-semibold text-slate-900 dark:text-white">Formato de impressão</h5>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <template v-if="costingOf(sheet)">
+                <strong class="text-slate-700 dark:text-slate-200">
+                  {{ formatLabel(costingOf(sheet)!.chosen.printFormatName, costingOf(sheet)!.chosen.printFormatNumber) }}
+                </strong>
+                da folha {{ costingOf(sheet)!.chosen.wholeFormatName }} —
+              </template>
+              segue o formato da via 1: as vias e a capa são cortadas e impressas no mesmo formato.
+              Sem o papel na mesma folha inteira, o sistema usa o formato mais próximo.
+            </p>
+          </div>
+
           <!-- Formato de impressão: em que tamanho a folha inteira entra na máquina. -->
-          <div v-if="printsSheet(sheet)" class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <div v-else-if="printsSheet(sheet)" class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <h5 class="text-xs font-semibold text-slate-900 dark:text-white">
                 Formato de impressão
@@ -521,7 +545,9 @@ const toggleSeparateCovers = () => {
                 </button>
               </div>
               <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                O formato é da folha: vale para todas as impressões que passarem por ela. O total
+                O formato é da folha: vale para todas as impressões que passarem por ela<template
+                  v-if="product.structure === 'BLOCK'"
+                > — e, no bloco, para as outras vias e a capa</template>. O total
                 compara papel, máquina, chapas e tinta — <strong>o corte fica de fora</strong>, por
                 isso as descidas de faca aparecem aqui para você pesar.
               </p>

@@ -15,6 +15,8 @@ function validBlock(): DigitalBlockRequest {
   return {
     colorMode: 'COLOR',
     setupMinutes: 15,
+    // Acerto da numeração (atividade 036): a digital numera sem numerador, e só cobra o acerto.
+    numberingSetupMinutes: 9,
     paperFeedSetupMinutes: 6,
     feedTimeSecondsPerLoad: 45,
     feedLoadIncrementMm: 40,
@@ -45,6 +47,16 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
 
   it('um bloco bem preenchido não tem erros', () => {
     expect(validateDigital(validBlock())).toEqual({})
+  })
+
+  it('o bloco default nasce sem acerto de numeração', () => {
+    // Zero é resposta legítima: numerar nessa máquina não cobra acerto nenhum.
+    expect(defaultDigitalBlock().numberingSetupMinutes).toBe(0)
+  })
+
+  it('recusa acerto de numeração negativo', () => {
+    const block = { ...validBlock(), numberingSetupMinutes: -1 }
+    expect(validateDigital(block)['numberingSetupMinutes']).toBeTruthy()
   })
 
   it('exige velocidade máxima ≥ mínima', () => {

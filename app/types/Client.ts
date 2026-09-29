@@ -61,6 +61,19 @@ export interface Client {
   contacts: ClientContact[]
 }
 
+/**
+ * Item da busca de cliente do orçamento (`GET /clients/search`, atividade 037): nome, e-mail e
+ * documento — o bastante para confirmar que é o cliente certo.
+ */
+export interface ClientSearchItem {
+  id: number
+  personType: PersonType
+  name: string
+  corporateName: string | null
+  email: string | null
+  document: string
+}
+
 export interface ClientKeyValue {
   id: number
   value: string

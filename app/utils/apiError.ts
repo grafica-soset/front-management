@@ -30,6 +30,12 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   SellerAlreadyRegisteredException: 'Esta pessoa já é vendedor desta empresa. Se estiver inativa, reative pela lista.',
   InvalidSaleOperationConfigurationException: 'Revise o CFOP: nome obrigatório, código com exatamente 4 números e descrição na NF-e obrigatória com até 60 caracteres.',
   SaleOperationNotFoundException: 'CFOP não encontrado nesta empresa.',
+  // Atividade 037 — orçamento salvo e modelos de produto. A mensagem do servidor é a mais útil
+  // (traz o número do orçamento / o Modelo > Tipo), então só as genéricas ganham texto próprio.
+  QuoteNotFoundException: 'Orçamento não encontrado nesta empresa.',
+  ProductTemplateNotFoundException: 'Modelo de produto não encontrado nesta empresa.',
+  // Atividade 038 — configurações do orçamento.
+  QuoteTermOptionNotFoundException: 'Opção não encontrada nesta empresa.',
 }
 
 /**

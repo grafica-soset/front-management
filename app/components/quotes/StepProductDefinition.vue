@@ -2,7 +2,10 @@
 /**
  * Passo 1 do assistente — DEFINIÇÃO DO PRODUTO (atividade 034).
  *
- * Nome, formato final, quantidade, estrutura (lâmina ou bloco), papéis e capas.
+ * Modelo + Tipo, nome, formato final, quantidade, estrutura (lâmina ou bloco), papéis e capas.
+ *
+ * Modelo + Tipo (atividade 037) vêm antes do nome: são opcionais no orçamento, mas são a chave do
+ * catálogo — sem eles o produto não pode ser salvo como modelo.
  *
  * Decisão de usabilidade sobre lâminas × jogos/vias: em vez de "preencher lâmina desabilita jogos
  * e vias" — que deixa na tela campos mortos e faz o usuário testar para descobrir a regra —, a
@@ -15,15 +18,47 @@
  * Aqui não se fala em TIRAGEM: no jargão gráfico ela é o total de folhas IMPRESSAS, que só o
  * motor sabe — depende de quantas aplicações cabem no formato de impressão.
  */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { useProductCatalog } from '@/composables/useProductCatalog'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import { useToast } from '@/composables/useToast'
+import { extractApiError } from '@/utils/apiError'
 import SheetPaperRow from '@/components/quotes/SheetPaperRow.vue'
-import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
+import ModelTypeFields from '@/components/quotes/ModelTypeFields.vue'
+import {
+  coverLabel,
+  coverPositions,
+  coverSidesLabel,
+  numberedUnits,
+  printedCoverPositions,
+  sheetsForSheet,
+  sheetsPerUnit,
+} from '@/utils/quoteModel'
+import type { CoverSides } from '@/types/QuoteDraft'
 
 const store = useQuoteDraftStore()
 const product = computed(() => store.draft!)
 const { suffix, fromMillimeters, toMillimeters } = useUnitConverter()
+const { numberingCapacity } = useQuoteCatalogs()
+const productCatalog = useProductCatalog()
+const toast = useToast()
+
+onMounted(() => {
+  productCatalog.load().catch((err) => toast.error(extractApiError(err, 'Não foi possível carregar os modelos.')))
+})
+
+/** Modelo digitado que não existe: cadastra ali mesmo e já deixa escolhido. */
+const createModel = async (name: string) => {
+  try {
+    const created = await productCatalog.createModel(name)
+    product.value.productModelId = created.id
+    product.value.productModelName = created.value
+  } catch (err) {
+    toast.error(extractApiError(err, 'Não foi possível cadastrar o modelo.'))
+  }
+}
 
 /** Dimensões trafegam em mm na store; o formulário mostra a unidade da empresa. */
 const width = computed({
@@ -60,7 +95,7 @@ const structureSummary = computed(() => {
   } else {
     parts.push(`${p.sets} jogos × ${p.vias} vias = ${p.sets * p.vias} folhas`)
   }
-  if (p.hasCovers) parts.push(`+ ${p.coverCount} capa(s)`)
+  if (p.hasCovers) parts.push(`+ ${coverSidesLabel(p.coverSides)}`)
   if (asksIdentical.value && p.identicalArtwork !== null) {
     const desenhos = p.identicalArtwork ? 1 : (p.distinctArtworks ?? artworkCount.value)
     parts.push(`${desenhos} desenho(s) = ${desenhos} jogo(s) de chapa`)
@@ -68,6 +103,51 @@ const structureSummary = computed(() => {
   parts.push(`${perUnit} folha(s) por ${unitLabel.value}`)
   if (runs > 0) parts.push(`${(perUnit * runs).toLocaleString('pt-BR')} folhas do produto`)
   return parts.join(' · ')
+})
+
+/**
+ * NUMERAÇÃO (atividade 036).
+ *
+ * Numerar é do TRABALHO, não de uma etapa: o talão numerado é numerado na tiragem inteira, e é
+ * isso que decide quais impressoras podem fazê-lo. Por isso a pergunta mora aqui, em Estrutura,
+ * ao lado de "as vias são iguais?" — as duas escolhem a máquina antes de qualquer cálculo.
+ */
+const setHasNumbering = (value: boolean) => store.setHasNumbering(value)
+const onNumberingUnitsChange = (value: string) => store.setNumberingUnits(Number(value))
+const onNumberingStartChange = (value: string) => store.setNumberingStart(Number(value))
+const onNumberingDigitsChange = (value: string) => store.setNumberingDigits(Number(value))
+
+/**
+ * O que o parque comporta — ORIENTAÇÃO, não trava.
+ *
+ * O número que a máquina precisa comportar não é o que se digita aqui: é ele × as aplicações que o
+ * formato de impressão rende (1 numerador em 9 aplicações são 9 numeradores montados). E as
+ * aplicações só se sabem depois do cálculo, que é quem escolhe o formato — por isso a tela informa
+ * o teto e explica a conta, em vez de barrar um número que pode estar certo.
+ */
+const numberingHint = computed(() => {
+  const cap = numberingCapacity.value
+  if (!cap.any) return 'Nenhuma impressora cadastrada numera — o cálculo não vai achar máquina.'
+  if (cap.unlimited && cap.maxUnits) {
+    return `As offsets comportam até ${cap.maxUnits} numeradores montados; a digital numera sem numerador.`
+  }
+  if (cap.unlimited) return 'A digital numera sem numerador, em qualquer quantidade.'
+  return `As suas offsets comportam até ${cap.maxUnits} numeradores montados.`
+})
+
+/** O último número da tiragem, e se os dígitos o comportam. No bloco, um número por jogo. */
+const numberingRange = computed(() => {
+  const p = product.value
+  const numbers = numberedUnits(p)
+  if (p.hasNumbering !== true || numbers <= 0) return null
+  const last = p.numberingStart + numbers - 1
+  const pad = (n: number) => String(n).padStart(p.numberingDigits, '0')
+  return {
+    first: pad(p.numberingStart),
+    last: pad(last),
+    // Estourou os dígitos: o numerador vira o zero antes do fim da tiragem.
+    overflow: String(last).length > p.numberingDigits,
+  }
 })
 
 const setStructure = (structure: 'BLADE' | 'BLOCK') => store.setStructure(structure)
@@ -88,14 +168,23 @@ const onDistinctChange = (value: string) => store.setDistinctArtworks(Number(val
 
 const onCoversToggle = (value: boolean) => {
   product.value.hasCovers = value
-  if (value && product.value.coverCount < 1) product.value.coverCount = 1
   store.syncSheets()
 }
-const onCoverCountChange = (value: string) => {
-  // Cada capa é uma folha própria: mudar a quantidade cria/remove linhas de papel.
-  product.value.coverCount = Math.max(1, Math.floor(Number(value) || 1))
+const onCoverSidesChange = (value: CoverSides) => {
+  // Cada capa é uma folha própria: frente e verso são duas linhas de papel.
+  product.value.coverSides = value
   store.syncSheets()
 }
+// Capas do produto e as que foram respondidas como impressas.
+const positions = computed(() => (product.value.hasCovers ? coverPositions(product.value.coverSides) : []))
+const printedCovers = computed(() => printedCoverPositions(product.value))
+const coverUnanswered = computed(() => positions.value.some((p) => product.value.coverPrinted[p] == null))
+
+const COVER_SIDES_OPTIONS: { value: CoverSides; label: string }[] = [
+  { value: 'BOTH', label: 'Na frente e no verso' },
+  { value: 'FRONT', label: 'Só na frente' },
+  { value: 'BACK', label: 'Só no verso' },
+]
 
 const inputClass =
   'block w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -107,6 +196,23 @@ const inputClass =
       <h2 class="text-base font-semibold text-slate-900 dark:text-white">Identificação</h2>
 
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <ModelTypeFields
+            :models="productCatalog.models.value"
+            :templates="productCatalog.templates.value"
+            :product-model-id="product.productModelId"
+            :product-model-name="product.productModelName"
+            :type-name="product.typeName"
+            :creating-model="productCatalog.creatingModel.value"
+            @update:product-model-id="product.productModelId = $event"
+            @update:product-model-name="product.productModelName = $event"
+            @update:type-name="product.typeName = $event"
+            @create-model="createModel"
+          />
+          <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Opcionais no orçamento — necessários para salvar o produto como modelo.
+          </p>
+        </div>
         <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
             Nome do produto <span class="text-rose-500">*</span>
@@ -220,14 +326,78 @@ const inputClass =
             />
             Tem capa
           </label>
-          <input
+          <select
             v-if="product.hasCovers"
-            :value="product.coverCount"
-            type="number"
-            min="1"
-            @input="onCoverCountChange(($event.target as HTMLInputElement).value)"
-            class="w-24 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-          />
+            :value="product.coverSides"
+            aria-label="Posição da capa"
+            @change="onCoverSidesChange(($event.target as HTMLSelectElement).value as CoverSides)"
+            class="rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+          >
+            <option v-for="o in COVER_SIDES_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!--
+        CAPA (atividade 040): o papel de cada capa é escolhido junto com o das vias. Aqui ficam as
+        perguntas que decidem o que a capa COBRA: tem impressão? E, sendo impressa, o desenho repete
+        o de outra folha? Diferente = impressão nova, com chapa, montagem e acerto.
+      -->
+      <div
+        v-if="product.hasCovers"
+        class="mt-4 rounded-xl border p-4"
+        :class="coverUnanswered ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : 'border-violet-200 bg-violet-50/40 dark:border-violet-900/60 dark:bg-violet-900/10'"
+      >
+        <p class="text-sm font-medium text-slate-700 dark:text-slate-200">Capa</p>
+        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          Segue o formato de impressão da {{ product.structure === 'BLOCK' ? 'via 1' : 'lâmina 1' }} e sai uma vez por
+          {{ unitLabel }}{{ product.structure === 'BLOCK' && product.coverSides === 'BOTH' ? ` — ${product.sets} folhas com capa na frente e no verso são ${product.sets + 2}` : '' }}.
+        </p>
+
+        <div class="mt-3 space-y-2">
+          <div v-for="position in positions" :key="position" class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="w-36 text-sm text-slate-700 dark:text-slate-200">
+              {{ coverLabel(position) }} tem impressão? <span class="text-rose-500">*</span>
+            </span>
+            <label v-for="answer in [true, false]" :key="String(answer)" class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-200">
+              <input
+                type="radio"
+                :name="`capa-impressa-${position}`"
+                :checked="product.coverPrinted[position] === answer"
+                @change="store.setCoverPrinted(position, answer)"
+                class="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+              />
+              {{ answer ? 'Sim' : 'Não' }}
+            </label>
+            <span v-if="product.coverPrinted[position] === false" class="text-xs text-slate-500 dark:text-slate-400">
+              só papel — não entra nas etapas de impressão
+            </span>
+          </div>
+        </div>
+
+        <div v-if="printedCovers.length" class="mt-4 flex flex-col gap-2 border-t border-violet-200 pt-3 dark:border-violet-900/60">
+          <label class="inline-flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              v-model="product.coverRepeatsArtwork"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+            />
+            <span>
+              A capa tem o mesmo desenho da {{ product.structure === 'BLOCK' ? 'via' : 'lâmina' }}
+              <span class="block text-xs text-slate-500 dark:text-slate-400">Sai da chapa da 1ª {{ product.structure === 'BLOCK' ? 'via' : 'lâmina' }}, na mesma impressora — sem chapa nem montagem novas. Desmarcado, é impressão nova: chapa, montagem e acerto.</span>
+            </span>
+          </label>
+          <label v-if="printedCovers.length === 2" class="inline-flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              v-model="product.identicalCovers"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+            />
+            <span>
+              Capa da frente e do verso com o mesmo desenho
+              <span class="block text-xs text-slate-500 dark:text-slate-400">A capa do verso reaproveita a chapa da capa da frente.</span>
+            </span>
+          </label>
         </div>
       </div>
 
@@ -289,6 +459,107 @@ const inputClass =
         <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
           {{ artworkLabel === 'vias' ? 'Vias' : 'Lâminas' }} com o mesmo desenho saem da mesma
           chapa: cobra-se uma matriz e uma montagem, e todas rodam na mesma impressora.
+        </p>
+      </div>
+
+      <!--
+        NUMERAÇÃO (atividade 036). Mesma anatomia da pergunta das vias iguais, e pelo mesmo motivo:
+        é ela que decide quais impressoras podem fazer o trabalho — só algumas offsets numeram —,
+        então nasce sem resposta em vez de assumir "não".
+      -->
+      <div
+        class="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+        :class="product.hasNumbering === null ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : ''"
+      >
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Tem numeração? <span class="text-rose-500">*</span>
+          </span>
+          <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+            <button
+              type="button"
+              @click="setHasNumbering(true)"
+              class="px-4 py-1.5 text-sm transition-colors"
+              :class="
+                product.hasNumbering === true
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Sim
+            </button>
+            <button
+              type="button"
+              @click="setHasNumbering(false)"
+              class="border-l border-slate-300 px-4 py-1.5 text-sm transition-colors dark:border-slate-600"
+              :class="
+                product.hasNumbering === false
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              "
+            >
+              Não
+            </button>
+          </div>
+        </div>
+
+        <div v-if="product.hasNumbering === true" class="mt-4 flex flex-wrap items-end gap-4">
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Quantos numeradores <span class="font-normal text-slate-500">por {{ unitLabel }}</span>
+            </label>
+            <input
+              :value="product.numberingUnits"
+              type="number"
+              min="1"
+              @input="onNumberingUnitsChange(($event.target as HTMLInputElement).value)"
+              class="w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Numeração inicial
+            </label>
+            <input
+              :value="product.numberingStart"
+              type="number"
+              min="0"
+              @input="onNumberingStartChange(($event.target as HTMLInputElement).value)"
+              class="w-32 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Dígitos
+            </label>
+            <input
+              :value="product.numberingDigits"
+              type="number"
+              min="1"
+              max="12"
+              @input="onNumberingDigitsChange(($event.target as HTMLInputElement).value)"
+              class="w-24 rounded-lg border bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:bg-slate-700 dark:text-white"
+              :class="numberingRange?.overflow ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-600'"
+            />
+          </div>
+        </div>
+
+        <p v-if="product.hasNumbering === true" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Cada aplicação da folha leva os seus numeradores, e cada um tem o seu acerto: 1 por
+          {{ unitLabel }} num formato de 9 aplicações são 9 numeradores montados, e 9 acertos.
+          {{ numberingHint }}
+        </p>
+
+        <p
+          v-if="numberingRange"
+          class="mt-1 text-xs"
+          :class="numberingRange.overflow ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'"
+        >
+          Sequência de {{ numberingRange.first }} a {{ numberingRange.last }}<template v-if="numberingRange.overflow">
+            — não cabe em {{ product.numberingDigits }} dígito(s): o numerador vira o zero antes do fim.</template>
+        </p>
+        <p v-else-if="product.hasNumbering === false" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Sem numeração, todas as impressoras da atividade continuam disputando o trabalho.
         </p>
       </div>
 

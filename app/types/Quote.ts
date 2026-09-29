@@ -15,6 +15,8 @@
 
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
 export type ProductStructure = 'BLADE' | 'BLOCK'
+/** Posição da capa (atividade 040). */
+export type CoverPosition = 'FRONT' | 'BACK'
 export type QuoteInkType = 'LINE' | 'CMYK' | 'PANTONE'
 
 // ─── Requisição ──────────────────────────────────────────────────────────────
@@ -30,6 +32,8 @@ export interface QuoteSheetRequest {
    * é o 32x22). É preferência, não filtro — o motor continua devolvendo os outros em `alternatives`.
    */
   printFormatNumber?: number | null
+  /** Só na capa: frente ou verso (atividade 040). Nulo = pelo número (1 frente, 2 verso). */
+  coverPosition?: CoverPosition | null
 }
 
 /** O que uma impressão faz com uma folha. Cores zero nas duas faces = folha fora da impressão. */
@@ -59,6 +63,7 @@ export interface QuoteStepRequest {
   parameters?: {
     /** Atividade manual: o usuário informa MINUTOS. */
     laborMinutes?: number | null
+    /** Legado (pré-036): numeração por etapa. Prefira `numbering` no produto. */
     numberingUnits?: number
     /** Picote (atividade 035): picotes por folha e em quantas vias (nulo = todas). */
     perforationCount?: number
@@ -69,6 +74,25 @@ export interface QuoteStepRequest {
     machineId?: number | null
   }
   printing?: QuotePrintingRequest | null
+}
+
+/**
+ * NUMERAÇÃO do produto (atividade 036).
+ *
+ * Numerar é do TRABALHO, não de uma etapa: um talão numerado é numerado na tiragem inteira, e é
+ * isso que decide quais impressoras podem fazê-lo. Só algumas offsets numeram (cada uma comporta
+ * um número de numeradores); a digital numera sempre.
+ */
+export interface QuoteNumberingRequest {
+  /**
+   * Numeradores POR APLICAÇÃO; ≥ 1. Os MONTADOS são este número × as aplicações do formato, e são
+   * eles que o teto da offset limita e que o acerto cobra, um por um.
+   */
+  units: number
+  /** Primeiro número da sequência. Não muda o preço — a produção precisa dele. */
+  startNumber: number
+  /** Dígitos do numerador (6 ⇒ 000001). */
+  digits: number
 }
 
 export interface QuoteProductRequest {
@@ -83,6 +107,12 @@ export interface QuoteProductRequest {
   identicalArtwork?: boolean
   /** Quantos desenhos diferentes há entre as vias/lâminas. Nulo/ausente = todas diferentes. */
   distinctArtworkCount?: number | null
+  /** Numeração do trabalho (atividade 036). Nula = produto sem numeração. */
+  numbering?: QuoteNumberingRequest | null
+  /** A capa tem o mesmo desenho da via/lâmina? Sim = sai da chapa da 1ª via (atividade 040). */
+  coverRepeatsArtwork?: boolean
+  /** Capa da frente e do verso com o mesmo desenho? Só com as duas capas. */
+  identicalCovers?: boolean
   sheets: QuoteSheetRequest[]
   steps: QuoteStepRequest[]
 }
@@ -214,6 +244,8 @@ export interface SelectionEntryResponse {
 export interface SheetCostingResponse {
   number: number
   kind: SheetKind
+  /** Só na capa: frente ou verso. */
+  coverPosition?: CoverPosition | null
   paperTypeId: number
   paperTypeName: string
   paperWeightGsm: number
@@ -329,7 +361,18 @@ export interface ProductCostingResponse {
   totalCost: number
   unitCost: number
   totalMinutes: number
+  /** A numeração pedida, com o último número da sequência já calculado. Nula = sem numeração. */
+  numbering: QuoteNumberingResponse | null
   warnings: string[]
+}
+
+/** A numeração devolvida pelo motor (atividade 036). */
+export interface QuoteNumberingResponse {
+  units: number
+  startNumber: number
+  /** `startNumber + quantity - 1`: o número que a última unidade da tiragem deve trazer. */
+  lastNumber: number
+  digits: number
 }
 
 export interface QuoteCostingResponse {
