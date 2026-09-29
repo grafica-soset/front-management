@@ -25,6 +25,11 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   ClientNotFoundException: 'Cliente não encontrado nesta empresa.',
   ClientAddressNotFoundException: 'Endereço não encontrado para este cliente.',
   ClientContactNotFoundException: 'Contato não encontrado para este cliente.',
+  InvalidSellerConfigurationException: 'Revise o vendedor: nome e CPF válido são obrigatórios.',
+  SellerNotFoundException: 'Vendedor não encontrado nesta empresa.',
+  SellerAlreadyRegisteredException: 'Esta pessoa já é vendedor desta empresa. Se estiver inativa, reative pela lista.',
+  InvalidSaleOperationConfigurationException: 'Revise o CFOP: nome obrigatório, código com exatamente 4 números e descrição na NF-e obrigatória com até 60 caracteres.',
+  SaleOperationNotFoundException: 'CFOP não encontrado nesta empresa.',
   // Atividade 037 — orçamento salvo e modelos de produto. A mensagem do servidor é a mais útil
   // (traz o número do orçamento / o Modelo > Tipo), então só as genéricas ganham texto próprio.
   QuoteNotFoundException: 'Orçamento não encontrado nesta empresa.',
