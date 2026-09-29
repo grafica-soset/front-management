@@ -53,6 +53,11 @@ export interface Activity {
   paperTypeId: number | null
   /** Itens de insumo consumidos (grupo e/ou insumo do estoque) — só no tipo FINISHING. */
   supplies: ActivitySupply[]
+  /**
+   * Como a etapa aparece na descrição do produto (proposta/nota) — "colado", "grampeado",
+   * "incluindo arte final". Nulo = o nome da atividade. Não existe na impressão (atividade 040).
+   */
+  descriptionText: string | null
   active: boolean
 }
 
@@ -103,6 +108,8 @@ export interface CreateActivityRequest {
   finishingTaskId?: number | null
   paperTypeId?: number | null
   supplies?: ActivitySupply[]
+  /** Texto na descrição do produto. Nulo/vazio = o nome. O PUT sem ele apaga o texto. */
+  descriptionText?: string | null
 }
 
 export interface UpdateActivityRequest extends CreateActivityRequest {

@@ -23,6 +23,8 @@ import StepSummary from '@/components/quotes/StepSummary.vue'
 import StepTaxesMarkup from '@/components/quotes/StepTaxesMarkup.vue'
 import { priceFromCost, pricingIssues } from '@/utils/pricing'
 import {
+  coverLabel,
+  coverPositions,
   coverageIssues,
   inkIssues,
   isSheetPrinted,
@@ -87,6 +89,15 @@ const calcBlockers = computed(() => {
   // Numeração (atividade 036): pela mesma razão. Só algumas offsets numeram, e assumir "não" no
   // silêncio escolheria uma impressora que não faz o trabalho.
   if (p.hasNumbering === null) list.push('Informar se o produto tem numeração')
+  // Capa (atividade 040): impressa paga chapa, acerto e tinta; sem impressão, só papel. Pela mesma
+  // razão, nenhum dos dois pode ser assumido no silêncio.
+  if (p.hasCovers) {
+    for (const position of coverPositions(p.coverSides)) {
+      if (p.coverPrinted[position] == null) {
+        list.push(`Informar se a ${coverLabel(position).toLowerCase()} tem impressão`)
+      }
+    }
+  }
   if (p.steps.length === 0) list.push('Ativar ao menos uma atividade')
 
   // A CHAPA da impressão: com mais de uma cadastrada na impressora, a escolha é de preço e é do

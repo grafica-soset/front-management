@@ -15,6 +15,8 @@
 
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
 export type ProductStructure = 'BLADE' | 'BLOCK'
+/** Posição da capa (atividade 040). */
+export type CoverPosition = 'FRONT' | 'BACK'
 export type QuoteInkType = 'LINE' | 'CMYK' | 'PANTONE'
 
 // ─── Requisição ──────────────────────────────────────────────────────────────
@@ -30,6 +32,8 @@ export interface QuoteSheetRequest {
    * é o 32x22). É preferência, não filtro — o motor continua devolvendo os outros em `alternatives`.
    */
   printFormatNumber?: number | null
+  /** Só na capa: frente ou verso (atividade 040). Nulo = pelo número (1 frente, 2 verso). */
+  coverPosition?: CoverPosition | null
 }
 
 /** O que uma impressão faz com uma folha. Cores zero nas duas faces = folha fora da impressão. */
@@ -105,6 +109,10 @@ export interface QuoteProductRequest {
   distinctArtworkCount?: number | null
   /** Numeração do trabalho (atividade 036). Nula = produto sem numeração. */
   numbering?: QuoteNumberingRequest | null
+  /** A capa tem o mesmo desenho da via/lâmina? Sim = sai da chapa da 1ª via (atividade 040). */
+  coverRepeatsArtwork?: boolean
+  /** Capa da frente e do verso com o mesmo desenho? Só com as duas capas. */
+  identicalCovers?: boolean
   sheets: QuoteSheetRequest[]
   steps: QuoteStepRequest[]
 }
@@ -236,6 +244,8 @@ export interface SelectionEntryResponse {
 export interface SheetCostingResponse {
   number: number
   kind: SheetKind
+  /** Só na capa: frente ou verso. */
+  coverPosition?: CoverPosition | null
   paperTypeId: number
   paperTypeName: string
   paperWeightGsm: number

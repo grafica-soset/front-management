@@ -13,7 +13,7 @@
  */
 import { computed, ref } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
-import { brl, sheetsPerUnit } from '@/utils/quoteModel'
+import { brl, coverSidesLabel, sheetsPerUnit } from '@/utils/quoteModel'
 import { formatPercent, QUOTE_STATUS_LABELS } from '@/utils/pricing'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { useUnitConverter } from '@/composables/useUnitConverter'
@@ -168,7 +168,7 @@ const describe = (index: number) => {
     p.structure === 'BLADE'
       ? `${p.blades} lâmina(s)`
       : `${p.sets} jogos × ${p.vias} vias`
-  const covers = p.hasCovers ? ` + ${p.coverCount} capa(s)` : ''
+  const covers = p.hasCovers ? ` + ${coverSidesLabel(p.coverSides)}` : ''
   const steps = p.steps.map((s) => catalogs.findActivity(s.activityId)?.value).filter(Boolean).join(' · ')
   const model = p.productModelName && p.typeName.trim() ? `${p.productModelName} > ${p.typeName.trim()}` : null
   return { model, structure: `${structure}${covers}`, steps: steps || 'sem etapas' }

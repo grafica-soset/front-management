@@ -27,7 +27,16 @@ import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
 import SheetPaperRow from '@/components/quotes/SheetPaperRow.vue'
 import ModelTypeFields from '@/components/quotes/ModelTypeFields.vue'
-import { sheetsForSheet, sheetsPerUnit } from '@/utils/quoteModel'
+import {
+  coverLabel,
+  coverPositions,
+  coverSidesLabel,
+  numberedUnits,
+  printedCoverPositions,
+  sheetsForSheet,
+  sheetsPerUnit,
+} from '@/utils/quoteModel'
+import type { CoverSides } from '@/types/QuoteDraft'
 
 const store = useQuoteDraftStore()
 const product = computed(() => store.draft!)
@@ -86,7 +95,7 @@ const structureSummary = computed(() => {
   } else {
     parts.push(`${p.sets} jogos × ${p.vias} vias = ${p.sets * p.vias} folhas`)
   }
-  if (p.hasCovers) parts.push(`+ ${p.coverCount} capa(s)`)
+  if (p.hasCovers) parts.push(`+ ${coverSidesLabel(p.coverSides)}`)
   if (asksIdentical.value && p.identicalArtwork !== null) {
     const desenhos = p.identicalArtwork ? 1 : (p.distinctArtworks ?? artworkCount.value)
     parts.push(`${desenhos} desenho(s) = ${desenhos} jogo(s) de chapa`)
@@ -126,12 +135,12 @@ const numberingHint = computed(() => {
   return `As suas offsets comportam até ${cap.maxUnits} numeradores montados.`
 })
 
-/** O último número da tiragem, e se os dígitos o comportam. */
+/** O último número da tiragem, e se os dígitos o comportam. No bloco, um número por jogo. */
 const numberingRange = computed(() => {
   const p = product.value
-  const quantity = p.quantity ?? 0
-  if (p.hasNumbering !== true || quantity <= 0) return null
-  const last = p.numberingStart + quantity - 1
+  const numbers = numberedUnits(p)
+  if (p.hasNumbering !== true || numbers <= 0) return null
+  const last = p.numberingStart + numbers - 1
   const pad = (n: number) => String(n).padStart(p.numberingDigits, '0')
   return {
     first: pad(p.numberingStart),
@@ -159,14 +168,23 @@ const onDistinctChange = (value: string) => store.setDistinctArtworks(Number(val
 
 const onCoversToggle = (value: boolean) => {
   product.value.hasCovers = value
-  if (value && product.value.coverCount < 1) product.value.coverCount = 1
   store.syncSheets()
 }
-const onCoverCountChange = (value: string) => {
-  // Cada capa é uma folha própria: mudar a quantidade cria/remove linhas de papel.
-  product.value.coverCount = Math.max(1, Math.floor(Number(value) || 1))
+const onCoverSidesChange = (value: CoverSides) => {
+  // Cada capa é uma folha própria: frente e verso são duas linhas de papel.
+  product.value.coverSides = value
   store.syncSheets()
 }
+// Capas do produto e as que foram respondidas como impressas.
+const positions = computed(() => (product.value.hasCovers ? coverPositions(product.value.coverSides) : []))
+const printedCovers = computed(() => printedCoverPositions(product.value))
+const coverUnanswered = computed(() => positions.value.some((p) => product.value.coverPrinted[p] == null))
+
+const COVER_SIDES_OPTIONS: { value: CoverSides; label: string }[] = [
+  { value: 'BOTH', label: 'Na frente e no verso' },
+  { value: 'FRONT', label: 'Só na frente' },
+  { value: 'BACK', label: 'Só no verso' },
+]
 
 const inputClass =
   'block w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -308,14 +326,78 @@ const inputClass =
             />
             Tem capa
           </label>
-          <input
+          <select
             v-if="product.hasCovers"
-            :value="product.coverCount"
-            type="number"
-            min="1"
-            @input="onCoverCountChange(($event.target as HTMLInputElement).value)"
-            class="w-24 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-          />
+            :value="product.coverSides"
+            aria-label="Posição da capa"
+            @change="onCoverSidesChange(($event.target as HTMLSelectElement).value as CoverSides)"
+            class="rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+          >
+            <option v-for="o in COVER_SIDES_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!--
+        CAPA (atividade 040): o papel de cada capa é escolhido junto com o das vias. Aqui ficam as
+        perguntas que decidem o que a capa COBRA: tem impressão? E, sendo impressa, o desenho repete
+        o de outra folha? Diferente = impressão nova, com chapa, montagem e acerto.
+      -->
+      <div
+        v-if="product.hasCovers"
+        class="mt-4 rounded-xl border p-4"
+        :class="coverUnanswered ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : 'border-violet-200 bg-violet-50/40 dark:border-violet-900/60 dark:bg-violet-900/10'"
+      >
+        <p class="text-sm font-medium text-slate-700 dark:text-slate-200">Capa</p>
+        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          Segue o formato de impressão da {{ product.structure === 'BLOCK' ? 'via 1' : 'lâmina 1' }} e sai uma vez por
+          {{ unitLabel }}{{ product.structure === 'BLOCK' && product.coverSides === 'BOTH' ? ` — ${product.sets} folhas com capa na frente e no verso são ${product.sets + 2}` : '' }}.
+        </p>
+
+        <div class="mt-3 space-y-2">
+          <div v-for="position in positions" :key="position" class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="w-36 text-sm text-slate-700 dark:text-slate-200">
+              {{ coverLabel(position) }} tem impressão? <span class="text-rose-500">*</span>
+            </span>
+            <label v-for="answer in [true, false]" :key="String(answer)" class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-200">
+              <input
+                type="radio"
+                :name="`capa-impressa-${position}`"
+                :checked="product.coverPrinted[position] === answer"
+                @change="store.setCoverPrinted(position, answer)"
+                class="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+              />
+              {{ answer ? 'Sim' : 'Não' }}
+            </label>
+            <span v-if="product.coverPrinted[position] === false" class="text-xs text-slate-500 dark:text-slate-400">
+              só papel — não entra nas etapas de impressão
+            </span>
+          </div>
+        </div>
+
+        <div v-if="printedCovers.length" class="mt-4 flex flex-col gap-2 border-t border-violet-200 pt-3 dark:border-violet-900/60">
+          <label class="inline-flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              v-model="product.coverRepeatsArtwork"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+            />
+            <span>
+              A capa tem o mesmo desenho da {{ product.structure === 'BLOCK' ? 'via' : 'lâmina' }}
+              <span class="block text-xs text-slate-500 dark:text-slate-400">Sai da chapa da 1ª {{ product.structure === 'BLOCK' ? 'via' : 'lâmina' }}, na mesma impressora — sem chapa nem montagem novas. Desmarcado, é impressão nova: chapa, montagem e acerto.</span>
+            </span>
+          </label>
+          <label v-if="printedCovers.length === 2" class="inline-flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              v-model="product.identicalCovers"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-slate-300 bg-slate-100 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700"
+            />
+            <span>
+              Capa da frente e do verso com o mesmo desenho
+              <span class="block text-xs text-slate-500 dark:text-slate-400">A capa do verso reaproveita a chapa da capa da frente.</span>
+            </span>
+          </label>
         </div>
       </div>
 

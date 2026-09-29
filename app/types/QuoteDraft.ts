@@ -22,6 +22,18 @@ export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
 export type ProductStructure = 'BLADE' | 'BLOCK'
 
 /**
+ * Onde vai a capa (atividade 040): só na frente, só no verso, ou nas duas posições — que são duas
+ * capas, cada uma com o seu papel. A capa da frente é sempre a folha COVER 1 e a do verso a 2.
+ */
+export type CoverSides = 'FRONT' | 'BACK' | 'BOTH'
+
+/** Posição de UMA capa, como o motor a recebe. */
+export type CoverPosition = 'FRONT' | 'BACK'
+
+/** Um conjunto de capas, como o MODELO DE PRODUTO o guarda: nenhuma, frente, verso ou as duas. */
+export type CoverSelection = 'NONE' | CoverSides
+
+/**
  * Uma folha do produto (lâmina, via ou capa). Guarda só o que é do PAPEL — cores, tintas e
  * impressora são de cada etapa de impressão, porque o mesmo papel pode passar pela máquina mais
  * de uma vez, com configurações diferentes.
@@ -177,7 +189,21 @@ export interface QuoteProduct {
   distinctArtworks: number | null
 
   hasCovers: boolean
-  coverCount: number
+  /** Frente e verso, só frente ou só verso (atividade 040). Substituiu a "quantidade de capas". */
+  coverSides: CoverSides
+  /**
+   * "A capa tem impressão?" — por capa. Nasce SEM RESPOSTA (null), como "as vias são iguais?": a
+   * capa impressa paga chapa, acerto e tinta, e nenhum dos lados pode ser assumido no silêncio. A
+   * capa que não é impressa sai das etapas de impressão — só consome papel.
+   */
+  coverPrinted: Record<CoverPosition, boolean | null>
+  /**
+   * "A capa tem o mesmo desenho da via/lâmina?" — sim = sai da chapa da 1ª via, sem chapa nem
+   * montagem novas. Não = impressão nova: chapa, montagem e acerto. Só pesa se a capa for impressa.
+   */
+  coverRepeatsArtwork: boolean
+  /** "Capa da frente e do verso com o mesmo desenho?" — só com as duas capas. */
+  identicalCovers: boolean
 
   /**
    * "TEM NUMERAÇÃO?" — atividade 036.
