@@ -76,6 +76,7 @@ const form = reactive({
   finishingTaskId: null as number | null,
   paperTypeId: null as number | null,
   supplies: [] as ActivitySupply[],
+  descriptionText: '',
   active: true,
 })
 
@@ -107,6 +108,7 @@ function hydrate(a: Activity) {
   form.finishingTaskId = a.finishingTaskId
   form.paperTypeId = a.paperTypeId
   form.supplies = (a.supplies ?? []).map((i) => ({ ...i }))
+  form.descriptionText = a.descriptionText ?? ''
   form.active = a.active
 }
 
@@ -269,6 +271,8 @@ const handleSubmit = () => {
     finishingTaskId: usesFinishingTask.value || isPackaging.value ? form.finishingTaskId : null,
     paperTypeId: isPackaging.value ? form.paperTypeId : null,
     supplies: isFinishing.value ? form.supplies : [],
+    // A impressão aparece na descrição pelas cores; em branco = o nome da atividade.
+    descriptionText: isPrinting.value ? null : form.descriptionText.trim() || null,
   }
 
   if (isEditing.value) emit('submit', { ...base, active: form.active }, 'update')
@@ -293,6 +297,23 @@ const handleSubmit = () => {
     </div>
 
     <p class="-mt-3 text-xs text-slate-500 dark:text-slate-400">{{ ACTIVITY_TYPE_HINTS[form.type] }}</p>
+
+    <!-- Texto na descrição do produto (atividade 040): a impressão aparece pelas cores, não por texto. -->
+    <div v-if="!isPrinting">
+      <label class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Texto na descrição do produto</label>
+      <input
+        v-model="form.descriptionText"
+        type="text"
+        maxlength="200"
+        :placeholder="`Ex.: colado / grampeado / refilado / incluindo arte final — vazio usa “${form.name.trim() || 'o nome'}”`"
+        :class="inputClass('descriptionText')"
+      />
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Como a etapa aparece na proposta: “Acabamento: com 1 picote, grampeado, colado, …”. Vazio usa o nome
+        da atividade; a picotadeira sem texto escreve a quantidade de picotes. Atividades manuais (como a
+        Arte) vêm no fim da frase, depois da numeração.
+      </p>
+    </div>
 
     <!-- MANUAL / ACABAMENTO MANUAL: custo hora-homem -->
     <div v-if="usesLaborCost" class="grid grid-cols-1 md:grid-cols-2 gap-4">

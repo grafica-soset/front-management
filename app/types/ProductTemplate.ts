@@ -6,7 +6,7 @@
  * papéis e os parâmetros de cada etapa são do pedido e ficam de fora.
  */
 import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
-import type { ProductStructure } from '@/types/QuoteDraft'
+import type { CoverSelection, ProductStructure } from '@/types/QuoteDraft'
 
 export interface ProductTemplateRequest {
   customerId: number
@@ -17,6 +17,12 @@ export interface ProductTemplateRequest {
   vias: number
   hasCovers: boolean
   coverCount: number
+  /** Onde vai a capa (atividade 040). O servidor devolve sempre; ausente no pedido = sai de `coverCount`. */
+  coverSides?: CoverSelection
+  /** Quais capas são impressas. Nulo = o orçamento pergunta. */
+  printedCovers?: CoverSelection | null
+  coverRepeatsArtwork?: boolean
+  identicalCovers?: boolean
   /** "As vias/lâminas são iguais?" — nulo com uma só. */
   identicalArtwork: boolean | null
   distinctArtworks: number | null

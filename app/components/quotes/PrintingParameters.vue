@@ -25,6 +25,7 @@ import {
   followsFirstVia,
   coverageIssues,
   coverageLabel,
+  coverIsPrinted,
   inkIssues,
   isSheetPrinted,
   machineForSheet,
@@ -56,7 +57,11 @@ const paperOf = (sheet: QuoteSheet) => findPaperType(sheet.paperTypeId)
 const printsSheet = (sheet: QuoteSheet) => isSheetPrinted(sheet, setup(sheet))
 
 const bodySheets = computed(() => product.value.sheets.filter((s) => s.kind !== 'COVER'))
-const coverSheets = computed(() => product.value.sheets.filter((s) => s.kind === 'COVER'))
+// A capa respondida como "sem impressão" (atividade 040) nem aparece aqui — só consome papel.
+const coverSheets = computed(() =>
+  product.value.sheets.filter((s) => s.kind === 'COVER' && coverIsPrinted(product.value, s)),
+)
+const configurableSheets = computed(() => [...bodySheets.value, ...coverSheets.value])
 const printedBody = computed(() => bodySheets.value.filter(printsSheet))
 const printedSheets = computed(() => product.value.sheets.filter(printsSheet))
 const printedCovers = computed(() => coverSheets.value.filter(printsSheet))
@@ -363,7 +368,7 @@ const toggleSeparateCovers = () => {
       </p>
 
       <div class="mt-3 space-y-3">
-        <div v-for="sheet in product.sheets" :key="sheet.uid" class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+        <div v-for="sheet in configurableSheets" :key="sheet.uid" class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <span

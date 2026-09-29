@@ -18,6 +18,7 @@ import type { ProductModelKeyValue } from '@/types/ProductModel'
 import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
 import Modal from '@/components/ui/Modal.vue'
 import ProductTemplateForm from '@/components/forms/ProductTemplateForm.vue'
+import { coverSidesFromCount, coverSidesLabel } from '@/utils/quoteModel'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -87,7 +88,8 @@ const goToPage = (next: number) => {
 
 const structureOf = (t: ProductTemplate) => {
   const base = t.structure === 'BLADE' ? `Lâmina · ${t.blades} lâmina(s)` : `Bloco · ${t.vias} via(s)`
-  const covers = t.hasCovers ? ` + ${t.coverCount} capa(s)` : ''
+  const sides = t.coverSides && t.coverSides !== 'NONE' ? t.coverSides : coverSidesFromCount(t.coverCount)
+  const covers = t.hasCovers ? ` + ${coverSidesLabel(sides)}` : ''
   const identical = t.identicalArtwork === true ? ' · iguais' : t.identicalArtwork === false ? ` · ${t.distinctArtworks ?? '?'} desenho(s)` : ''
   return `${base}${covers}${identical}`
 }

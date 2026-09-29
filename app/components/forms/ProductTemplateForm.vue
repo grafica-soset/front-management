@@ -13,7 +13,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { ProductModelKeyValue } from '@/types/ProductModel'
 import type { ProductTemplate, ProductTemplateKeyValue, ProductTemplateRequest } from '@/types/ProductTemplate'
-import type { ProductStructure } from '@/types/QuoteDraft'
+import type { CoverSelection, CoverSides, ProductStructure } from '@/types/QuoteDraft'
+import { coverSidesFromCount, positionsOf } from '@/utils/quoteModel'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import { emptyPricing, emptyTaxes, normalizePricing, normalizeTaxes, pricingIssues } from '@/utils/pricing'
@@ -50,7 +51,13 @@ const form = reactive({
   blades: props.initial?.blades ?? 1,
   vias: props.initial?.vias ?? 2,
   hasCovers: props.initial?.hasCovers ?? false,
-  coverCount: props.initial?.coverCount || 1,
+  // Atividade 040: onde vai a capa e quais são impressas ('' = perguntar no orçamento).
+  coverSides: (props.initial?.coverSides && props.initial.coverSides !== 'NONE'
+    ? props.initial.coverSides
+    : coverSidesFromCount(props.initial?.coverCount)) as CoverSides,
+  printedCovers: (props.initial?.printedCovers ?? '') as CoverSelection | '',
+  coverRepeatsArtwork: props.initial?.coverRepeatsArtwork ?? false,
+  identicalCovers: props.initial?.identicalCovers ?? false,
   identicalArtwork: props.initial?.identicalArtwork ?? (null as boolean | null),
   distinctArtworks: props.initial?.distinctArtworks ?? (null as number | null),
   activityIds: [...(props.initial?.activityIds ?? [])],
@@ -70,6 +77,25 @@ watch(
 )
 
 const artworkCount = computed(() => (form.structure === 'BLADE' ? form.blades : form.vias))
+
+// Capas impressas possíveis: só as que o produto tem.
+const printedOptions = computed(() => {
+  const options: { value: CoverSelection | ''; label: string }[] = [
+    { value: '', label: 'Perguntar no orçamento' },
+    { value: 'NONE', label: 'Nenhuma — só papel' },
+  ]
+  if (form.coverSides !== 'BACK') options.push({ value: 'FRONT', label: 'Só a da frente' })
+  if (form.coverSides !== 'FRONT') options.push({ value: 'BACK', label: 'Só a do verso' })
+  if (form.coverSides === 'BOTH') options.push({ value: 'BOTH', label: 'As duas' })
+  return options
+})
+watch(
+  () => form.coverSides,
+  () => {
+    if (!printedOptions.value.some((o) => o.value === form.printedCovers)) form.printedCovers = ''
+  },
+)
+const printedCount = computed(() => positionsOf(form.printedCovers || null).length)
 const artworkLabel = computed(() => (form.structure === 'BLADE' ? 'lâminas' : 'vias'))
 
 const identicalChoice = computed({
@@ -123,7 +149,11 @@ const handleSubmit = () => {
     blades: Math.max(1, Math.floor(form.blades) || 1),
     vias: Math.min(9, Math.max(1, Math.floor(form.vias) || 1)),
     hasCovers: form.hasCovers,
-    coverCount: form.hasCovers ? Math.max(1, Math.floor(form.coverCount) || 1) : 0,
+    coverCount: form.hasCovers ? (form.coverSides === 'BOTH' ? 2 : 1) : 0,
+    coverSides: form.hasCovers ? form.coverSides : 'NONE',
+    printedCovers: form.hasCovers && form.printedCovers !== '' ? form.printedCovers : null,
+    coverRepeatsArtwork: form.hasCovers && printedCount.value > 0 && form.coverRepeatsArtwork,
+    identicalCovers: form.hasCovers && printedCount.value === 2 && form.identicalCovers,
     identicalArtwork: asks ? form.identicalArtwork : null,
     distinctArtworks: asks && form.identicalArtwork === false ? form.distinctArtworks : null,
     activityIds: [...form.activityIds],
@@ -179,7 +209,25 @@ const labelClass = 'mb-1.5 block text-sm font-medium text-slate-700 dark:text-sl
             <input v-model="form.hasCovers" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" />
             Tem capa
           </label>
-          <input v-if="form.hasCovers" v-model.number="form.coverCount" type="number" min="1" class="mt-2" :class="inputClass" aria-label="Quantidade de capas" />
+          <template v-if="form.hasCovers">
+            <select v-model="form.coverSides" class="mt-2" :class="inputClass" aria-label="Posição da capa">
+              <option value="BOTH">Na frente e no verso</option>
+              <option value="FRONT">Só na frente</option>
+              <option value="BACK">Só no verso</option>
+            </select>
+            <label :class="labelClass" class="mt-3">Capas impressas</label>
+            <select v-model="form.printedCovers" :class="inputClass">
+              <option v-for="o in printedOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+            <label v-if="printedCount > 0" class="mt-2 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input v-model="form.coverRepeatsArtwork" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" />
+              Mesmo desenho da {{ form.structure === 'BLOCK' ? 'via' : 'lâmina' }}
+            </label>
+            <label v-if="printedCount === 2" class="mt-1 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input v-model="form.identicalCovers" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" />
+              Frente e verso com o mesmo desenho
+            </label>
+          </template>
         </div>
         <div v-if="artworkCount >= 2">
           <label :class="labelClass">As {{ artworkLabel }} são iguais?</label>

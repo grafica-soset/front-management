@@ -14,7 +14,7 @@ import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import type { SelectionEntryResponse } from '@/types/Quote'
-import { brl, formatLabel, numberingRange, printRun } from '@/utils/quoteModel'
+import { brl, coverLabel, coverPositionOf, formatLabel, numberingRange, printRun } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
@@ -68,7 +68,7 @@ const structureLabel = computed(() => {
 })
 
 const sheetName = (kind: string, number: number) =>
-  `${kind === 'BLADE' ? 'Lâmina' : kind === 'COVER' ? 'Capa' : 'Via'} ${number}`
+  kind === 'COVER' ? coverLabel(coverPositionOf(number)) : `${kind === 'BLADE' ? 'Lâmina' : 'Via'} ${number}`
 
 /**
  * As notas que o motor deixou nos planos escolhidos — entre elas, a composição do acerto de cada

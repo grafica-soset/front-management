@@ -10,11 +10,35 @@
  * que continuam existindo — inclusive dentro de cada etapa de impressão.
  */
 import { defineStore } from 'pinia'
-import type { PrintingSetup, ProductStructure, QuoteProduct, QuoteSheet, QuoteStep, SheetKind } from '@/types/QuoteDraft'
+import type {
+  CoverPosition,
+  CoverSelection,
+  PrintingSetup,
+  PrintingSheetSetup,
+  ProductStructure,
+  QuoteProduct,
+  QuoteSheet,
+  QuoteStep,
+  SheetKind,
+} from '@/types/QuoteDraft'
 import type { ProductCostingResponse, QuoteProductRequest, QuoteStepRequest } from '@/types/Quote'
 import type { ProductTemplate, ProductTemplateRequest } from '@/types/ProductTemplate'
 import type { QuoteStatus, SaveQuoteRequest, SavedQuote, SupplyConditions } from '@/types/SavedQuote'
-import { defaultSheetSetup, followsFirstVia, isSheetPrinted, machineForSheet, setupFor } from '@/utils/quoteModel'
+import {
+  coverCount,
+  coverIsPrinted,
+  coverPositionOf,
+  coverPositions,
+  coverSidesFromCount,
+  positionsOf,
+  printedCoverPositions,
+  selectionOf,
+  defaultSheetSetup,
+  followsFirstVia,
+  isSheetPrinted,
+  machineForSheet,
+  setupFor,
+} from '@/utils/quoteModel'
 import {
   agencyCommissionAmount,
   emptyPricing,
@@ -46,10 +70,23 @@ function emptySheet(kind: SheetKind, index: number): QuoteSheet {
   return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null }
 }
 
+/** Folha fora da impressão: zero cores nas duas faces. */
+function blankSheetSetup(): PrintingSheetSetup {
+  return { frontColors: 0, backColors: 0, frontInkIds: [], backInkIds: [], frontCoverage: null, backCoverage: null }
+}
+
+/**
+ * Configuração com que a folha nasce numa etapa de impressão: a padrão, menos na capa respondida
+ * como "sem impressão" (atividade 040) — essa nem aparece na etapa.
+ */
+function initialSheetSetup(product: QuoteProduct, sheet: QuoteSheet): PrintingSheetSetup {
+  return coverIsPrinted(product, sheet) ? defaultSheetSetup() : blankSheetSetup()
+}
+
 /** Etapa de impressão nova: nenhuma máquina escolhida e cada folha na configuração padrão. */
-function emptyPrintingSetup(sheets: QuoteSheet[]): PrintingSetup {
+function emptyPrintingSetup(product: QuoteProduct): PrintingSetup {
   const bySheet: PrintingSetup['bySheet'] = {}
-  for (const sheet of sheets) bySheet[sheet.uid] = defaultSheetSetup()
+  for (const sheet of product.sheets) bySheet[sheet.uid] = initialSheetSetup(product, sheet)
   return {
     bySheet,
     machineId: null,
@@ -85,7 +122,10 @@ export function emptyProduct(): QuoteProduct {
     identicalArtwork: null,
     distinctArtworks: null,
     hasCovers: false,
-    coverCount: 1,
+    coverSides: 'BOTH',
+    coverPrinted: { FRONT: null, BACK: null },
+    coverRepeatsArtwork: false,
+    identicalCovers: false,
     // Numeração (atividade 036): sem resposta até o usuário dizer. Os defaults abaixo só entram
     // em cena depois do "sim".
     hasNumbering: null,
@@ -106,15 +146,48 @@ export function emptyProduct(): QuoteProduct {
  */
 export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduct {
   const base = emptyProduct()
+  // Rascunho anterior à atividade 040 guardava "quantas capas": vira a posição.
+  const legacyCoverCount = (product as { coverCount?: number }).coverCount
   return {
     ...base,
     ...product,
+    coverSides: product.coverSides ?? coverSidesFromCount(legacyCoverCount),
+    coverPrinted: product.coverPrinted ?? inferCoverPrinted(product),
+    coverRepeatsArtwork: product.coverRepeatsArtwork ?? false,
+    identicalCovers: product.identicalCovers ?? false,
     uid: product.uid || base.uid,
     productModelName: product.productModelName ?? '',
     typeName: product.typeName ?? '',
     taxes: normalizeTaxes(product.taxes),
     pricing: normalizePricing(product.pricing),
   } as QuoteProduct
+}
+
+/**
+ * Capas impressas no formato do modelo de produto. Alguma capa sem resposta = nulo: o modelo não
+ * responde, e cada orçamento pergunta.
+ */
+function templatePrintedCovers(product: QuoteProduct): CoverSelection | null {
+  if (!product.hasCovers) return null
+  const positions = coverPositions(product.coverSides)
+  if (positions.some((p) => product.coverPrinted[p] == null)) return null
+  return selectionOf(positions.filter((p) => product.coverPrinted[p] === true))
+}
+
+/**
+ * Rascunho salvo antes da pergunta "a capa tem impressão?": a resposta sai do que ele já tinha —
+ * capa com cor em alguma etapa de impressão é impressa; sem cor em nenhuma, não é.
+ */
+function inferCoverPrinted(product: Partial<QuoteProduct>): QuoteProduct['coverPrinted'] {
+  const answer: QuoteProduct['coverPrinted'] = { FRONT: null, BACK: null }
+  for (const sheet of product.sheets ?? []) {
+    if (sheet.kind !== 'COVER') continue
+    answer[coverPositionOf(sheet.index)] = (product.steps ?? []).some((step) => {
+      const setup = step.printing?.bySheet[sheet.uid]
+      return !!setup && setup.frontColors + setup.backColors > 0
+    })
+  }
+  return answer
 }
 
 /**
@@ -132,7 +205,13 @@ export function templateRequestFromProduct(product: QuoteProduct, customerId: nu
     blades: Math.max(1, product.blades || 1),
     vias: Math.min(9, Math.max(1, product.vias || 1)),
     hasCovers: product.hasCovers,
-    coverCount: product.hasCovers ? Math.max(1, product.coverCount || 1) : 0,
+    coverCount: coverCount(product),
+    // Atividade 040: onde vai a capa, quais são impressas (sem resposta em alguma = o orçamento
+    // pergunta) e o desenho.
+    coverSides: product.hasCovers ? product.coverSides : 'NONE',
+    printedCovers: templatePrintedCovers(product),
+    coverRepeatsArtwork: product.hasCovers && product.coverRepeatsArtwork,
+    identicalCovers: product.hasCovers && product.identicalCovers,
     // Com uma via/lâmina só a pergunta não existe; o servidor recusa resposta para ela.
     identicalArtwork: artworkSheets >= 2 ? product.identicalArtwork : null,
     distinctArtworks: artworkSheets >= 2 && product.identicalArtwork === false ? product.distinctArtworks : null,
@@ -341,7 +420,16 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       draft.blades = Math.max(1, template.blades)
       draft.vias = Math.min(9, Math.max(1, template.vias))
       draft.hasCovers = template.hasCovers
-      draft.coverCount = template.hasCovers ? Math.max(1, template.coverCount) : 1
+      draft.coverSides =
+        template.coverSides && template.coverSides !== 'NONE' ? template.coverSides : coverSidesFromCount(template.coverCount)
+      // Capas impressas: o modelo que não responde deixa a pergunta para o orçamento.
+      const printed = template.printedCovers == null ? null : positionsOf(template.printedCovers)
+      draft.coverPrinted = {
+        FRONT: printed == null ? null : printed.includes('FRONT'),
+        BACK: printed == null ? null : printed.includes('BACK'),
+      }
+      draft.coverRepeatsArtwork = template.coverRepeatsArtwork ?? false
+      draft.identicalCovers = template.identicalCovers ?? false
       this.syncSheets()
       // Depois do sync: é ele que zera a resposta quando o número de vias muda.
       draft.identicalArtwork = template.identicalArtwork
@@ -463,6 +551,32 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * O NÃO nasce com o pior caso — todas diferentes —, que é o que o sistema sempre cobrou. Daí o
      * usuário reduz o número se algumas se repetem.
      */
+    /**
+     * "A capa tem impressão?" (atividade 040). Não = a capa sai de todas as etapas de impressão
+     * (zero cores) e só consome papel. Sim = volta a elas na configuração padrão, para o usuário
+     * dizer as cores — como qualquer via.
+     */
+    setCoverPrinted(position: CoverPosition, printed: boolean) {
+      const draft = this.draft
+      if (!draft) return
+      draft.coverPrinted[position] = printed
+      const sheet = draft.sheets.find((s) => s.kind === 'COVER' && coverPositionOf(s.index) === position)
+      if (sheet) {
+        for (const step of draft.steps) {
+          const printing = step.printing
+          if (!printing) continue
+          const current = printing.bySheet[sheet.uid]
+          const hasColor = !!current && current.frontColors + current.backColors > 0
+          if (!printed) printing.bySheet[sheet.uid] = blankSheetSetup()
+          else if (!hasColor) printing.bySheet[sheet.uid] = defaultSheetSetup()
+        }
+      }
+      // As perguntas do desenho só existem para capa impressa.
+      const impressas = printedCoverPositions(draft).length
+      if (impressas === 0) draft.coverRepeatsArtwork = false
+      if (impressas < 2) draft.identicalCovers = false
+    },
+
     setIdenticalArtwork(identical: boolean) {
       const draft = this.draft
       if (!draft) return
@@ -536,11 +650,15 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         for (let i = 1; i <= vias; i += 1) next.push(take('VIA', i))
       }
       if (draft.hasCovers) {
-        // Uma folha POR CAPA: capa 1 e capa 2 têm papel próprio e podem ter impressão diferente
-        // (é comum a capa de trás não ser impressa).
-        const covers = Math.max(1, draft.coverCount || 1)
-        for (let i = 1; i <= covers; i += 1) next.push(take('COVER', i))
+        // Uma folha POR CAPA, fixa na posição: a da frente é a capa 1 e a do verso a capa 2, cada
+        // uma com papel próprio e impressa ou não (é comum a capa de trás não ser impressa).
+        for (const position of coverPositions(draft.coverSides)) {
+          next.push(take('COVER', position === 'FRONT' ? 1 : 2))
+        }
       }
+      // Capas iguais entre si só existem com as duas capas.
+      if (coverCount(draft) < 2) draft.identicalCovers = false
+      if (!draft.hasCovers) draft.coverRepeatsArtwork = false
 
       draft.sheets = next
 
@@ -561,7 +679,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         const printing = step.printing
         if (!printing) continue
         for (const sheet of next) {
-          if (!printing.bySheet[sheet.uid]) printing.bySheet[sheet.uid] = defaultSheetSetup()
+          if (!printing.bySheet[sheet.uid]) printing.bySheet[sheet.uid] = initialSheetSetup(draft, sheet)
         }
         for (const key of Object.keys(printing.bySheet)) {
           if (!validUids.has(key)) delete printing.bySheet[key]
@@ -583,7 +701,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       // Impressão nasce com a sua própria configuração: duas impressões no mesmo produto são dois
       // acertos independentes, cada um com as suas cores, tintas e máquina.
       if (useQuoteCatalogs().findActivity(activityId)?.type === 'PRINTING') {
-        step.printing = emptyPrintingSetup(draft.sheets)
+        step.printing = emptyPrintingSetup(draft)
       }
       draft.steps.push(step)
     },
@@ -619,7 +737,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             sheets: product.sheets
               .map((sheet) => {
                 const setup = setupFor(step, sheet)
-                if (!isSheetPrinted(sheet, setup)) return null
+                // A capa sem impressão não viaja, qualquer que seja a cor que sobrou nela.
+                if (!coverIsPrinted(product, sheet) || !isSheetPrinted(sheet, setup)) return null
                 return {
                   sheetNumber: sheet.index,
                   kind: sheet.kind,
@@ -658,9 +777,14 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
                 digits: product.numberingDigits,
               }
             : null,
+        // Capa (atividade 040): o desenho repete o da via? E frente igual ao verso? Só pesam em capa
+        // impressa — e "iguais" só com as duas impressas.
+        coverRepeatsArtwork: printedCoverPositions(product).length > 0 && product.coverRepeatsArtwork,
+        identicalCovers: printedCoverPositions(product).length === 2 && product.identicalCovers,
         sheets: product.sheets.map((sheet) => ({
           number: sheet.index,
           kind: sheet.kind,
+          coverPosition: sheet.kind === 'COVER' ? coverPositionOf(sheet.index) : null,
           paperTypeId: sheet.paperTypeId!,
           // No bloco o formato é da via 1 (atividade 039): uma escolha antiga numa outra via ou na
           // capa não viaja — o motor a ignoraria e devolveria um aviso sobre algo que a tela não
