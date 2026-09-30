@@ -17,6 +17,12 @@ export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
 export type ProductStructure = 'BLADE' | 'BLOCK'
 /** Posição da capa (atividade 040). */
 export type CoverPosition = 'FRONT' | 'BACK'
+
+/**
+ * Como a offset imprime o verso de uma folha com frente e verso iguais em cores (atividade 041):
+ * tira/retira (frente e verso na mesma chapa, um acerto só) ou frente/verso (chapas e acerto de cada lado).
+ */
+export type DuplexMode = 'WORK_AND_TURN' | 'SHEETWISE'
 export type QuoteInkType = 'LINE' | 'CMYK' | 'PANTONE'
 
 // ─── Requisição ──────────────────────────────────────────────────────────────
@@ -48,6 +54,8 @@ export interface QuotePrintingSheetRequest {
   frontCoveragePercent?: number | null
   backCoveragePercent?: number | null
   printingMachineId?: number | null
+  /** Tira/retira ou frente/verso (atividade 041). Nulo = tira/retira, quando os lados permitem. */
+  duplexMode?: DuplexMode | null
 }
 
 export interface QuotePrintingRequest {
@@ -154,6 +162,8 @@ export interface PrintingPassResponse {
   backCoveragePercent: number
   inkType: QuoteInkType
   passes: number
+  /** Frente e verso saíram da mesma chapa, em tira/retira (atividade 041). */
+  workAndTurn: boolean
   wasteSheets: number
   plateCount: number
   plateSupplyId: number | null

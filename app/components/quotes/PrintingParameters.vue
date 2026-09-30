@@ -23,6 +23,7 @@ import {
   colorsLabel,
   formatLabel,
   followsFirstVia,
+  allowsWorkAndTurn,
   coverageIssues,
   coverageLabel,
   coverIsPrinted,
@@ -36,7 +37,7 @@ import {
   sheetsForSheet,
 } from '@/utils/quoteModel'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
-import type { SheetCostingResponse } from '@/types/Quote'
+import type { DuplexMode, SheetCostingResponse } from '@/types/Quote'
 
 const props = defineProps<{
   step: QuoteStep
@@ -280,6 +281,29 @@ const toggleInk = (sheet: QuoteSheet, face: 'front' | 'back', inkId: number) => 
   else next = [...selected.slice(1), inkId]
   if (face === 'front') current.frontInkIds = next
   else current.backInkIds = next
+}
+
+/**
+ * TIRA/RETIRA OU FRENTE E VERSO (atividade 041). A pergunta só aparece com frente e verso iguais em
+ * cores e tintas, e fora da digital (que não tem chapa). Nasce em tira/retira, o padrão da gráfica.
+ */
+const asksDuplex = (sheet: QuoteSheet) =>
+  allowsWorkAndTurn(setup(sheet)) &&
+  catalogs.findMachine(machineForSheet(props.step, sheet))?.machineType !== 'DIGITAL'
+const duplexOf = (sheet: QuoteSheet): DuplexMode => setup(sheet).duplexMode ?? 'WORK_AND_TURN'
+const setDuplex = (sheet: QuoteSheet, mode: DuplexMode) => {
+  setup(sheet).duplexMode = mode
+}
+/**
+ * Pediu tira/retira e o motor não conseguiu — formato de aplicações ímpares ou trabalho numerado. A
+ * nota do cálculo diz o motivo; sem ela a tela prometeria uma chapa só e o preço viria com duas.
+ */
+const duplexFallback = (sheet: QuoteSheet): string | null => {
+  if (duplexOf(sheet) !== 'WORK_AND_TURN') return null
+  const plan = costingOf(sheet)?.chosen
+  const pass = plan?.printings.find((p) => p.printingIndex === props.printingIndex)
+  if (!plan || !pass || pass.workAndTurn || pass.machineType !== 'OFFSET') return null
+  return plan.notes.find((n) => n.includes('sem tira/retira')) ?? null
 }
 
 const issuesOf = (sheet: QuoteSheet) => (printsSheet(sheet) ? inkIssues(setup(sheet)) : [])
@@ -814,6 +838,41 @@ const toggleSeparateCovers = () => {
             <p v-if="issuesOf(sheet).length" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
               Faltam tintas — {{ issuesOf(sheet).join(' · ') }}.
             </p>
+
+            <!-- Frente e verso iguais: tira/retira (uma chapa, um acerto) ou frente e verso (atividade 041). -->
+            <div v-if="asksDuplex(sheet)" class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <span class="text-xs font-medium text-slate-700 dark:text-slate-200">Como imprimir o verso?</span>
+              <div class="mt-1.5 flex flex-wrap gap-2">
+                <button
+                  v-for="mode in (['WORK_AND_TURN', 'SHEETWISE'] as const)"
+                  :key="mode"
+                  type="button"
+                  @click="setDuplex(sheet, mode)"
+                  class="rounded-full border px-3 py-1 text-xs transition-colors"
+                  :class="
+                    duplexOf(sheet) === mode
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
+                  "
+                >
+                  {{ mode === 'WORK_AND_TURN' ? 'Tira/retira' : 'Frente e verso' }}
+                </button>
+              </div>
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <template v-if="duplexOf(sheet) === 'WORK_AND_TURN'">
+                  Frente e verso na <strong>mesma chapa</strong>: a folha volta virada na máquina. Uma
+                  montagem, um acerto de cor, uma lavagem e um acerto do alimentador — o verso paga só a
+                  carga da pilha e a rodagem. Pede formato com aplicações pares.
+                </template>
+                <template v-else>
+                  Cada lado com as suas chapas: montagem, acerto de cor, lavagem e alimentador cobrados
+                  na frente e no verso.
+                </template>
+              </p>
+              <p v-if="duplexFallback(sheet)" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                {{ duplexFallback(sheet) }}
+              </p>
+            </div>
           </template>
         </div>
       </div>

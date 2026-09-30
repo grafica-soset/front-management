@@ -4,11 +4,13 @@ import type { ProductCostingResponse } from '@/types/Quote'
 import type { MachineKeyValue } from '@/types/Machine'
 import type { SupplyKeyValue } from '@/types/Supply'
 import {
+  allowsWorkAndTurn,
   colorsLabel,
   coverCount,
   coverPositionOf,
   coverSidesFromCount,
   coverageIssues,
+  duplexModeFor,
   followsFirstVia,
   formatLabel,
   inkIssues,
@@ -108,6 +110,28 @@ describe('folha dentro (ou fora) de uma impressão', () => {
 
     expect(setupFor(primeira, folha).frontColors).toBe(4)
     expect(isSheetPrinted(folha, setupFor(segunda, folha))).toBe(false)
+  })
+})
+
+describe('tira/retira ou frente e verso (atividade 041)', () => {
+  const lados = (front: number, back: number, frontInkIds: number[], backInkIds: number[]): PrintingSheetSetup => ({
+    frontColors: front, backColors: back, frontInkIds, backInkIds, frontCoverage: 30, backCoverage: 10,
+  })
+
+  it('só é pergunta com frente e verso iguais em cores e tintas', () => {
+    expect(allowsWorkAndTurn(lados(1, 1, [200], [200]))).toBe(true)
+    // A ordem das tintas não importa: a chapa passa pelos mesmos tinteiros.
+    expect(allowsWorkAndTurn(lados(2, 2, [200, 201], [201, 200]))).toBe(true)
+    expect(allowsWorkAndTurn(lados(1, 0, [200], []))).toBe(false)
+    expect(allowsWorkAndTurn(lados(4, 1, [1, 2, 3, 4], [4]))).toBe(false)
+    expect(allowsWorkAndTurn(lados(1, 1, [200], [201]))).toBe(false)
+  })
+
+  it('nasce em tira/retira e manda frente e verso só quando o usuário escolhe', () => {
+    expect(duplexModeFor(lados(1, 1, [200], [200]))).toBe('WORK_AND_TURN')
+    expect(duplexModeFor({ ...lados(1, 1, [200], [200]), duplexMode: 'SHEETWISE' })).toBe('SHEETWISE')
+    // Fora da condição a escolha antiga não viaja: não é pergunta.
+    expect(duplexModeFor({ ...lados(1, 1, [200], [201]), duplexMode: 'SHEETWISE' })).toBeNull()
   })
 })
 
