@@ -14,6 +14,7 @@
  * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
 import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
+import type { DuplexMode } from '@/types/Quote'
 
 /** O que a folha é dentro do produto. */
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
@@ -75,6 +76,12 @@ export interface PrintingSheetSetup {
    */
   frontCoverage: number | null
   backCoverage: number | null
+  /**
+   * "Tira/retira ou frente e verso?" (atividade 041) — só é pergunta quando frente e verso são iguais
+   * em cores (ver `allowsWorkAndTurn`). Ausente/nulo = tira/retira, o padrão da gráfica. Frente e
+   * verso volta a cobrar as chapas e o acerto dos dois lados.
+   */
+  duplexMode?: DuplexMode | null
 }
 
 /**

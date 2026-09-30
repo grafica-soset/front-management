@@ -370,7 +370,10 @@ const printingTables = computed(() => {
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.sheet.paperTypeName }}</td>
               <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">
-                <template v-if="row.pass">{{ row.pass.frontColors }}x{{ row.pass.backColors }}</template>
+                <template v-if="row.pass">
+                  {{ row.pass.frontColors }}x{{ row.pass.backColors }}
+                  <span v-if="row.pass.workAndTurn" class="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">tira/retira</span>
+                </template>
                 <span v-else class="text-slate-400 dark:text-slate-500">fora desta impressão</span>
               </td>
               <td class="px-5 py-3 tabular-nums text-slate-700 dark:text-slate-200">

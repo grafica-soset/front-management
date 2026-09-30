@@ -116,6 +116,27 @@ export function coverageIssues(setup: PrintingSheetSetup): string[] {
   return issues
 }
 
+/**
+ * Frente e verso podem sair da MESMA chapa, em tira/retira (atividade 041)? Só com os lados iguais em
+ * cores: mesmo número de cores e as mesmas tintas — a chapa é uma só e passa pelos mesmos tinteiros
+ * nas duas voltas. A cobertura pode ser diferente.
+ *
+ * É só a condição da FOLHA: o motor ainda confere a máquina (offset) e as aplicações do formato
+ * (pares), e cai para frente e verso quando não dá.
+ */
+export function allowsWorkAndTurn(setup: PrintingSheetSetup): boolean {
+  if (setup.frontColors <= 0 || setup.frontColors !== setup.backColors) return false
+  const front = new Set(setup.frontInkIds)
+  const back = new Set(setup.backInkIds)
+  return front.size === back.size && [...front].every((id) => back.has(id))
+}
+
+/** O que vai para o motor: a escolha, com tira/retira como padrão — ou nada, quando não é pergunta. */
+export function duplexModeFor(setup: PrintingSheetSetup): 'WORK_AND_TURN' | 'SHEETWISE' | null {
+  if (!allowsWorkAndTurn(setup)) return null
+  return setup.duplexMode ?? 'WORK_AND_TURN'
+}
+
 /** Configuração de uma folha numa etapa que ainda não a configurou. */
 export function defaultSheetSetup(): PrintingSheetSetup {
   // Começa com a frente em 1 cor; quem não imprime esta folha nesta etapa zera as duas faces.

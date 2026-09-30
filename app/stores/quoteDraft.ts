@@ -34,6 +34,7 @@ import {
   printedCoverPositions,
   selectionOf,
   defaultSheetSetup,
+  duplexModeFor,
   followsFirstVia,
   isSheetPrinted,
   machineForSheet,
@@ -749,6 +750,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
                   frontCoveragePercent: setup.frontCoverage,
                   backCoveragePercent: setup.backCoverage,
                   printingMachineId: machineForSheet(step, sheet),
+                  duplexMode: duplexModeFor(setup),
                 }
               })
               .filter((s): s is NonNullable<typeof s> => s !== null),
