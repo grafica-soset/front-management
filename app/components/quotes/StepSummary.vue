@@ -373,6 +373,11 @@ const printingTables = computed(() => {
                 <template v-if="row.pass">
                   {{ row.pass.frontColors }}x{{ row.pass.backColors }}
                   <span v-if="row.pass.workAndTurn" class="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">tira/retira</span>
+                  <!-- Atividade 043: a digital imprime frente e verso na mesma passada, com um acerto só. -->
+                  <span
+                    v-else-if="row.pass.machineType === 'DIGITAL' && row.pass.frontColors > 0 && row.pass.backColors > 0"
+                    class="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                  >F/V numa passada</span>
                 </template>
                 <span v-else class="text-slate-400 dark:text-slate-500">fora desta impressão</span>
               </td>

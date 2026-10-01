@@ -217,7 +217,7 @@ const toggleInkColor = (color: InkColorType) => {
           </div>
         </div>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor abaixo do mínimo</label>
           <div class="relative">
@@ -233,6 +233,21 @@ const toggleInkColor = (color: InkColorType) => {
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
           </div>
           <p v-if="errors.aboveMaxFormatReducerPercent" class="mt-1 text-xs text-rose-600">{{ errors.aboveMaxFormatReducerPercent }}</p>
+        </div>
+        <!--
+          Atividade 043. A digital imprime frente e verso na MESMA passada: o acerto, a carga e a
+          quebra não se repetem. O que o duplex custa é velocidade — este redutor.
+        -->
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor frente e verso</label>
+          <div class="relative">
+            <input v-model="block.duplexSpeedReducerPercent" type="number" min="0" max="100" step="0.01" :class="inputClass(errors.duplexSpeedReducerPercent)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
+          </div>
+          <p v-if="errors.duplexSpeedReducerPercent" class="mt-1 text-xs text-rose-600">{{ errors.duplexSpeedReducerPercent }}</p>
+          <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Só quando o trabalho é frente e verso. Os dois lados saem na mesma passada.
+          </p>
         </div>
       </div>
     </fieldset>

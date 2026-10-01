@@ -606,6 +606,7 @@ export function defaultDigitalBlock(): DigitalBlockRequest {
     maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0 },
     belowMinFormatReducerPercent: '0',
     aboveMaxFormatReducerPercent: '0',
+    duplexSpeedReducerPercent: '0',
     minWeightGsm: 0,
     maxWeightGsm: 0,
     maxThicknessMicrons: 0,
@@ -645,6 +646,8 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
     },
     belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
     aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
+    // Máquina cadastrada antes da atividade 043 pode voltar sem o campo: frente e verso sem perda.
+    duplexSpeedReducerPercent: String(block.duplexSpeedReducerPercent ?? 0),
     minWeightGsm: block.minWeightGsm ?? 0,
     maxWeightGsm: block.maxWeightGsm ?? 0,
     maxThicknessMicrons: block.maxThicknessMicrons ?? 0,
@@ -691,6 +694,9 @@ export function validateDigital(block: DigitalBlockRequest): Record<string, stri
 
   if (!isNonNegativeNumber(block.belowMinFormatReducerPercent)) errors['belowMinFormatReducerPercent'] = 'Percentual inválido.'
   if (!isNonNegativeNumber(block.aboveMaxFormatReducerPercent)) errors['aboveMaxFormatReducerPercent'] = 'Percentual inválido.'
+  if (!isNonNegativeNumber(block.duplexSpeedReducerPercent) || Number(block.duplexSpeedReducerPercent) > 100) {
+    errors['duplexSpeedReducerPercent'] = 'Informe um percentual entre 0 e 100.'
+  }
 
   for (const which of ['lineCoverage', 'imageCoverage'] as const) {
     if (!isNonNegativeNumber(block[which].tonerGramsPerSquareMeterAt100)) errors[`${which}.tonerGramsPerSquareMeterAt100`] = 'Valor inválido.'

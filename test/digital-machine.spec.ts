@@ -26,6 +26,8 @@ function validBlock(): DigitalBlockRequest {
     maxFormat: { widthMm: 660, lengthMm: 960, sheetsPerHour: 9000 },
     belowMinFormatReducerPercent: '10',
     aboveMaxFormatReducerPercent: '20',
+    // Frente e verso (atividade 043): os dois lados na mesma passada, 35% mais devagar.
+    duplexSpeedReducerPercent: '35',
     minWeightGsm: 60,
     maxWeightGsm: 300,
     maxThicknessMicrons: 400,
@@ -52,6 +54,19 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
   it('o bloco default nasce sem acerto de numeração', () => {
     // Zero é resposta legítima: numerar nessa máquina não cobra acerto nenhum.
     expect(defaultDigitalBlock().numberingSetupMinutes).toBe(0)
+  })
+
+  // ---- Frente e verso (atividade 043) ----
+
+  it('o bloco default nasce sem redutor de frente e verso', () => {
+    expect(defaultDigitalBlock().duplexSpeedReducerPercent).toBe('0')
+  })
+
+  it('o redutor de frente e verso fica entre 0 e 100%', () => {
+    expect(validateDigital({ ...validBlock(), duplexSpeedReducerPercent: '-1' })['duplexSpeedReducerPercent']).toBeTruthy()
+    expect(validateDigital({ ...validBlock(), duplexSpeedReducerPercent: '100.5' })['duplexSpeedReducerPercent']).toBeTruthy()
+    expect(validateDigital({ ...validBlock(), duplexSpeedReducerPercent: '' })['duplexSpeedReducerPercent']).toBeTruthy()
+    expect(validateDigital({ ...validBlock(), duplexSpeedReducerPercent: '100' })).toEqual({})
   })
 
   it('recusa acerto de numeração negativo', () => {
@@ -125,6 +140,9 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
     expect(hydrated.imageCoverage.speedReducerPercentAt100).toBe('50')
     expect(hydrated.acceptedInkColorTypes).toEqual(['CMYK', 'PANTONE'])
     expect(hydrated.inkSubtype).toBe('TONER')
+    // Máquina anterior à atividade 043 volta sem o campo: frente e verso sem perda.
+    expect(hydrated.duplexSpeedReducerPercent).toBe('0')
+    expect(hydrateDigitalBlock({ ...fromApi, duplexSpeedReducerPercent: 50 }).duplexSpeedReducerPercent).toBe('50')
   })
 
   // ---- Tinta da máquina (atividade 032 — ajuste 0001) ----
