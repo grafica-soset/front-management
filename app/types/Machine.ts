@@ -817,6 +817,11 @@ export interface DigitalBlockRequest {
   maxFormat: DigitalFormatPointRequest
   belowMinFormatReducerPercent: string
   aboveMaxFormatReducerPercent: string
+  /**
+   * Redutor de velocidade do frente e verso (%) — atividade 043. A digital imprime os dois lados
+   * na mesma passada; o duplex não repete acerto nem quebra, só perde velocidade.
+   */
+  duplexSpeedReducerPercent: string
   minWeightGsm: number
   maxWeightGsm: number
   maxThicknessMicrons: number
@@ -857,6 +862,8 @@ export interface DigitalBlockResponse {
   maxFormat: DigitalFormatPointResponse
   belowMinFormatReducerPercent: number
   aboveMaxFormatReducerPercent: number
+  /** Redutor de velocidade do frente e verso (%) — atividade 043. */
+  duplexSpeedReducerPercent?: number
   minWeightGsm: number
   maxWeightGsm: number
   maxThicknessMicrons: number
