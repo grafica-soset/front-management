@@ -13,13 +13,34 @@ import { computed } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
-import type { SelectionEntryResponse } from '@/types/Quote'
+import type { SelectionEntryResponse, SheetCostingResponse } from '@/types/Quote'
 import { brl, coverLabel, coverPositionOf, formatLabel, numberingRange, printRun } from '@/utils/quoteModel'
 
 const store = useQuoteDraftStore()
 const { format } = useUnitConverter()
 
+// Gramas e áreas da memória da tinta: casas suficientes para a conta fechar de cabeça.
+function grams(value: number, digits = 1): string {
+  return value.toLocaleString('pt-BR', { maximumFractionDigits: digits })
+}
+
 const cost = computed(() => store.draftCost)
+
+/**
+ * A taxa de absorção que a tinta usou no papel escolhido. Ela depende da máquina (toner na digital,
+ * offset nas demais): com impressões de tipos diferentes na mesma folha, aparece uma de cada.
+ */
+function absorptionLabel(sheet: SheetCostingResponse): string | null {
+  const byKind = new Map<string, number>()
+  for (const pass of sheet.chosen.printings) {
+    if (!pass.inkDetail) continue
+    byKind.set(pass.machineType === 'DIGITAL' ? 'toner' : 'offset', pass.inkDetail.absorptionGramsPerM2)
+  }
+  if (byKind.size === 0) return null
+  const value = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} g/m²`
+  if (byKind.size === 1) return `Taxa de absorção: ${value([...byKind.values()][0]!)}`
+  return `Taxa de absorção: ${[...byKind].map(([kind, n]) => `${value(n)} (${kind})`).join(' · ')}`
+}
 
 /**
  * Imprime só o resumo. Quem tira o resto da página do caminho é o `print:hidden` de cada bloco,
@@ -291,6 +312,9 @@ const printingTables = computed(() => {
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
                 {{ sheet.chosen.paperCode }}
                 <span class="block text-xs text-slate-500 dark:text-slate-400">{{ sheet.paperTypeName }} · {{ sheet.paperWeightGsm }} g/m²</span>
+                <span v-if="absorptionLabel(sheet)" class="block text-xs text-slate-500 dark:text-slate-400">
+                  {{ absorptionLabel(sheet) }}
+                </span>
               </td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ sheet.chosen.wholeFormatName }}</td>
               <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
@@ -491,6 +515,63 @@ const printingTables = computed(() => {
                     <td class="py-1 pr-2 text-slate-900 dark:text-white" colspan="2">Efetiva</td>
                     <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
                       {{ Math.round(row.pass!.sheetsPerHour).toLocaleString('pt-BR') }} fls/h
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+
+            <!--
+              Memória da tinta: gramas da face = cobertura × absorção × área do impresso PEDIDO ×
+              peças impressas. As cores repartem a gramatura; cada uma paga o quilo da sua tinta.
+            -->
+            <template v-if="row.pass!.inkDetail && row.pass!.inkDetail.faces.length">
+              <p class="mt-3 text-xs font-medium text-slate-900 dark:text-white">
+                {{ row.pass!.machineType === 'DIGITAL' ? 'Toner' : 'Tinta' }}, passo a passo
+                <span class="block font-normal text-slate-500 dark:text-slate-400">
+                  área {{ format(row.pass!.inkDetail.pieceWidthMm, { withSuffix: false }) }} ×
+                  {{ format(row.pass!.inkDetail.pieceHeightMm) }}
+                  = {{ grams(row.pass!.inkDetail.pieceAreaM2, 6) }} m² ·
+                  {{ row.pass!.inkDetail.sheetsRun.toLocaleString('pt-BR') }} fls ×
+                  {{ row.pass!.inkDetail.applicationsPerSheet }} apl. =
+                  {{ row.pass!.inkDetail.piecesPrinted.toLocaleString('pt-BR') }} peças ·
+                  absorção {{ grams(row.pass!.inkDetail.absorptionGramsPerM2, 3) }} g/m²
+                </span>
+              </p>
+              <table class="mt-1 w-full text-left text-xs">
+                <tbody>
+                  <template v-for="face in row.pass!.inkDetail.faces" :key="face.face">
+                    <tr class="align-baseline">
+                      <td class="py-0.5 pr-2 font-medium text-slate-700 dark:text-slate-200">
+                        {{ face.face === 'FRONT' ? 'Frente' : 'Verso' }}
+                      </td>
+                      <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">
+                        {{ face.coveragePercent }}% × {{ grams(row.pass!.inkDetail.absorptionGramsPerM2, 3) }} g/m² ×
+                        {{ grams(row.pass!.inkDetail.pieceAreaM2, 6) }} m² ×
+                        {{ row.pass!.inkDetail.piecesPrinted.toLocaleString('pt-BR') }}
+                      </td>
+                      <td class="py-0.5 text-right tabular-nums text-slate-900 dark:text-white">
+                        {{ grams(face.grams) }} g
+                        <span class="block font-normal text-slate-500 dark:text-slate-400">{{ brl(face.cost) }}</span>
+                      </td>
+                    </tr>
+                    <tr v-for="(ink, i) in face.inks" :key="`${face.face}-${i}`" class="align-baseline">
+                      <td class="py-0.5 pl-3 pr-2 text-slate-600 dark:text-slate-300">{{ ink.supplyName }}</td>
+                      <td class="py-0.5 pr-2 text-slate-500 dark:text-slate-400">
+                        {{ grams(face.grams) }} g ÷ {{ face.colors }} cores ·
+                        <template v-if="ink.pricePerKg > 0">{{ brl(ink.pricePerKg) }}/kg</template>
+                        <span v-else class="text-amber-700 dark:text-amber-400">sem preço por peso</span>
+                      </td>
+                      <td class="py-0.5 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                        {{ grams(ink.grams) }} g · {{ brl(ink.cost) }}
+                      </td>
+                    </tr>
+                  </template>
+                  <tr class="border-t border-slate-200 font-medium dark:border-slate-700">
+                    <td class="py-1 pr-2 text-slate-900 dark:text-white" colspan="2">Total</td>
+                    <td class="py-1 text-right tabular-nums text-slate-900 dark:text-white">
+                      {{ grams(row.pass!.inkGrams) }} g
+                      <span class="block font-normal text-slate-500 dark:text-slate-400">{{ brl(row.pass!.inkCost) }}</span>
                     </td>
                   </tr>
                 </tbody>

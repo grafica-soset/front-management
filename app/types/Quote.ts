@@ -186,6 +186,44 @@ export interface PrintingPassResponse {
   /** De onde saiu a velocidade efetiva — as parcelas somam `sheetsPerHour`. */
   speedStages: MachineSpeedStageResponse[]
   notes: string[]
+  /** A conta da tinta aberta: área do impresso pedido × peças × absorção × cobertura, por cor. */
+  inkDetail: InkUsageDetailResponse | null
+}
+
+/**
+ * Memória do cálculo da tinta de uma passada.
+ * gramas da face = cobertura × absorção (g/m²) × área da peça pedida (m²) × peças impressas
+ */
+export interface InkUsageDetailResponse {
+  /** Absorção do papel para a tinta da máquina (toner na digital): gramas a 100% de cobertura. */
+  absorptionGramsPerM2: number
+  /** O impresso PEDIDO — não o formato do catálogo que o comporta. */
+  pieceWidthMm: number
+  pieceHeightMm: number
+  pieceAreaM2: number
+  sheetsRun: number
+  applicationsPerSheet: number
+  piecesPrinted: number
+  faces: InkFaceDetailResponse[]
+}
+
+export interface InkFaceDetailResponse {
+  face: 'FRONT' | 'BACK'
+  colors: number
+  coveragePercent: number
+  grams: number
+  cost: number
+  /** Cada cor leva grams ÷ cores, pelo preço do quilo da sua tinta. */
+  inks: InkColorDetailResponse[]
+}
+
+export interface InkColorDetailResponse {
+  supplyId: number | null
+  supplyName: string
+  grams: number
+  /** 0 quando a tinta não está cadastrada em peso — fica fora do custo. */
+  pricePerKg: number
+  cost: number
 }
 
 export interface SheetPlanResponse {
