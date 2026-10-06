@@ -85,8 +85,10 @@ const optionsFor = (sheets: QuoteSheet[]) => {
   // Com formato escolhido pelo usuário, a comparação de impressoras fica dentro dele — senão a
   // linha da máquina anunciaria um formato diferente do que o cálculo está usando.
   const pinned = sheets[0]?.printFormatNumber ?? null
+  const pinnedPaper = sheets[0]?.paperId ?? null
   for (const plan of [costing.chosen, ...costing.alternatives]) {
     if (pinned !== null && plan.printFormatNumber !== pinned) continue
+    if (pinnedPaper !== null && plan.paperId !== pinnedPaper) continue
     const pass = plan.printings.find((p) => p.printingIndex === props.printingIndex)
     if (!pass) continue
     const atual = best.get(pass.machineId)
@@ -140,27 +142,32 @@ const excludedBody = computed(() => excludedMachines(printedBody.value))
  * Formatos de impressão oferecidos para UMA folha, montados a partir dos planos que o motor já
  * avaliou — o escolhido mais as alternativas.
  *
- * Só entram os formatos da FOLHA INTEIRA em uso: se o papel é 66x96, a lista é a tabela de conversões
- * do 66x96. Formatos de outra folha inteira não são alternativa nenhuma — trocá-los seria trocar o
- * papel, que é outra decisão.
+ * Entram os formatos de TODOS os papéis da família (atividade 044). Antes só os da folha inteira do
+ * papel escolhido entravam: o resumo mostrava "s756696 no F9" como alternativa, mas a lista nem o
+ * oferecia, porque o sistema estava no 64x88. Escolher um formato de outra folha inteira é escolher
+ * o PAPEL junto — por isso cada opção é um par papel × formato.
  *
- * De cada formato fica o plano mais barato, e o critério vai junto: quantas aplicações do formato
- * final cabem nele, que é o número que manda no custo.
+ * De cada par fica o plano mais barato, e o critério vai junto: quantas aplicações do formato final
+ * cabem nele, que é o número que manda no custo.
  */
 const formatOptionsFor = (sheet: QuoteSheet) => {
   const costing = costingOf(sheet)
   if (!costing) return []
-  const wholeFormat = costing.chosen.wholeFormatName
-  const best = new Map<number, {
+  const best = new Map<string, {
+    key: string; paperId: number; paperCode: string; wholeFormatName: string
     formatNumber: number; name: string; applications: number; finalFormatNumber: number
     total: number; printSheets: number; wholeSheets: number
     preCutDescents: number; refileDescents: number
   }>()
   for (const plan of [costing.chosen, ...costing.alternatives]) {
-    if (plan.wholeFormatName !== wholeFormat) continue
-    const atual = best.get(plan.printFormatNumber)
+    const key = `${plan.paperId}:${plan.printFormatNumber}`
+    const atual = best.get(key)
     if (atual && atual.total <= plan.totalCost) continue
-    best.set(plan.printFormatNumber, {
+    best.set(key, {
+      key,
+      paperId: plan.paperId,
+      paperCode: plan.paperCode,
+      wholeFormatName: plan.wholeFormatName,
       formatNumber: plan.printFormatNumber,
       name: plan.printFormatName,
       applications: plan.applicationsPerSheet,
@@ -175,13 +182,22 @@ const formatOptionsFor = (sheet: QuoteSheet) => {
   return Array.from(best.values()).sort((a, b) => a.total - b.total)
 }
 
+/** A família tem papel em mais de uma folha inteira? Então a lista diz de qual folha é cada formato. */
+const manyWholeSheets = (sheet: QuoteSheet) =>
+  new Set(formatOptionsFor(sheet).map((o) => o.wholeFormatName)).size > 1
+
 /**
- * O formato marcado na lista: o que o usuário escolheu ou, na falta de escolha, o que o motor está
- * usando. A escolha do usuário vem primeiro para o clique acender na hora — o recálculo leva alguns
- * décimos, e até ele voltar o plano ainda é o anterior.
+ * O par papel × formato marcado na lista: o que o usuário escolheu ou, na falta de escolha, o que o
+ * motor está usando. A escolha do usuário vem primeiro para o clique acender na hora — o recálculo
+ * leva alguns décimos, e até ele voltar o plano ainda é o anterior. Escolha antiga, só com o formato,
+ * vale para o papel que o motor usou.
  */
-const currentFormat = (sheet: QuoteSheet) =>
-  sheet.printFormatNumber ?? costingOf(sheet)?.chosen.printFormatNumber ?? null
+const currentFormat = (sheet: QuoteSheet) => {
+  const chosen = costingOf(sheet)?.chosen
+  const formatNumber = sheet.printFormatNumber ?? chosen?.printFormatNumber
+  const paperId = sheet.paperId ?? chosen?.paperId
+  return formatNumber == null || paperId == null ? null : `${paperId}:${formatNumber}`
+}
 
 /**
  * Chapas a oferecer NESTA impressão: AS CHAPAS DA IMPRESSORA escolhida (atividade 034).
@@ -503,9 +519,9 @@ const toggleSeparateCovers = () => {
           <div v-else-if="printsSheet(sheet)" class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <h5 class="text-xs font-semibold text-slate-900 dark:text-white">
-                Formato de impressão
+                Papel e formato de impressão
                 <span v-if="costingOf(sheet)" class="font-normal text-slate-500 dark:text-slate-400">
-                  — da folha {{ costingOf(sheet)!.chosen.wholeFormatName }}
+                  — em uso: {{ costingOf(sheet)!.chosen.paperCode }}, folha {{ costingOf(sheet)!.chosen.wholeFormatName }}
                 </span>
               </h5>
               <div class="flex flex-wrap items-center gap-2">
@@ -533,12 +549,12 @@ const toggleSeparateCovers = () => {
               <div class="mt-2 grid gap-2 sm:grid-cols-2">
                 <button
                   v-for="(option, index) in formatOptionsFor(sheet)"
-                  :key="option.formatNumber"
+                  :key="option.key"
                   type="button"
-                  @click="store.setPrintFormat(sheet.uid, option.formatNumber)"
+                  @click="store.setPrintFormat(sheet.uid, option.formatNumber, option.paperId)"
                   class="rounded-lg border p-3 text-left transition-colors"
                   :class="
-                    currentFormat(sheet) === option.formatNumber
+                    currentFormat(sheet) === option.key
                       ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/30'
                       : 'border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700'
                   "
@@ -546,6 +562,9 @@ const toggleSeparateCovers = () => {
                   <span class="flex flex-wrap items-center justify-between gap-1">
                     <span class="text-sm font-semibold text-slate-900 dark:text-white">
                       {{ formatLabel(option.name, option.formatNumber) }}
+                      <span class="block text-xs font-normal text-slate-500 dark:text-slate-400">
+                        {{ option.paperCode }}<template v-if="manyWholeSheets(sheet)"> · folha {{ option.wholeFormatName }}</template>
+                      </span>
                     </span>
                     <span class="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
                       {{ brl(option.total) }}

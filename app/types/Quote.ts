@@ -247,7 +247,10 @@ export interface SheetPlanResponse {
   preCutDescents: number
   /** Descidas cadastradas do formato final, contadas da folha INTEIRA — o numerador do refile. */
   finalFormatDescents: number
+  /** Refile por folha impressa: separar as aplicações + aparar até a peça. */
   refileDescents: number
+  /** A parte do refile que é aparo do formato final até o tamanho pedido (atividade 044). */
+  trimDescents: number
   printSheetsNet: number
   wasteSheets: number
   wholeSheets: number

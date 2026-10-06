@@ -20,6 +20,11 @@ export function proposalMoney(value: number): string {
   return (Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** Valor unitário com 3 casas (atividade 044): 0,283 — é o unitário que fecha o total. */
+export function proposalUnitMoney(value: number): string {
+  return (Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+}
+
 /** Endereço em até duas linhas: "Rua X, 88 - Centro" / "Iguape - SP". */
 export function addressLines(address: ProposalAddress | null | undefined): string[] {
   if (!address) return []

@@ -48,6 +48,8 @@ import {
   normalizeTaxes,
   priceFromCost,
   round2,
+  totalFromUnit,
+  unitPriceOf,
   type PriceBreakdown,
 } from '@/utils/pricing'
 import { useQuotes } from '@/composables/useQuotes'
@@ -68,7 +70,7 @@ function artworkSheetCount(product: QuoteProduct): number {
 }
 
 function emptySheet(kind: SheetKind, index: number): QuoteSheet {
-  return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null }
+  return { uid: uid(kind.toLowerCase()), kind, index, paperTypeId: null, printFormatNumber: null, paperId: null }
 }
 
 /** Folha fora da impressão: zero cores nas duas faces. */
@@ -240,6 +242,13 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     calculating: false,
     /** Mexeram no produto enquanto o cálculo corria: a resposta que chegar já é velha. */
     calcRerun: false,
+    /**
+     * O produto aberto no assistente, como ele estava ao abrir (o corpo do cálculo). Se ele voltar
+     * igual e sem cálculo novo, mantém o custo GRAVADO — abrir para olhar não recalcula (atividade 044).
+     */
+    draftBaseline: null as string | null,
+    /** O assistente calculou o produto aberto: salvá-lo é pedir o recálculo. */
+    draftRecalculated: false,
 
     // ---- O orçamento em si (atividade 037) ----
     /** Nulo enquanto o orçamento nunca foi salvo. */
@@ -252,6 +261,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     notes: '',
     /** Condições de fornecimento da proposta (atividade 038). */
     conditions: emptyConditions(),
+    /** A proposta soma os produtos num total (atividade 044) — sem isso, os produtos são opções. */
+    totalizeProposal: false,
     /**
      * Orçamento novo ainda sem as condições PADRÃO da empresa (Orçamento > Configurações). O editor
      * aplica uma vez só: depois disso, o que o usuário apagou fica apagado — inclusive na volta do
@@ -272,38 +283,80 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
   }),
 
   getters: {
-    /** Custo do orçamento: soma dos custos dos produtos. */
-    quoteTotal(state): number {
-      return Object.values(state.costs).reduce((sum, cost) => sum + cost.totalCost, 0)
+    /**
+     * Custo que vale para cada produto (atividade 044): o GRAVADO, enquanto ninguém pediu recálculo
+     * — é o que foi passado ao cliente —; o do motor, para produto novo ou recalculado.
+     */
+    productCosts(state): Record<string, number> {
+      const costs: Record<string, number> = {}
+      for (const product of state.products) {
+        const frozen = !product.recalculate && product.savedTotalCost != null
+        const cost = frozen ? product.savedTotalCost : state.costs[product.uid]?.totalCost
+        if (cost != null) costs[product.uid] = cost
+      }
+      return costs
     },
 
-    /** Preço de cada produto: o custo calculado passado pelo divisor de comissão, impostos e markup. */
+    /** Custo do orçamento: soma dos custos dos produtos. */
+    quoteTotal(): number {
+      return round2(Object.values(this.productCosts).reduce((sum, cost) => sum + cost, 0))
+    },
+
+    /** Preço de cada produto: o custo passado pelo divisor de comissão, impostos e markup. */
     productPrices(state): Record<string, PriceBreakdown> {
       const prices: Record<string, PriceBreakdown> = {}
       for (const product of state.products) {
-        const cost = state.costs[product.uid]
-        if (cost) prices[product.uid] = priceFromCost(cost.totalCost, product.pricing, product.taxes)
+        const cost = this.productCosts[product.uid]
+        if (cost != null) prices[product.uid] = priceFromCost(cost, product.pricing, product.taxes)
       }
       return prices
     },
 
-    /** Soma dos preços. Nulo se algum produto ainda não tem custo ou tem percentuais impossíveis. */
+    /**
+     * O preço PRATICADO de cada produto (atividade 044): o unitário calculado com 3 casas, o
+     * assumido pelo orçamentista (se houver) e o total = unitário × quantidade. É o que o servidor
+     * grava e o que a proposta imprime.
+     */
+    productUnitPrices(state): Record<string, { calculated: number; unit: number; total: number }> {
+      const result: Record<string, { calculated: number; unit: number; total: number }> = {}
+      for (const product of state.products) {
+        const price = this.productPrices[product.uid]?.price
+        const quantity = product.quantity ?? 0
+        if (price == null || quantity <= 0) continue
+        const calculated = unitPriceOf(price, quantity)
+        const unit = product.unitPriceOverride ?? calculated
+        result[product.uid] = { calculated, unit, total: totalFromUnit(unit, quantity) }
+      }
+      return result
+    },
+
+    /** Soma dos preços praticados. Nulo se algum produto ainda não tem custo ou tem percentuais impossíveis. */
     productsTotal(): number | null {
       let total = 0
       for (const product of this.products) {
-        const price = this.productPrices[product.uid]?.price
-        if (price == null) return null
-        total += price
+        const line = this.productUnitPrices[product.uid]
+        if (!line) return null
+        total += line.total
       }
       return round2(total)
     },
 
+    /** No aprovado, a soma dos produtos que o cliente escolheu. */
+    approvedTotal(): number | null {
+      if (this.quoteStatus !== 'APPROVED') return null
+      const chosen = this.products.filter((p) => p.approved)
+      if (chosen.length === 0) return null
+      return round2(chosen.reduce((sum, p) => sum + (this.productUnitPrices[p.uid]?.total ?? 0), 0))
+    },
+
+    /** Comissão de agência sobre os produtos que valem: no aprovado, os escolhidos. */
     agencyCommission(): number {
-      return agencyCommissionAmount(this.productsTotal ?? 0, this.agencyCommissionPercent)
+      return agencyCommissionAmount(this.approvedTotal ?? this.productsTotal ?? 0, this.agencyCommissionPercent)
     },
 
     grandTotal(): number | null {
-      return this.productsTotal == null ? null : round2(this.productsTotal + this.agencyCommission)
+      const base = this.approvedTotal ?? this.productsTotal
+      return base == null ? null : round2(base + this.agencyCommission)
     },
 
     /** Aprovado ou rejeitado: o orçamento é o que foi enviado e não se altera. */
@@ -340,24 +393,34 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.draft = JSON.parse(JSON.stringify(found)) as QuoteProduct
       this.editingUid = productUid
       this.draftCost = this.costs[productUid] ?? null
+      this.draftBaseline = JSON.stringify(this.toPayload(found))
+      this.draftRecalculated = false
     },
 
     discard() {
       this.draft = null
       this.editingUid = null
+      this.draftBaseline = null
+      this.draftRecalculated = false
     },
 
     /** Salva o rascunho na lista do orçamento (novo ou substituindo o que estava em edição). */
     commit() {
       if (!this.draft) return
       const product = JSON.parse(JSON.stringify(this.draft)) as QuoteProduct
+      // Produto que voltou do assistente MEXIDO ou CALCULADO de novo: o usuário pediu outro cálculo,
+      // e o servidor o refaz ao salvar. Aberto só para olhar, fica com o custo gravado (atividade 044).
+      const changed = this.draftBaseline !== JSON.stringify(this.toPayload(product))
+      product.recalculate = !!product.recalculate || changed || this.draftRecalculated
       const index = this.products.findIndex((p) => p.uid === this.editingUid)
       if (index >= 0) this.products.splice(index, 1, product)
       else this.products.push(product)
-      if (this.draftCost) this.costs[product.uid] = this.draftCost
+      if (this.draftCost && (product.recalculate || !this.costs[product.uid])) this.costs[product.uid] = this.draftCost
       this.draft = null
       this.editingUid = null
       this.draftCost = null
+      this.draftBaseline = null
+      this.draftRecalculated = false
     },
 
     duplicate(productUid: string) {
@@ -366,7 +429,14 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       const copy = JSON.parse(JSON.stringify(found)) as QuoteProduct
       copy.uid = uid('produto')
       copy.name = `${found.name} (cópia)`
+      // A cópia é um produto NOVO: o servidor a calcula ao salvar, e a tela também — o custo gravado
+      // do original é de outro momento.
+      copy.savedId = null
+      copy.savedTotalCost = null
+      copy.recalculate = true
+      copy.approved = false
       this.products.push(copy)
+      void this.recalculateProducts([copy.uid])
     },
 
     remove(productUid: string) {
@@ -398,6 +468,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.agencyCommissionPercent = 0
       this.notes = ''
       this.conditions = emptyConditions()
+      this.totalizeProposal = false
       this.conditionDefaultsPending = true
       this.savedSnapshot = null
       this.createRequestId = null
@@ -442,8 +513,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
 
     /**
      * Carrega um orçamento salvo para edição. Cada produto volta pelo `editorState` — o rascunho
-     * como o usuário o deixou —, e os custos são recalculados em seguida (o catálogo pode ter
-     * mudado desde que o orçamento foi salvo).
+     * como o usuário o deixou — com o CÁLCULO GRAVADO (atividade 044). Nada é recalculado ao abrir:
+     * o orçamento salvo é o que foi passado ao cliente, e só muda quando o usuário pede.
      */
     loadSaved(saved: SavedQuote) {
       this.clearQuote()
@@ -454,6 +525,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
       this.notes = saved.notes ?? ''
       this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
+      this.totalizeProposal = !!saved.totalizeProposal
       this.conditionDefaultsPending = false
       this.products = saved.products.map((p) =>
         withProductDefaults({
@@ -466,24 +538,62 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           pricing: p.pricing,
         }),
       )
+      this.syncSaved(saved)
+    },
+
+    /**
+     * Acerta os produtos da tela com o que o servidor gravou: o id (muda a cada gravação), o custo
+     * gravado, o cálculo gravado, o preço assumido e a aprovação. Depois disso o orçamento está
+     * "salvo" — nada pendente de recálculo.
+     */
+    syncSaved(saved: SavedQuote) {
+      ;(saved.products ?? []).forEach((sp, index) => {
+        const product = this.products[index]
+        if (!product) return
+        product.savedId = sp.id
+        product.savedTotalCost = Number(sp.totalCost)
+        product.recalculate = false
+        product.unitPriceOverride = sp.unitPriceOverride == null ? null : Number(sp.unitPriceOverride)
+        product.approved = !!sp.approved
+        if (sp.costing) this.costs[product.uid] = sp.costing
+      })
       this.savedSnapshot = JSON.stringify(this.toSaveRequest())
     },
 
-    /** Recalcula TODOS os produtos do orçamento numa chamada só. */
-    async recalculateAll() {
-      if (this.products.length === 0) return
+    /**
+     * Recalcula produtos com o catálogo de AGORA — só a pedido do usuário (botão "Recalcular") ou
+     * para produto novo. Os recalculados vão marcados para o servidor refazer a conta ao salvar.
+     */
+    async recalculateProducts(uids: string[]) {
+      const targets = this.products.filter((p) => uids.includes(p.uid))
+      if (targets.length === 0) return
       this.calcError = null
       try {
-        const result = await useQuotes().calculate({ products: this.products.map((p) => this.toPayload(p)) })
-        const costs: Record<string, ProductCostingResponse> = {}
-        this.products.forEach((p, index) => {
+        const result = await useQuotes().calculate({ products: targets.map((p) => this.toPayload(p)) })
+        targets.forEach((p, index) => {
           const cost = result.products[index]
-          if (cost) costs[p.uid] = cost
+          if (!cost) return
+          this.costs[p.uid] = cost
+          p.recalculate = true
         })
-        this.costs = costs
       } catch (err) {
         this.calcError = extractApiError(err, 'Não foi possível recalcular o orçamento.')
       }
+    },
+
+    /** "Recalcular orçamento": todos os produtos, numa chamada só. */
+    async recalculateAll() {
+      await this.recalculateProducts(this.products.map((p) => p.uid))
+    },
+
+    /**
+     * Preço praticado (atividade 044): o unitário que o orçamentista assume, maior ou menor que o
+     * calculado. Nulo volta ao calculado. O cálculo não muda — só o preço do produto.
+     */
+    setUnitPriceOverride(productUid: string, value: number | null) {
+      const product = this.products.find((p) => p.uid === productUid)
+      if (!product) return
+      product.unitPriceOverride = value != null && Number.isFinite(value) && value > 0 ? Math.round(value * 1000) / 1000 : null
     },
 
     /** O corpo de `POST/PUT /quotes`. O custo não vai: o servidor recalcula. */
@@ -498,6 +608,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           paymentTerms: blankToNull(this.conditions.paymentTerms),
           bankDetails: blankToNull(this.conditions.bankDetails),
         },
+        totalizeProposal: this.totalizeProposal,
         products: this.products.map((p) => ({
           configuration: this.toPayload(p),
           editorState: JSON.parse(JSON.stringify(p)) as QuoteProduct,
@@ -506,6 +617,10 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           productTemplateId: p.productTemplateId,
           taxes: p.taxes,
           pricing: p.pricing,
+          // Atividade 044: o servidor só recalcula o que é novo, mexido ou pedido.
+          id: p.savedId ?? null,
+          recalculate: !!p.recalculate,
+          unitPriceOverride: p.unitPriceOverride ?? null,
         })),
       }
     },
@@ -525,14 +640,33 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           saved = await api.create({ ...body, requestId: this.createRequestId })
           this.createRequestId = null
         }
-        this.savedSnapshot = JSON.stringify(body)
         this.quoteId = saved.id
         this.quoteNumber = saved.number
         this.quoteStatus = saved.status
+        this.syncSaved(saved)
         return saved
       } finally {
         this.saving = false
       }
+    },
+
+    /**
+     * Aprova o orçamento com os produtos que o cliente escolheu (atividade 044) — os demais eram
+     * opções que ele não quis. Mudar para outro status desmarca a escolha.
+     */
+    async changeStatus(status: QuoteStatus, approvedUids?: string[]): Promise<SavedQuote> {
+      if (!this.quoteId) throw new Error('Orçamento ainda não salvo')
+      const ids = approvedUids
+        ?.map((u) => this.products.find((p) => p.uid === u)?.savedId)
+        .filter((id): id is number => id != null)
+      const saved = await useQuotes().changeStatus(this.quoteId, status, ids)
+      this.quoteStatus = saved.status
+      ;(saved.products ?? []).forEach((sp, index) => {
+        const product = this.products[index]
+        if (product) product.approved = !!sp.approved
+      })
+      this.savedSnapshot = JSON.stringify(this.toSaveRequest())
+      return saved
     },
 
     /** Troca a estrutura do produto (lâmina ⇄ bloco) e refaz as folhas. */
@@ -792,6 +926,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           // capa não viaja — o motor a ignoraria e devolveria um aviso sobre algo que a tela não
           // mostra mais.
           printFormatNumber: followsFirstVia(product, sheet) ? null : sheet.printFormatNumber,
+          // O papel vai junto com o formato (atividade 044): o número do formato é da folha inteira.
+          paperId: followsFirstVia(product, sheet) ? null : (sheet.paperId ?? null),
         })),
         steps,
       }
@@ -821,7 +957,10 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           try {
             const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
             // Outro produto no assistente ou nova mexida: esta resposta não é mais a da tela.
-            if (!this.calcRerun && this.draft === product) this.draftCost = result.products[0] ?? null
+            if (!this.calcRerun && this.draft === product) {
+              this.draftCost = result.products[0] ?? null
+              this.draftRecalculated = true
+            }
           } catch (err) {
             if (!this.calcRerun && this.draft === product) {
               this.draftCost = null
@@ -857,9 +996,13 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * Formato de impressão da FOLHA — não da etapa: uma folha é cortada uma vez, então a escolha
      * vale para todas as impressões que passarem por ela.
      */
-    setPrintFormat(sheetUid: string, formatNumber: number | null) {
+    setPrintFormat(sheetUid: string, formatNumber: number | null, paperId: number | null = null) {
       const sheet = this.draft?.sheets.find((s) => s.uid === sheetUid)
-      if (sheet) sheet.printFormatNumber = formatNumber
+      if (!sheet) return
+      sheet.printFormatNumber = formatNumber
+      // O papel acompanha o formato (atividade 044): "s756696 no F9" é um par — o F9 de outra folha
+      // inteira é outro formato. "Voltar à escolha do sistema" limpa os dois.
+      sheet.paperId = formatNumber == null ? null : paperId
     },
 
     setMachine(stepUid: string, scope: 'PRODUCT' | 'COVERS' | string, machineId: number | null) {

@@ -52,6 +52,11 @@ export interface QuoteSheet {
    * motor escolher pelo custo, que é o caminho normal.
    */
   printFormatNumber: number | null
+  /**
+   * Papel escolhido pelo usuário (atividade 044) — vai junto com o formato, porque o número do
+   * formato é da folha inteira: o F9 do 66x96 não é o F9 do 64x88. Nulo = o motor escolhe.
+   */
+  paperId?: number | null
 }
 
 /**
@@ -241,6 +246,18 @@ export interface QuoteProduct {
   taxes: ProductTaxes
   /** Comissões do vendedor e markup — com os impostos, formam o divisor do preço. */
   pricing: PricingTerms
+
+  // ---- Orçamento salvo (atividade 044) ----
+  /** Id do produto já gravado: com ele e a mesma configuração, o servidor mantém o custo gravado. */
+  savedId?: number | null
+  /** Custo gravado — o que vale enquanto ninguém pede recálculo (orçamento anterior à 044 não tem o cálculo inteiro). */
+  savedTotalCost?: number | null
+  /** O usuário pediu o recálculo, ou editou o produto no assistente: o servidor calcula de novo ao salvar. */
+  recalculate?: boolean
+  /** Unitário assumido pelo orçamentista (3 casas). Nulo = vale o calculado. */
+  unitPriceOverride?: number | null
+  /** Escolhido pelo cliente na aprovação. */
+  approved?: boolean
 }
 
 /** Linha do detalhamento de custo exibido no trilho e no resumo. */

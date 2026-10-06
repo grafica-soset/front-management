@@ -10,11 +10,15 @@
  *
  * `?id=` abre um orçamento salvo. Aprovado ou rejeitado, ele é o que foi enviado: a tela fica só
  * leitura até alguém voltá-lo para pendente.
+ *
+ * Atividade 044: o orçamento salvo NÃO é recalculado ao abrir — custo e cálculo vêm gravados, e só
+ * mudam com "Recalcular" (do produto ou do orçamento) ou editando o produto. O unitário tem 3 casas,
+ * pode ser assumido pelo orçamentista, e a aprovação escolhe quais produtos o cliente quis.
  */
 import { computed, ref } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { brl, coverSidesLabel, sheetsPerUnit } from '@/utils/quoteModel'
-import { formatPercent, QUOTE_STATUS_LABELS } from '@/utils/pricing'
+import { brlUnit, formatPercent, QUOTE_STATUS_LABELS } from '@/utils/pricing'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useClients } from '@/composables/useClients'
@@ -99,9 +103,46 @@ onMounted(async () => {
   }
   loadSelectedClient()
   loadTermOptions()
-  // Produto sem custo (orçamento recém-aberto): recalcula tudo de uma vez, com o catálogo de agora.
-  if (store.products.some((p) => !store.costs[p.uid])) await store.recalculateAll()
+  // O orçamento salvo abre com o custo GRAVADO (atividade 044). Só o produto que não tem custo
+  // nenhum — novo, ainda sem cálculo — vai ao motor.
+  const semCusto = store.products.filter((p) => store.productCosts[p.uid] == null).map((p) => p.uid)
+  if (semCusto.length) await store.recalculateProducts(semCusto)
+  resetApprovalSelection()
 })
+
+// ---- Recalcular (atividade 044): só a pedido ----
+const recalculating = ref(false)
+const recalculate = async (uids?: string[]) => {
+  recalculating.value = true
+  try {
+    if (uids) await store.recalculateProducts(uids)
+    else await store.recalculateAll()
+    if (!store.calcError) toast.success('Recalculado com os preços de hoje. Salve para gravar no orçamento.')
+  } finally {
+    recalculating.value = false
+  }
+}
+
+// ---- Preço praticado (atividade 044) ----
+const onUnitPriceInput = (uid: string, event: Event) => {
+  const raw = (event.target as HTMLInputElement).value
+  store.setUnitPriceOverride(uid, raw === '' ? null : Number(raw))
+}
+
+// ---- Aprovar os produtos escolhidos (atividade 044) ----
+/** Os produtos marcados para aprovar — nasce com todos: o caso comum é o cliente aceitar tudo. */
+const approvalSelection = ref<string[]>([])
+const resetApprovalSelection = () => {
+  approvalSelection.value = store.products.map((p) => p.uid)
+}
+const toggleApproval = (uid: string) => {
+  approvalSelection.value = approvalSelection.value.includes(uid)
+    ? approvalSelection.value.filter((u) => u !== uid)
+    : [...approvalSelection.value, uid]
+}
+const canSelectForApproval = computed(
+  () => !!store.quoteId && store.quoteStatus === 'PENDING_APPROVAL' && store.products.length > 1,
+)
 
 // ---- Condições de fornecimento: opções da empresa (atividade 038, Orçamento > Configurações) ----
 const termOptions = ref<QuoteTermOptionKeyValue[]>([])
@@ -203,8 +244,9 @@ const setStatus = async (status: QuoteStatus) => {
   if (!store.quoteId) return
   changingStatus.value = true
   try {
-    const saved = await quotesApi.changeStatus(store.quoteId, status)
-    store.quoteStatus = saved.status
+    // Aprovar leva só os produtos marcados; os outros eram opções que o cliente não quis.
+    const saved = await store.changeStatus(status, status === 'APPROVED' ? approvalSelection.value : undefined)
+    if (status !== 'APPROVED') resetApprovalSelection()
     toast.success(`Orçamento nº ${saved.number}: ${QUOTE_STATUS_LABELS[saved.status].toLowerCase()}.`)
   } catch (err) {
     toast.error(extractApiError(err, 'Não foi possível mudar o status.'))
@@ -378,21 +420,44 @@ const inputClass =
         <table class="w-full text-left text-sm">
           <thead class="bg-slate-50/50 text-xs uppercase text-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
             <tr>
+              <th v-if="canSelectForApproval" class="w-10 px-3 py-3 font-semibold" title="Produtos que o cliente aprovou">Aprovar</th>
               <th class="px-5 py-3 font-semibold">Produto</th>
               <th class="px-5 py-3 font-semibold">Formato</th>
               <th class="px-5 py-3 text-right font-semibold">Quantidade</th>
               <th class="px-5 py-3 text-right font-semibold">Folhas/un.</th>
               <th class="px-5 py-3 text-right font-semibold">Custo</th>
               <th class="px-5 py-3 text-right font-semibold">Com.+Imp.+Markup</th>
-              <th class="px-5 py-3 text-right font-semibold">Preço</th>
               <th class="px-5 py-3 text-right font-semibold">Unitário</th>
+              <th class="px-5 py-3 text-right font-semibold">Preço</th>
               <th v-if="!store.readOnly" class="px-5 py-3 text-right font-semibold">Ações</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
-            <tr v-for="(p, index) in store.products" :key="p.uid" class="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
+            <tr
+              v-for="(p, index) in store.products"
+              :key="p.uid"
+              class="align-top hover:bg-slate-50/80 dark:hover:bg-slate-700/30"
+              :class="{ 'opacity-60': store.quoteStatus === 'APPROVED' && store.products.some((x) => x.approved) && !p.approved }"
+            >
+              <td v-if="canSelectForApproval" class="px-3 py-3">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-600"
+                  :checked="approvalSelection.includes(p.uid)"
+                  :aria-label="`Aprovar ${p.name}`"
+                  @change="toggleApproval(p.uid)"
+                />
+              </td>
               <td class="px-5 py-3">
-                <span class="block font-medium text-slate-900 dark:text-white">{{ p.name || 'Sem nome' }}</span>
+                <span class="block font-medium text-slate-900 dark:text-white">
+                  {{ p.name || 'Sem nome' }}
+                  <span v-if="store.quoteStatus === 'APPROVED' && p.approved" class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">aprovado</span>
+                  <span
+                    v-if="p.savedId && p.recalculate"
+                    class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                    title="O custo foi refeito com os preços de hoje — vale quando você salvar"
+                  >recalculado</span>
+                </span>
                 <span v-if="describe(index).model" class="block text-xs font-medium text-indigo-600 dark:text-indigo-300">{{ describe(index).model }}</span>
                 <span class="block text-xs text-slate-500 dark:text-slate-400">{{ describe(index).structure }}</span>
                 <span class="block truncate text-xs text-slate-400 dark:text-slate-500">{{ describe(index).steps }}</span>
@@ -405,24 +470,58 @@ const inputClass =
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">{{ sheetsPerUnit(p) }}</td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                {{ store.costs[p.uid] ? brl(store.costs[p.uid]!.totalCost) : '—' }}
+                {{ store.productCosts[p.uid] != null ? brl(store.productCosts[p.uid]!) : '—' }}
               </td>
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                 {{ store.productPrices[p.uid] ? formatPercent(store.productPrices[p.uid]!.totalPercent) : '—' }}
               </td>
-              <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-900 dark:text-white">
-                {{ store.productPrices[p.uid]?.price != null ? brl(store.productPrices[p.uid]!.price!) : '—' }}
-              </td>
+              <!-- Unitário: o calculado (3 casas) e o PRATICADO, que o orçamentista pode assumir. -->
               <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                {{
-                  store.productPrices[p.uid]?.price != null && p.quantity
-                    ? brl(store.productPrices[p.uid]!.price! / p.quantity)
-                    : '—'
-                }}
+                <template v-if="store.productUnitPrices[p.uid]">
+                  <span class="block text-xs text-slate-500 dark:text-slate-400" title="Preço da fórmula ÷ quantidade, com 3 casas">
+                    calculado {{ brlUnit(store.productUnitPrices[p.uid]!.calculated) }}
+                  </span>
+                  <input
+                    v-if="!store.readOnly"
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    inputmode="decimal"
+                    :value="p.unitPriceOverride ?? ''"
+                    :placeholder="store.productUnitPrices[p.uid]!.calculated.toFixed(3)"
+                    :aria-label="`Preço unitário praticado de ${p.name}`"
+                    class="mt-1 w-28 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-right text-sm tabular-nums text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                    :class="{ 'border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-900/30': p.unitPriceOverride != null }"
+                    @change="onUnitPriceInput(p.uid, $event)"
+                  />
+                  <span v-else class="block font-medium text-slate-900 dark:text-white">{{ brlUnit(store.productUnitPrices[p.uid]!.unit) }}</span>
+                  <button
+                    v-if="!store.readOnly && p.unitPriceOverride != null"
+                    type="button"
+                    class="mt-1 block w-full text-right text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                    @click="store.setUnitPriceOverride(p.uid, null)"
+                  >
+                    Voltar ao calculado
+                  </button>
+                </template>
+                <template v-else>—</template>
+              </td>
+              <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-900 dark:text-white">
+                {{ store.productUnitPrices[p.uid] ? brl(store.productUnitPrices[p.uid]!.total) : '—' }}
               </td>
               <td v-if="!store.readOnly" class="px-5 py-3 text-right">
-                <div class="inline-flex items-center gap-1">
+                <div class="inline-flex flex-wrap items-center justify-end gap-1">
                   <button type="button" @click="openEdit(p.uid)" class="rounded-md px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-slate-700">Editar</button>
+                  <button
+                    v-if="p.savedId"
+                    type="button"
+                    :disabled="recalculating"
+                    title="Refaz o custo com os preços de hoje"
+                    @click="recalculate([p.uid])"
+                    class="rounded-md px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-300 dark:hover:bg-slate-700"
+                  >
+                    Recalcular
+                  </button>
                   <button type="button" @click="store.duplicate(p.uid)" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">Duplicar</button>
                   <button type="button" @click="store.remove(p.uid)" class="rounded-md px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-slate-700">Remover</button>
                 </div>
@@ -430,6 +529,38 @@ const inputClass =
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Recalcular e totalizar (atividade 044) -->
+      <div
+        v-if="store.products.length"
+        class="flex flex-col gap-3 border-t border-slate-200 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-700"
+      >
+        <label class="inline-flex items-start gap-2 text-slate-700 dark:text-slate-200">
+          <input
+            v-model="store.totalizeProposal"
+            type="checkbox"
+            :disabled="store.readOnly"
+            class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600"
+          />
+          <span>
+            <span class="font-medium">Totalizar a proposta</span>
+            <span class="block text-xs text-slate-500 dark:text-slate-400">
+              Soma todos os produtos num total. Deixe desligado quando os produtos são opções (outra quantidade, outro papel).
+            </span>
+          </span>
+        </label>
+        <div v-if="!store.readOnly && store.quoteId" class="flex flex-col items-start gap-1 sm:items-end">
+          <button
+            type="button"
+            :disabled="recalculating"
+            @click="recalculate()"
+            class="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-slate-700"
+          >
+            {{ recalculating ? 'Recalculando...' : 'Recalcular orçamento' }}
+          </button>
+          <span class="text-xs text-slate-500 dark:text-slate-400">O orçamento salvo mantém o preço passado ao cliente até você pedir.</span>
+        </div>
       </div>
 
       <!-- Totais -->
@@ -441,6 +572,10 @@ const inputClass =
         <div class="flex justify-between py-2">
           <dt class="text-slate-600 dark:text-slate-300">Total dos produtos</dt>
           <dd class="tabular-nums text-slate-900 dark:text-white">{{ store.productsTotal != null ? brl(store.productsTotal) : '—' }}</dd>
+        </div>
+        <div v-if="store.approvedTotal != null" class="flex justify-between py-2">
+          <dt class="text-slate-600 dark:text-slate-300">Aprovados pelo cliente</dt>
+          <dd class="tabular-nums text-emerald-700 dark:text-emerald-300">{{ brl(store.approvedTotal) }}</dd>
         </div>
         <div class="flex justify-between py-2">
           <dt class="text-slate-600 dark:text-slate-300">Comissão de agência ({{ formatPercent(store.agencyCommissionPercent) }})</dt>
@@ -460,8 +595,18 @@ const inputClass =
       <div class="flex flex-wrap gap-2">
         <template v-if="store.quoteId">
           <template v-if="store.quoteStatus === 'PENDING_APPROVAL'">
-            <button type="button" :disabled="changingStatus" @click="setStatus('APPROVED')" class="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-slate-700">
-              Aprovar
+            <button
+              type="button"
+              :disabled="changingStatus || store.dirty || (canSelectForApproval && approvalSelection.length === 0)"
+              :title="store.dirty ? 'Salve as alterações antes de aprovar' : undefined"
+              @click="setStatus('APPROVED')"
+              class="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-slate-700"
+            >
+              {{
+                canSelectForApproval && approvalSelection.length < store.products.length
+                  ? `Aprovar selecionados (${approvalSelection.length})`
+                  : 'Aprovar'
+              }}
             </button>
             <button type="button" :disabled="changingStatus" @click="setStatus('REJECTED')" class="rounded-lg border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-slate-700">
               Rejeitar

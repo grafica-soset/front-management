@@ -705,17 +705,27 @@ const printingTables = computed(() => {
         <strong>{{ cost.sheets[0]!.chosen.preCutDescents }} descidas</strong> antes de imprimir.
         Depois, {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }} →
         {{ formatLabel(cost.finalFormatName, cost.sheets[0]!.chosen.finalFormatNumber) }} em
-        {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicações:
+        {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicação(ões) e aparo até
+        {{ format(cost.widthMm) }} × {{ format(cost.heightMm) }}:
         <strong>{{ cost.sheets[0]!.chosen.refileDescents }} descidas</strong> no refile.
       </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        O cadastro conta as descidas a partir da folha inteira — o
+      <p v-if="cost.sheets[0]!.chosen.applicationsPerSheet > 1" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Separar as aplicações: o cadastro conta as descidas a partir da folha inteira — o
         {{ formatLabel(cost.finalFormatName, cost.sheets[0]!.chosen.finalFormatNumber) }} custa
         {{ cost.sheets[0]!.chosen.finalFormatDescents }} delas. Na mesa do refile entra o
         {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }},
         que é 1/{{ cost.sheets[0]!.chosen.printFormatNumber }} da folha:
-        {{ cost.sheets[0]!.chosen.finalFormatDescents }} ÷ {{ cost.sheets[0]!.chosen.printFormatNumber }}, e
-        a fração conta inteira porque não se desce meia faca.
+        {{ cost.sheets[0]!.chosen.finalFormatDescents }} ÷ {{ cost.sheets[0]!.chosen.printFormatNumber }} =
+        {{ cost.sheets[0]!.chosen.refileDescents - (cost.sheets[0]!.chosen.trimDescents ?? 0) }}
+        (a fração conta inteira porque não se desce meia faca).
+      </p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <template v-if="(cost.sheets[0]!.chosen.trimDescents ?? 0) > 0">
+          Aparar o formato final ({{ format(cost.sheets[0]!.chosen.finalWidthMm) }} ×
+          {{ format(cost.sheets[0]!.chosen.finalHeightMm) }}) até a peça: 2 descidas em cada sentido em que
+          sobra papel = <strong>{{ cost.sheets[0]!.chosen.trimDescents }} descidas</strong>.
+        </template>
+        <template v-else>A peça tem o tamanho exato do formato final: não há aparo.</template>
       </p>
 
       <div v-if="cuttingSteps.length" class="mt-4 grid gap-4 lg:grid-cols-2">

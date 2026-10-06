@@ -39,7 +39,10 @@ export interface ProposalItem {
   quantity: number
   description: string
   totalPrice: number
+  /** Unitário praticado, com 3 casas (atividade 044); o total é ele × quantidade. */
   unitPrice: number
+  /** Escolhido pelo cliente (orçamento aprovado). */
+  approved: boolean
 }
 
 export interface QuoteProposal {
@@ -50,6 +53,8 @@ export interface QuoteProposal {
   company: ProposalCompany
   recipient: ProposalRecipient
   items: ProposalItem[]
+  /** O orçamento pediu o total impresso (atividade 044). */
+  totalized: boolean
   productsTotal: number
   agencyCommissionPercent: number
   agencyCommissionAmount: number
