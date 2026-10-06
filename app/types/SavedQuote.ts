@@ -5,7 +5,7 @@
  * (o mesmo produto de `POST /quotes/calculate`) e aplica a fórmula do preço.
  */
 import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
-import type { QuoteProductRequest } from '@/types/Quote'
+import type { ProductCostingResponse, QuoteProductRequest } from '@/types/Quote'
 import type { QuoteProduct } from '@/types/QuoteDraft'
 
 export type QuoteStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
@@ -27,6 +27,12 @@ export interface SaveQuoteProductRequest {
   productTemplateId: number | null
   taxes: ProductTaxes
   pricing: PricingTerms
+  /** O produto já salvo que este é: com a mesma configuração, o custo gravado é mantido (atividade 044). */
+  id: number | null
+  /** O usuário pediu o recálculo deste produto. */
+  recalculate: boolean
+  /** Unitário assumido (3 casas). Nulo = vale o calculado. */
+  unitPriceOverride: number | null
 }
 
 export interface SaveQuoteRequest {
@@ -36,6 +42,8 @@ export interface SaveQuoteRequest {
   notes: string | null
   conditions: SupplyConditions
   products: SaveQuoteProductRequest[]
+  /** A proposta soma os produtos num total (atividade 044). */
+  totalizeProposal: boolean
   /** Só na criação: a chave da tentativa de salvar, para repetir não duplicar (ver quoteDraft). */
   requestId?: string
 }
@@ -60,8 +68,17 @@ export interface SavedQuoteProduct {
   salesCommissionPercent: number
   taxPercent: number
   markupPercent: number
-  totalPrice: number
+  /** Preço da fórmula ÷ quantidade, com 3 casas (atividade 044). */
+  calculatedUnitPrice: number
+  /** Unitário assumido pelo orçamentista; nulo = vale o calculado. */
+  unitPriceOverride: number | null
+  /** Unitário praticado; o total é ele × quantidade. */
   unitPrice: number
+  totalPrice: number
+  /** Escolhido pelo cliente na aprovação. */
+  approved: boolean
+  /** O cálculo gravado ao salvar; nulo em orçamento anterior à 044. */
+  costing: ProductCostingResponse | null
 }
 
 export interface SavedQuote {
@@ -74,10 +91,13 @@ export interface SavedQuote {
   agencyCommissionPercent: number
   notes: string | null
   conditions: SupplyConditions
+  totalizeProposal: boolean
   /** Quem criou — assina a proposta. */
   createdByName: string | null
   totalCost: number
   productsTotal: number
+  /** No aprovado, a soma dos produtos escolhidos; nulo nos demais. */
+  approvedProductsTotal: number | null
   agencyCommissionAmount: number
   total: number
   products: SavedQuoteProduct[]

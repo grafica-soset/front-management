@@ -57,10 +57,11 @@ export function useQuotes() {
     return await api<SavedQuote>(`/quotes/${id}`, { method: 'PUT', body: { ...payload, customerId: customerId() } })
   }
 
-  async function changeStatus(id: number, status: QuoteStatus): Promise<SavedQuote> {
+  /** Na aprovação, `approvedProductIds` são os produtos que o cliente escolheu (atividade 044); sem eles, todos. */
+  async function changeStatus(id: number, status: QuoteStatus, approvedProductIds?: number[]): Promise<SavedQuote> {
     return await api<SavedQuote>(`/quotes/${id}/status`, {
       method: 'PATCH',
-      body: { customerId: customerId(), status },
+      body: { customerId: customerId(), status, approvedProductIds: approvedProductIds ?? null },
     })
   }
 

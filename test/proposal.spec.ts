@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressLines, itemsForPrint, logoUrlIssue, proposalMoney, proposalPlaceAndDate } from '@/utils/proposal'
+import { addressLines, itemsForPrint, logoUrlIssue, proposalMoney, proposalPlaceAndDate, proposalUnitMoney } from '@/utils/proposal'
 
 /** Apresentação da proposta de fornecimento (atividade 038), no jeito que a gráfica já escreve. */
 describe('proposta', () => {
@@ -13,12 +13,17 @@ describe('proposta', () => {
     expect(proposalMoney(1234.5)).toBe('1.234,50')
   })
 
+  it('o unitário sai com 3 casas — 0,283 × 103.000 = 29.149,00 fecha na mão do cliente', () => {
+    expect(proposalUnitMoney(0.283)).toBe('0,283')
+    expect(proposalUnitMoney(14.5)).toBe('14,500')
+  })
+
   it('o mesmo produto em outra quantidade vira "Idem acima"', () => {
     const description = "Blocos ''Controle de Vendas Pequeno'', 50 x 2 vias."
     const items = itemsForPrint([
-      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4 },
-      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5 },
-      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18 },
+      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4, approved: false },
+      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5, approved: false },
+      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18, approved: false },
     ])
     expect(items.map((i) => i.printedDescription)).toEqual([description, 'Idem acima ...', "''Folder''."])
   })

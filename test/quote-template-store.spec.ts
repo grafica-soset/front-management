@@ -270,14 +270,44 @@ describe('orçamento com preço', () => {
     store.startNew()
     store.draft!.pricing = { deliveryCommissionPercent: 2, receiptCommissionPercent: 3, markupPercent: 30 }
     store.draft!.taxes = { ...emptyTaxes(), iss: { percent: 5, composesPrice: true } }
+    store.draft!.quantity = 200
     store.draftCost = custo(520)
     store.commit()
     store.agencyCommissionPercent = 10
 
-    // 520 / (1 − 40%) = 866,67; agência 10% = 86,67.
-    expect(store.productsTotal).toBe(866.67)
-    expect(store.agencyCommission).toBe(86.67)
-    expect(store.grandTotal).toBe(953.34)
+    // 520 / (1 − 40%) = 866,67 → ÷ 200 = 4,33335 → unitário 4,333 → 866,60 (atividade 044);
+    // agência 10% = 86,66.
+    expect(store.productsTotal).toBe(866.6)
+    expect(store.agencyCommission).toBe(86.66)
+    expect(store.grandTotal).toBe(953.26)
+  })
+
+  it('o unitário tem 3 casas e manda no total — o caso do orçamento 6', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.draft!.quantity = 103000
+    // Custo que, sem percentuais, dá 29.112,47 de preço: 0,28264 por folha.
+    store.draftCost = custo(29112.47)
+    store.commit()
+    const uid = store.products[0]!.uid
+
+    expect(store.productUnitPrices[uid]).toEqual({ calculated: 0.283, unit: 0.283, total: 29149 })
+  })
+
+  it('o preço assumido muda o total e volta ao calculado', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.draft!.quantity = 103000
+    store.draftCost = custo(29112.47)
+    store.commit()
+    const uid = store.products[0]!.uid
+
+    store.setUnitPriceOverride(uid, 0.27)
+    expect(store.productUnitPrices[uid]).toEqual({ calculated: 0.283, unit: 0.27, total: 27810 })
+    expect(store.toSaveRequest().products[0]!.unitPriceOverride).toBe(0.27)
+
+    store.setUnitPriceOverride(uid, null)
+    expect(store.productUnitPrices[uid]!.unit).toBe(0.283)
   })
 
   it('sem custo em algum produto o total não aparece — zero pareceria preço', () => {
@@ -381,6 +411,109 @@ describe('condições de fornecimento e alteração pendente (atividade 038)', (
     store.startNew()
     store.commit()
     expect(store.dirty).toBe(true)
+  })
+})
+
+describe('orçamento salvo não recalcula sozinho (atividade 044)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  const savedProduct = (overrides: Record<string, unknown> = {}) => ({
+    id: 31,
+    productModelId: null,
+    productModelName: null,
+    typeName: null,
+    productTemplateId: null,
+    editorState: { name: 'Laminas de Pagamento', quantity: 103000, widthMm: 210, heightMm: 297 },
+    taxes: emptyTaxes(),
+    pricing: emptyPricing(),
+    totalCost: 15720.73,
+    unitPriceOverride: null,
+    approved: false,
+    costing: { totalCost: 15720.7326 },
+    ...overrides,
+  })
+
+  const saved = (products: unknown[], status = 'PENDING_APPROVAL') =>
+    ({
+      id: 6, number: 6, clientId: 4, status, agencyCommissionPercent: 0, notes: null,
+      conditions: null, totalizeProposal: true, products,
+    }) as unknown as SavedQuote
+
+  it('abre com o custo GRAVADO, sem nada pendente', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved([savedProduct()]))
+    const uid = store.products[0]!.uid
+
+    expect(store.productCosts[uid]).toBe(15720.73)
+    expect(store.costs[uid]?.totalCost).toBe(15720.7326)
+    expect(store.totalizeProposal).toBe(true)
+    expect(store.dirty).toBe(false)
+    const body = store.toSaveRequest().products[0]!
+    expect(body.id).toBe(31)
+    expect(body.recalculate).toBe(false)
+  })
+
+  it('orçamento anterior à 044 (sem o cálculo gravado) vale pelo custo gravado', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved([savedProduct({ costing: null })]))
+    const uid = store.products[0]!.uid
+
+    expect(store.costs[uid]).toBeUndefined()
+    expect(store.productCosts[uid]).toBe(15720.73)
+  })
+
+  it('abrir o produto no assistente e voltar sem mexer não pede recálculo', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved([savedProduct()]))
+    const uid = store.products[0]!.uid
+
+    store.edit(uid)
+    store.commit()
+
+    expect(store.products[0]!.recalculate).toBe(false)
+    expect(store.dirty).toBe(false)
+  })
+
+  it('mexer no produto no assistente pede o recálculo ao salvar', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved([savedProduct()]))
+    const uid = store.products[0]!.uid
+
+    store.edit(uid)
+    store.draft!.quantity = 120000
+    store.commit()
+
+    expect(store.products[0]!.recalculate).toBe(true)
+    expect(store.toSaveRequest().products[0]!.recalculate).toBe(true)
+  })
+
+  it('a cópia de um produto salvo é produto novo', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved([savedProduct()]))
+    store.duplicate(store.products[0]!.uid)
+
+    const body = store.toSaveRequest().products[1]!
+    expect(body.id).toBeNull()
+    expect(body.recalculate).toBe(true)
+  })
+
+  it('no aprovado, o total é o dos produtos que o cliente escolheu', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(
+      saved(
+        [
+          savedProduct({ id: 31, approved: false }),
+          savedProduct({ id: 32, approved: true, totalCost: 10000, editorState: { name: 'Opção 2', quantity: 50000 } }),
+        ],
+        'APPROVED',
+      ),
+    )
+
+    // Opção 2: 10.000 ÷ 50.000 = 0,200 → 10.000,00.
+    expect(store.approvedTotal).toBe(10000)
+    expect(store.grandTotal).toBe(10000)
+    // Opção 1: 15.720,73 ÷ 103.000 = 0,15263 → 0,153 → 15.759,00; as duas somam 25.759,00.
+    expect(store.productsTotal).toBe(25759)
   })
 })
 

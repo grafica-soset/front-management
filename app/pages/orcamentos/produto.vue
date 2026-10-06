@@ -62,8 +62,14 @@ onMounted(async () => {
   // Abrir um produto salvo não mexe em nada, então o watch de recálculo não dispara — e sem
   // cálculo o passo de parâmetros fica sem opções de impressora. O gatilho é aqui, depois dos
   // catálogos, que são justamente o que `calcBlockers` consulta para saber o tipo das atividades.
-  if (calcBlockers.value.length === 0) scheduleCalc(0)
+  //
+  // Atividade 044: o produto de um orçamento SALVO abre com o cálculo gravado e não vai ao motor —
+  // olhar não recalcula. Mexer na configuração (ou clicar em Calcular) é que pede outro cálculo.
+  if (calcBlockers.value.length === 0 && !frozenOnOpen.value) scheduleCalc(0)
 })
+
+/** Abriu um produto salvo com o cálculo gravado, sem pedido de recálculo. */
+const frozenOnOpen = computed(() => !!store.draft?.savedId && !store.draft?.recalculate && !!store.draftCost)
 
 const product = computed(() => store.draft)
 
@@ -238,6 +244,16 @@ const cancel = () => {
       class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200 print:hidden"
     >
       <strong>Não foi possível calcular.</strong> {{ store.calcError }}
+    </div>
+
+    <!-- Atividade 044: o produto salvo mostra o cálculo GRAVADO até o usuário pedir outro. -->
+    <div
+      v-if="product.savedId && !product.recalculate && !store.draftRecalculated && store.draftCost"
+      class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-100 print:hidden"
+    >
+      <strong>Cálculo gravado no orçamento.</strong> É o preço que foi passado ao cliente. Mexer na
+      configuração ou clicar em Calcular refaz a conta com os preços de hoje — e o orçamento só muda
+      quando você salvar.
     </div>
 
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between print:hidden">

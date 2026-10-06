@@ -192,6 +192,34 @@ export function priceFromCost(cost: number, pricing: PricingTerms, taxes: Produc
   }
 }
 
+/** Casas do preço unitário (atividade 044): 0,2826 por folha vira 0,283. */
+export const UNIT_PRICE_DECIMALS = 3
+
+/** Arredonda na 3ª casa (meio para cima), como o servidor. */
+export function round3(value: number): number {
+  return Math.round((value + Number.EPSILON) * 1000) / 1000
+}
+
+/** Unitário calculado: o preço da fórmula ÷ quantidade, com 3 casas. */
+export function unitPriceOf(price: number, quantity: number): number {
+  return quantity > 0 ? round3(price / quantity) : 0
+}
+
+/** Total do produto: unitário × quantidade — é o unitário que manda (atividade 044). */
+export function totalFromUnit(unitPrice: number, quantity: number): number {
+  return round2(unitPrice * quantity)
+}
+
+/** Unitário em reais com as 3 casas: "R$ 0,283". */
+export function brlUnit(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: UNIT_PRICE_DECIMALS,
+    maximumFractionDigits: UNIT_PRICE_DECIMALS,
+  })
+}
+
 /** Comissão de agência: um percentual SOBRE o total dos produtos. */
 export function agencyCommissionAmount(productsTotal: number, percent: number): number {
   return round2((productsTotal * (Number(percent) || 0)) / 100)

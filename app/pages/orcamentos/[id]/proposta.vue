@@ -14,7 +14,7 @@ import { computed, ref } from 'vue'
 import { useQuotes } from '@/composables/useQuotes'
 import { extractApiError } from '@/utils/apiError'
 import { formatBrazilianDocument, formatPhone } from '@/utils/clientFormatting'
-import { addressLines, itemsForPrint, proposalMoney, proposalPlaceAndDate } from '@/utils/proposal'
+import { addressLines, itemsForPrint, proposalMoney, proposalPlaceAndDate, proposalUnitMoney } from '@/utils/proposal'
 import type { QuoteProposal } from '@/types/QuoteProposal'
 
 definePageMeta({ middleware: 'auth', layout: false })
@@ -129,17 +129,26 @@ const print = () => window.print()
           <p>Descrição: {{ item.printedDescription }}</p>
           <p>
             Valor R$: {{ proposalMoney(item.totalPrice) }}
-            <span class="ml-4">Valor Unitário R$: {{ proposalMoney(item.unitPrice) }}</span>
+            <span class="ml-4">Valor Unitário R$: {{ proposalUnitMoney(item.unitPrice) }}</span>
           </p>
         </div>
       </section>
 
-      <!-- Comissão de agência: só quando existe, porque muda o total que o cliente paga. -->
-      <section v-if="proposal.agencyCommissionAmount > 0" class="mt-4 break-inside-avoid">
-        <p>Total dos produtos R$: {{ proposalMoney(proposal.productsTotal) }}</p>
-        <p>Comissão de agência R$: {{ proposalMoney(proposal.agencyCommissionAmount) }}</p>
+      <!--
+        Total: só quando o orçamento é TOTALIZADO (atividade 044). Sem isso os produtos são opções
+        (outra quantidade, outro papel), e somar opções daria um valor que ninguém vai pagar.
+      -->
+      <section v-if="proposal.totalized" class="mt-4 break-inside-avoid">
+        <template v-if="proposal.agencyCommissionAmount > 0">
+          <p>Total dos produtos R$: {{ proposalMoney(proposal.productsTotal) }}</p>
+          <p>Comissão de agência R$: {{ proposalMoney(proposal.agencyCommissionAmount) }}</p>
+        </template>
         <p class="font-bold">Total R$: {{ proposalMoney(proposal.total) }}</p>
       </section>
+      <!-- Sem totalizar, a comissão de agência sai como percentual: ela incide sobre o que for escolhido. -->
+      <p v-else-if="Number(proposal.agencyCommissionPercent) > 0" class="mt-4 break-inside-avoid">
+        Acrescentar {{ Number(proposal.agencyCommissionPercent).toLocaleString('pt-BR') }}% de comissão de agência sobre o valor dos itens escolhidos.
+      </p>
 
       <!-- Condições -->
       <section v-if="hasConditions" class="mt-6 break-inside-avoid">
