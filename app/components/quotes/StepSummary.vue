@@ -113,6 +113,22 @@ const packaging = computed(() => cost.value?.packaging ?? null)
 
 const kg = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
 
+const pct = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+
+/** O pacote como bloco: "21 × 29,7 × 3,9 cm" — a peça e a altura da pilha de um pacote. */
+const packageBlock = computed(() => {
+  const p = packaging.value
+  if (!p) return ''
+  return `${format(p.widthMm, { withSuffix: false })} × ${format(p.heightMm, { withSuffix: false })} × ${format(p.packageHeightMm ?? 0)}`
+})
+
+/** O pedaço de embrulho de um pacote: "49,8 × 37,5 cm". */
+const wrapBlank = computed(() => {
+  const p = packaging.value
+  if (!p) return ''
+  return `${format(p.wrapWidthMm ?? 0, { withSuffix: false })} × ${format(p.wrapHeightMm ?? 0)}`
+})
+
 /** "10,5 × 15,5 cm × 56 g/m² × 5.000 folhas" — a conta do peso de uma via, escrita por extenso. */
 const weightMath = (gsm: number, sheets: number) => {
   const largura = format(packaging.value?.widthMm ?? 0, { withSuffix: false })
@@ -915,7 +931,13 @@ const printingTables = computed(() => {
         </div>
         <div v-if="packaging.wrappingPaperName">
           <dt class="font-medium text-slate-900 dark:text-white">Embrulho — {{ packaging.wrappingPaperName }}</dt>
-          <dd class="text-slate-600 dark:text-slate-300">
+          <dd v-if="packaging.wrappingPackagesPerSheet" class="text-slate-600 dark:text-slate-300">
+            {{ packaging.packages }} pacote(s) ÷ {{ packaging.wrappingPackagesPerSheet }} por folha =
+            {{ packaging.wrappingSheets }} folha(s) a {{ brl(packaging.wrappingPricePerSheet) }} =
+            <strong>{{ brl(packaging.wrappingCost) }}</strong>
+          </dd>
+          <!-- Orçamento salvo antes da 045: o embrulho era contado pela área. -->
+          <dd v-else class="text-slate-600 dark:text-slate-300">
             {{ packaging.wrappingSheetsPerPackage }} folha(s) por pacote × {{ packaging.packages }} =
             {{ packaging.wrappingSheets }} folha(s) a {{ brl(packaging.wrappingPricePerSheet) }} =
             <strong>{{ brl(packaging.wrappingCost) }}</strong>
@@ -928,6 +950,64 @@ const printingTables = computed(() => {
           </dd>
         </div>
       </dl>
+
+      <!-- O pacote como bloco e as folhas de embrulho comparadas (atividade 045) -->
+      <div
+        v-if="packaging.wrappingOptions?.length"
+        class="border-t border-slate-200 px-5 py-4 text-xs dark:border-slate-700"
+      >
+        <p class="text-slate-500 dark:text-slate-400">
+          Pacote: <strong class="text-slate-700 dark:text-slate-200">{{ packageBlock }}</strong>
+          — {{ packaging.piecesPerPackage.toLocaleString('pt-BR') }} folha(s) de pilha.
+          Pedaço de embrulho, sem emenda (dá a volta e fecha as pontas):
+          <strong class="text-slate-700 dark:text-slate-200">{{ wrapBlank }}</strong>
+        </p>
+        <table class="mt-2 w-full text-left">
+          <thead class="text-slate-500 dark:text-slate-400">
+            <tr>
+              <th class="py-1 pr-3 font-medium">Folha de embrulho</th>
+              <th class="py-1 pr-3 font-medium">Corte</th>
+              <th class="py-1 pr-3 text-right font-medium">Pacotes/folha</th>
+              <th class="py-1 pr-3 text-right font-medium">Aproveitamento</th>
+              <th class="py-1 pr-3 text-right font-medium">Folhas</th>
+              <th class="py-1 pr-3 text-right font-medium">Desperdício</th>
+              <th class="py-1 text-right font-medium">Custo</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
+            <tr
+              v-for="opcao in packaging.wrappingOptions"
+              :key="opcao.paperName"
+              class="align-baseline"
+              :class="opcao.chosen ? 'font-medium text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'"
+            >
+              <td class="py-1 pr-3">
+                {{ opcao.paperName }}
+                <span v-if="opcao.chosen" class="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">escolhida</span>
+              </td>
+              <template v-if="opcao.fits">
+                <td class="py-1 pr-3">
+                  {{ opcao.cutFormatName }}
+                  <span v-if="opcao.cutFormatNumber > 1" class="text-slate-400">(formato {{ opcao.cutFormatNumber }})</span>
+                  <span v-else class="text-slate-400">(folha inteira)</span>
+                </td>
+                <td class="py-1 pr-3 text-right tabular-nums">{{ opcao.packagesPerSheet }}</td>
+                <td class="py-1 pr-3 text-right tabular-nums">{{ pct(opcao.utilizationPercent) }}</td>
+                <td class="py-1 pr-3 text-right tabular-nums">{{ opcao.sheets.toLocaleString('pt-BR') }}</td>
+                <td class="py-1 pr-3 text-right tabular-nums">{{ pct(opcao.wastePercent) }}</td>
+                <td class="py-1 text-right tabular-nums">{{ brl(opcao.cost) }}</td>
+              </template>
+              <td v-else class="py-1 text-slate-400" colspan="6">não comporta o pedaço inteiro — não se remenda</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-if="packaging.wrappingPaperName" class="mt-2 text-slate-500 dark:text-slate-400">
+          Aproveitamento da folha: <strong class="text-slate-700 dark:text-slate-200">{{ pct(packaging.wrappingUtilizationPercent ?? 0) }}</strong>
+          · Taxa de desperdício do trabalho:
+          <strong class="text-slate-700 dark:text-slate-200">{{ pct(packaging.wrappingWastePercent ?? 0) }}</strong>
+          (inclui a sobra da última folha)
+        </p>
+      </div>
     </section>
 
     <!-- Etapas -->

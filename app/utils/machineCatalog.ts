@@ -611,8 +611,8 @@ export function defaultDigitalBlock(): DigitalBlockRequest {
     maxWeightGsm: 0,
     maxThicknessMicrons: 0,
     wasteSheets: 0,
-    lineCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
-    imageCoverage: { tonerGramsPerSquareMeterAt100: '0', speedReducerPercentAt100: '0' },
+    lineCoverage: { speedReducerPercentAt100: '0' },
+    imageCoverage: { speedReducerPercentAt100: '0' },
     // Tinta da máquina (atividade 032 — ajuste 0001): numa digital o subtipo é toner.
     acceptedInkColorTypes: [],
     inkSubtype: 'TONER',
@@ -653,11 +653,9 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
     maxThicknessMicrons: block.maxThicknessMicrons ?? 0,
     wasteSheets: block.wasteSheets ?? 0,
     lineCoverage: {
-      tonerGramsPerSquareMeterAt100: String(block.lineCoverage.tonerGramsPerSquareMeterAt100),
       speedReducerPercentAt100: String(block.lineCoverage.speedReducerPercentAt100),
     },
     imageCoverage: {
-      tonerGramsPerSquareMeterAt100: String(block.imageCoverage.tonerGramsPerSquareMeterAt100),
       speedReducerPercentAt100: String(block.imageCoverage.speedReducerPercentAt100),
     },
     acceptedInkColorTypes: [...(block.acceptedInkColorTypes ?? [])],
@@ -667,7 +665,7 @@ export function hydrateDigitalBlock(block: DigitalBlockResponse | null): Digital
 
 /**
  * Valida o bloco digital: tempos ≥ 0; velocidade máx ≥ mín (> 0); dimensões e velocidades da
- * matriz ≥ 1; limites de gramatura/espessura ≥ 1; percentuais e consumo de toner ≥ 0.
+ * matriz ≥ 1; limites de gramatura/espessura ≥ 1; percentuais ≥ 0.
  */
 export function validateDigital(block: DigitalBlockRequest): Record<string, string> {
   const errors: Record<string, string> = {}
@@ -699,7 +697,6 @@ export function validateDigital(block: DigitalBlockRequest): Record<string, stri
   }
 
   for (const which of ['lineCoverage', 'imageCoverage'] as const) {
-    if (!isNonNegativeNumber(block[which].tonerGramsPerSquareMeterAt100)) errors[`${which}.tonerGramsPerSquareMeterAt100`] = 'Valor inválido.'
     if (!isNonNegativeNumber(block[which].speedReducerPercentAt100)) errors[`${which}.speedReducerPercentAt100`] = 'Percentual inválido.'
   }
 

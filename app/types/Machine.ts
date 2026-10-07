@@ -777,7 +777,7 @@ export interface PerforatingMachine {
 /**
  * A digital tem velocidade da matriz de formato (rampa) limitada por um envelope mín/máx. No
  * orçamento informam-se o tipo de impressão (traço/imagem) e a cobertura (%): cada tipo tem, a
- * 100%, um consumo de toner (g/m²) e um redutor de velocidade (%). Tem borda neutra (gripMm),
+ * 100%, um redutor de velocidade (%). O toner sai do papel (atividade 045). Tem borda neutra (gripMm),
  * alimentador, limites de gramatura/espessura e quebra fixa.
  */
 
@@ -793,7 +793,6 @@ export interface DigitalFormatPointRequest {
 
 /** Cobertura por tipo de impressão — request (valores a 100%, como string). */
 export interface DigitalCoverageRequest {
-  tonerGramsPerSquareMeterAt100: string
   speedReducerPercentAt100: string
 }
 
@@ -843,7 +842,6 @@ export interface DigitalFormatPointResponse {
 
 /** Cobertura por tipo devolvida pela API (valores a 100%, como número). */
 export interface DigitalCoverageResponse {
-  tonerGramsPerSquareMeterAt100: number
   speedReducerPercentAt100: number
 }
 

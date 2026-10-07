@@ -32,8 +32,8 @@ function validBlock(): DigitalBlockRequest {
     maxWeightGsm: 300,
     maxThicknessMicrons: 400,
     wasteSheets: 4,
-    lineCoverage: { tonerGramsPerSquareMeterAt100: '4', speedReducerPercentAt100: '10' },
-    imageCoverage: { tonerGramsPerSquareMeterAt100: '20', speedReducerPercentAt100: '50' },
+    lineCoverage: { speedReducerPercentAt100: '10' },
+    imageCoverage: { speedReducerPercentAt100: '50' },
     // Tinta da máquina (atividade 032 — ajuste 0001): digital colorida a toner, só CMYK.
     acceptedInkColorTypes: ['CMYK'],
     inkSubtype: 'TONER',
@@ -97,10 +97,10 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
     expect(validateDigital(block)['maxWeightGsm']).toBeTruthy()
   })
 
-  it('rejeita consumo de toner / percentual inválido na cobertura', () => {
+  it('rejeita percentual inválido na cobertura', () => {
     const block = validBlock()
-    block.imageCoverage = { tonerGramsPerSquareMeterAt100: 'abc', speedReducerPercentAt100: '50' }
-    expect(validateDigital(block)['imageCoverage.tonerGramsPerSquareMeterAt100']).toBeTruthy()
+    block.imageCoverage = { speedReducerPercentAt100: 'abc' }
+    expect(validateDigital(block)['imageCoverage.speedReducerPercentAt100']).toBeTruthy()
   })
 
   it('hidrata a response (mm + strings)', () => {
@@ -128,8 +128,8 @@ describe('Cadastro IMPRESSORA DIGITAL — catálogo', () => {
       maxWeightGsm: 300,
       maxThicknessMicrons: 400,
       wasteSheets: 4,
-      lineCoverage: { tonerGramsPerSquareMeterAt100: 4, speedReducerPercentAt100: 10 },
-      imageCoverage: { tonerGramsPerSquareMeterAt100: 20, speedReducerPercentAt100: 50 },
+      lineCoverage: { speedReducerPercentAt100: 10 },
+      imageCoverage: { speedReducerPercentAt100: 50 },
       acceptedInkColorTypes: ['CMYK', 'PANTONE'],
       inkSubtype: 'TONER',
     }
