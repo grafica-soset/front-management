@@ -382,12 +382,51 @@ export interface PackagingCostingResponse {
   totalMinutes: number
   laborHourlyCost: number
   laborCost: number
+  /** Altura da pilha de UM pacote (mm) — atividade 045. Ausente em orçamentos salvos antes dela. */
+  packageHeightMm?: number
   wrappingPaperName: string | null
-  wrappingSheetsPerPackage: number
+  wrappingSheetWidthMm?: number
+  wrappingSheetHeightMm?: number
+  /** O pedaço de embrulho de UM pacote, sem emenda (mm): dá a volta e fecha as pontas. */
+  wrapWidthMm?: number
+  wrapHeightMm?: number
+  /** Formato cadastrado em que a folha de embrulho é cortada — formato N = N pacotes por folha. */
+  wrappingCutFormatName?: string | null
+  wrappingPackagesPerSheet?: number
   wrappingSheets: number
   wrappingPricePerSheet: number
   wrappingCost: number
+  /** Área dos pedaços sobre a área da folha, num corte (%). */
+  wrappingUtilizationPercent?: number
+  /** O que o trabalho joga fora das folhas compradas, contando a sobra da última (%). */
+  wrappingWastePercent?: number
+  /** Todas as folhas de embrulho da família, avaliadas — a escolhida vem marcada. */
+  wrappingOptions?: PackagingWrappingOptionResponse[]
+  /** Formato antigo (antes da 045): folhas de embrulho por pacote, pela área. */
+  wrappingSheetsPerPackage?: number
   totalCost: number
+}
+
+/** Uma folha de embrulho avaliada para o pacote (atividade 045). */
+export interface PackagingWrappingOptionResponse {
+  paperName: string
+  sheetWidthMm: number
+  sheetHeightMm: number
+  pricePerSheet: number
+  /** Comporta o pedaço inteiro em algum formato cadastrado? Não se remenda. */
+  fits: boolean
+  cutFormatName: string | null
+  cutFormatNumber: number
+  cutWidthMm: number
+  cutHeightMm: number
+  wrapWidthMm: number
+  wrapHeightMm: number
+  packagesPerSheet: number
+  utilizationPercent: number
+  sheets: number
+  wastePercent: number
+  cost: number
+  chosen: boolean
 }
 
 export interface ProductCostingResponse {

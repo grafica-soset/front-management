@@ -4,7 +4,8 @@
  *
  * A velocidade vem da matriz de formato (rampa) limitada pelo envelope mín/máx. No orçamento
  * informam-se o tipo de impressão (traço/imagem) e a cobertura (%): cada tipo tem, a 100%, um
- * consumo de toner (g/m²) e um redutor de velocidade (%). Tem limites de gramatura/espessura.
+ * redutor de velocidade (%). Tem limites de gramatura/espessura. O consumo de toner não é mais da
+ * máquina: sai da taxa de absorção cadastrada no papel (atividade 045).
  */
 import { computed } from 'vue'
 import type { DigitalBlockRequest, DigitalColorMode } from '@/types/Machine'
@@ -41,7 +42,7 @@ const inputClass = (err?: string) => [
 ]
 const selectClass = 'bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white'
 const fmtErr = (which: 'minFormat' | 'maxFormat', field: 'widthMm' | 'lengthMm' | 'sheetsPerHour') => props.errors[`${which}.${field}`]
-const covErr = (which: 'lineCoverage' | 'imageCoverage', field: 'tonerGramsPerSquareMeterAt100' | 'speedReducerPercentAt100') => props.errors[`${which}.${field}`]
+const covErr = (which: 'lineCoverage' | 'imageCoverage', field: 'speedReducerPercentAt100') => props.errors[`${which}.${field}`]
 
 /** Tinta aceita: marca/desmarca um TIPO (CMYK/Pantone) — atividade 032 (ajuste 0001). */
 const isInkColorAccepted = (color: InkColorType) => props.block.acceptedInkColorTypes.includes(color)
@@ -59,7 +60,7 @@ const toggleInkColor = (color: InkColorType) => {
     <p class="text-xs text-slate-500 dark:text-slate-400">
       A velocidade vem da matriz de formato e é limitada pelo envelope mín/máx. No orçamento serão
       informados o tipo de impressão (traço/imagem) e a cobertura (%), aplicando o redutor de
-      velocidade e o consumo de toner configurados abaixo.
+      velocidade configurado abaixo. O consumo de toner sai da taxa de absorção cadastrada no papel.
     </p>
 
     <!-- Cor + setup -->
@@ -258,13 +259,7 @@ const toggleInkColor = (color: InkColorType) => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Traço</p>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Consumo de toner</label>
-          <div class="relative">
-            <input v-model="block.lineCoverage.tonerGramsPerSquareMeterAt100" type="number" min="0" step="0.01" :class="inputClass(covErr('lineCoverage', 'tonerGramsPerSquareMeterAt100'))" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
-          </div>
-          <p v-if="covErr('lineCoverage', 'tonerGramsPerSquareMeterAt100')" class="mt-1 text-xs text-rose-600">{{ covErr('lineCoverage', 'tonerGramsPerSquareMeterAt100') }}</p>
-          <label class="block mt-3 mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor de velocidade</label>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor de velocidade</label>
           <div class="relative">
             <input v-model="block.lineCoverage.speedReducerPercentAt100" type="number" min="0" step="0.01" :class="inputClass(covErr('lineCoverage', 'speedReducerPercentAt100'))" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
@@ -273,13 +268,7 @@ const toggleInkColor = (color: InkColorType) => {
         </div>
         <div>
           <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Imagem</p>
-          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Consumo de toner</label>
-          <div class="relative">
-            <input v-model="block.imageCoverage.tonerGramsPerSquareMeterAt100" type="number" min="0" step="0.01" :class="inputClass(covErr('imageCoverage', 'tonerGramsPerSquareMeterAt100'))" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">g/m²</span>
-          </div>
-          <p v-if="covErr('imageCoverage', 'tonerGramsPerSquareMeterAt100')" class="mt-1 text-xs text-rose-600">{{ covErr('imageCoverage', 'tonerGramsPerSquareMeterAt100') }}</p>
-          <label class="block mt-3 mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor de velocidade</label>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Redutor de velocidade</label>
           <div class="relative">
             <input v-model="block.imageCoverage.speedReducerPercentAt100" type="number" min="0" step="0.01" :class="inputClass(covErr('imageCoverage', 'speedReducerPercentAt100'))" />
             <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">%</span>
