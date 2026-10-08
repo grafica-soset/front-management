@@ -6,11 +6,15 @@ export interface CustomerSettings {
   measurementUnit: MeasurementUnit
   /** URL da logo (atividade 038) — cabeçalho da proposta impressa. */
   logoUrl?: string | null
+  /** Taxa de manutenção da faca de corte e vinco, em R$ (atividade 046) — cobrada quando a faca é do cliente. */
+  dieMaintenanceFee?: number
 }
 
 /** Payload de PUT /customers/{customerId}/settings. */
 export interface UpdateCustomerSettingsRequest {
   measurementUnit: MeasurementUnit
+  /** Taxa de manutenção da faca de corte e vinco, em R$. Ausente = mantém a atual. */
+  dieMaintenanceFee?: number
 }
 
 /** Payload de PUT /customers/{customerId}/logo. Nulo remove a logo. */

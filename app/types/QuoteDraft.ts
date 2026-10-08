@@ -148,6 +148,8 @@ export interface StepParameters {
    * perímetro da peça, que é o padrão — o orçamentista ajusta para mais ou para menos.
    */
   channelLengthMm?: number | null
+  /** A faca é do cliente: não cobra a faca, cobra a taxa de manutenção da empresa. Bocas continuam. */
+  customerOwnsDie?: boolean
   /** Máquina escolhida para a etapa automatizada. Nula = a mais barata que dá conta. */
   machineId?: number | null
 }

@@ -864,6 +864,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             // Corte e vinco (atividade 046): bocas e canaleta por faca (nula = o perímetro da peça).
             dieCount: step.parameters.dieCount ?? 0,
             channelLengthMm: step.parameters.channelLengthMm ?? null,
+            customerOwnsDie: step.parameters.customerOwnsDie ?? false,
             machineId: step.parameters.machineId ?? null,
           },
         }

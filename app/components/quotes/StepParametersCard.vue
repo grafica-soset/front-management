@@ -21,6 +21,7 @@ import { brl } from '@/utils/quoteModel'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import PrintingParameters from '@/components/quotes/PrintingParameters.vue'
 import { useUnitConverter } from '@/composables/useUnitConverter'
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 
 const props = defineProps<{
   step: QuoteStep
@@ -318,6 +319,22 @@ const inputClass =
             <template v-else>Informe o tamanho da peça para usar o perímetro como padrão.</template>
           </p>
         </div>
+      </div>
+
+      <!-- Faca do cliente: as bocas continuam valendo; a faca dá lugar à taxa de manutenção -->
+      <div>
+        <ToggleSwitch
+          :model-value="params.customerOwnsDie === true"
+          label="O cliente já tem a faca"
+          @update:model-value="(v: boolean) => (step.parameters.customerOwnsDie = v)"
+        />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <template v-if="params.customerOwnsDie">
+            A faca não é cobrada; entra a taxa de manutenção da faca configurada pela empresa. Informe as
+            bocas mesmo assim — elas decidem as passadas e a canaleta.
+          </template>
+          <template v-else>A faca é comprada para o trabalho e cobrada no orçamento.</template>
+        </p>
       </div>
 
       <div

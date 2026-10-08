@@ -195,6 +195,7 @@ const handleLogo = async (logoUrl: string | null) => {
         <MeasurementUnitForm
           v-else-if="!loadError"
           :initial="initialUnit"
+          :initial-die-maintenance-fee="properties?.settings.dieMaintenanceFee ?? 0"
           :loading="loadingSave"
           :server-error="saveError"
           :saved="saved"

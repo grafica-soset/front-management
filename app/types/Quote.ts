@@ -82,6 +82,8 @@ export interface QuoteStepRequest {
     dieCount?: number
     /** Corte e vinco (atividade 046): canaleta POR FACA, em mm. Nula = o perímetro da peça. */
     channelLengthMm?: number | null
+    /** Corte e vinco (atividade 046): faca do cliente — cobra a taxa de manutenção no lugar da faca. */
+    customerOwnsDie?: boolean
     /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
     machineId?: number | null
   }

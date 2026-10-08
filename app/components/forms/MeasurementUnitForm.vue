@@ -18,6 +18,8 @@ import type { UpdateCustomerSettingsRequest } from '@/types/CustomerSettings'
 const props = defineProps<{
   /** Unidade já configurada — preenche o select ao montar e quando muda. */
   initial?: MeasurementUnit | null
+  /** Taxa de manutenção da faca de corte e vinco já configurada, em R$ (atividade 046). */
+  initialDieMaintenanceFee?: number | null
   loading?: boolean
   serverError?: string | null
   /** Quando true, mostra estado de "Salvo com sucesso" abaixo do botão. */
@@ -28,8 +30,9 @@ const emit = defineEmits<{
   (e: 'submit', payload: UpdateCustomerSettingsRequest): void
 }>()
 
-const form = reactive<{ measurementUnit: MeasurementUnit | '' }>({
+const form = reactive<{ measurementUnit: MeasurementUnit | ''; dieMaintenanceFee: number | '' }>({
   measurementUnit: props.initial ?? '',
+  dieMaintenanceFee: props.initialDieMaintenanceFee ?? 0,
 })
 
 // Reage à mudança de `initial` (ex.: empresa ativa carrega settings depois do mount).
@@ -39,13 +42,24 @@ watch(
     if (next) form.measurementUnit = next
   },
 )
+watch(
+  () => props.initialDieMaintenanceFee,
+  (next) => {
+    if (next != null) form.dieMaintenanceFee = next
+  },
+)
 
-const errors = ref<{ measurementUnit?: string }>({})
+const errors = ref<{ measurementUnit?: string; dieMaintenanceFee?: string }>({})
 
 const schema = z.object({
   measurementUnit: z.enum(['MILLIMETER', 'CENTIMETER', 'METER'], {
     message: 'Selecione uma unidade de medida.',
   }),
+  // Vazio vale zero: a empresa que não cobra manutenção da faca do cliente.
+  dieMaintenanceFee: z.preprocess(
+    (v) => (v === '' || v == null ? 0 : Number(v)),
+    z.number({ message: 'Informe um valor válido.' }).min(0, 'A taxa não pode ser negativa.'),
+  ),
 })
 
 const handleSubmit = () => {
@@ -53,12 +67,15 @@ const handleSubmit = () => {
   const result = schema.safeParse(form)
   if (!result.success) {
     for (const issue of result.error.issues) {
-      const key = issue.path[0] as 'measurementUnit'
+      const key = issue.path[0] as 'measurementUnit' | 'dieMaintenanceFee'
       if (key && !errors.value[key]) errors.value[key] = issue.message
     }
     return
   }
-  emit('submit', { measurementUnit: result.data.measurementUnit })
+  emit('submit', {
+    measurementUnit: result.data.measurementUnit,
+    dieMaintenanceFee: result.data.dieMaintenanceFee,
+  })
 }
 
 const unitOptions = MEASUREMENT_UNITS.map((unit) => ({
@@ -87,6 +104,25 @@ const unitOptions = MEASUREMENT_UNITS.map((unit) => ({
       <p v-if="errors.measurementUnit" class="mt-1 text-xs text-rose-600">{{ errors.measurementUnit }}</p>
       <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Valores são sempre armazenados em milímetros; esta unidade controla apenas a exibição.
+      </p>
+    </div>
+
+    <div>
+      <label for="die-maintenance-fee" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">
+        Taxa de manutenção da faca de corte e vinco (R$)
+      </label>
+      <input
+        id="die-maintenance-fee"
+        v-model="form.dieMaintenanceFee"
+        type="number"
+        min="0"
+        step="0.01"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white transition-colors"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.dieMaintenanceFee }"
+      />
+      <p v-if="errors.dieMaintenanceFee" class="mt-1 text-xs text-rose-600">{{ errors.dieMaintenanceFee }}</p>
+      <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Taxa fixa cobrada no orçamento, no lugar da faca, quando o cliente já tem a faca.
       </p>
     </div>
 
