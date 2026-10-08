@@ -291,7 +291,8 @@ const inputClass =
             :class="inputClass"
           />
           <p class="mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">
-            Facas consumidas do estoque — normalmente uma por aplicação da folha impressa.
+            Facas consumidas do estoque. Menos bocas que aplicações da folha = a mesma folha passa mais
+            vezes (9 aplicações com 3 bocas = 3 passadas): mais rodagem, menos faca e canaleta.
           </p>
         </div>
         <div>
