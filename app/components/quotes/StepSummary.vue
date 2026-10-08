@@ -827,13 +827,15 @@ const printingTables = computed(() => {
           </table>
 
           <!-- O insumo consumido, aberto: é a parte que o cliente contesta -->
+          <!-- Mais de um insumo na etapa: a faca e a canaleta do corte e vinco (atividade 046) -->
           <p
-            v-if="step.supplyUsage"
+            v-for="usage in (step.supplyUsages?.length ? step.supplyUsages : step.supplyUsage ? [step.supplyUsage] : [])"
+            :key="usage.supplyName"
             class="mt-2 rounded bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
           >
-            <strong>{{ step.supplyUsage.supplyName }}</strong>: {{ step.supplyUsage.detail }} ×
-            {{ brl(step.supplyUsage.unitCost) }}/{{ step.supplyUsage.unitLabel }} =
-            {{ brl(step.supplyUsage.cost) }}
+            <strong>{{ usage.supplyName }}</strong>: {{ usage.detail }} ×
+            {{ brl(usage.unitCost) }}/{{ usage.unitLabel }} =
+            {{ brl(usage.cost) }}
           </p>
 
           <!-- As máquinas avaliadas: a escolhida, as outras que dariam conta e as recusadas -->

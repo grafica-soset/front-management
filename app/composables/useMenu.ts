@@ -124,6 +124,7 @@ export default function useMenu() {
         { name: 'Impressão Offset', href: '/maquinas' },
         { name: 'Guilhotina', href: '/maquinas/corte' },
         { name: 'Corte e Vinco', href: '/maquinas/corte-vinco' },
+        { name: 'Ploter de Meio Corte', href: '/maquinas/ploter-meio-corte' },
         { name: 'Impressora Serigráfica', href: '/maquinas/serigrafia' },
         { name: 'Furadeira', href: '/maquinas/furadeira' },
         { name: 'Plastificadora', href: '/maquinas/plastificadora' },

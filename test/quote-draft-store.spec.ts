@@ -123,12 +123,12 @@ describe('store do rascunho de orçamento', () => {
 
   // ---- Numeração (atividade 036): a pergunta que decide quais impressoras podem fazer ----
 
-  it('a numeração nasce sem resposta, como a das vias iguais', () => {
+  it('a numeração nasce desligada (atividade 046)', () => {
     const store = useQuoteDraftStore()
     store.startNew()
 
-    // Assumir "não" escolheria uma impressora que talvez nem numere.
-    expect(store.draft!.hasNumbering).toBeNull()
+    // O trabalho comum não é numerado: o interruptor nasce desligado e nada vai para o motor.
+    expect(store.draft!.hasNumbering).toBe(false)
     expect(store.toPayload(store.draft!).numbering).toBeNull()
   })
 

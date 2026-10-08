@@ -20,6 +20,8 @@ import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { brl } from '@/utils/quoteModel'
 import { ACTIVITY_TYPE_LABELS } from '@/utils/activityCatalog'
 import PrintingParameters from '@/components/quotes/PrintingParameters.vue'
+import { useUnitConverter } from '@/composables/useUnitConverter'
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 
 const props = defineProps<{
   step: QuoteStep
@@ -35,7 +37,7 @@ const paramKind = computed(() => catalogs.paramKindOf(activity.value))
 const params = computed(() => props.step.parameters)
 
 const setNumber = (
-  key: 'laborMinutes' | 'numberingUnits' | 'perforationCount' | 'stapleCount',
+  key: 'laborMinutes' | 'numberingUnits' | 'perforationCount' | 'stapleCount' | 'dieCount',
   value: string
 ) => {
   const parsed = Number(value.replace(',', '.'))
@@ -76,6 +78,42 @@ const costing = computed(() =>
 )
 /** Só vale mostrar o tempo quando o cálculo achou máquina — zero aqui é ruído, não informação. */
 const calculated = computed(() => (costing.value?.machineName ? costing.value : null))
+
+// ---- Corte e vinco (atividade 046) --------------------------------------------------------
+
+const { suffix, fromMillimeters, toMillimeters, format } = useUnitConverter()
+
+/** Perímetro da peça (mm): a canaleta padrão de cada faca — 15×20 dá 70. */
+const perimeterMm = computed(() => {
+  const w = product.value.widthMm ?? 0
+  const h = product.value.heightMm ?? 0
+  return w > 0 && h > 0 ? 2 * (w + h) : null
+})
+
+/**
+ * Canaleta por faca, na unidade da empresa. Nasce no perímetro da peça e acompanha o tamanho
+ * enquanto o usuário não mexe; digitado, vira o valor da etapa. Vazio volta ao perímetro.
+ */
+const channelLength = computed<number | null>({
+  get: () => fromMillimeters(props.step.parameters.channelLengthMm ?? perimeterMm.value),
+  set: (value) => {
+    const mm = value == null || !Number.isFinite(value) || value <= 0 ? null : toMillimeters(value)
+    props.step.parameters.channelLengthMm = mm != null && mm === perimeterMm.value ? null : mm
+  },
+})
+const channelIsDefault = computed(() => props.step.parameters.channelLengthMm == null)
+const resetChannel = () => {
+  props.step.parameters.channelLengthMm = null
+}
+
+/** Os insumos que a etapa consumiu no último cálculo (faca e canaleta). */
+const supplyUsages = computed(() =>
+  calculated.value?.supplyUsages?.length
+    ? calculated.value.supplyUsages
+    : calculated.value?.supplyUsage
+      ? [calculated.value.supplyUsage]
+      : [],
+)
 
 const inputClass =
   'w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -231,6 +269,123 @@ const inputClass =
         Use <strong>Calcular</strong> para ver a grampeadeira escolhida e o arame — o detalhamento,
         com as máquinas que não dão conta e o porquê, fica no resumo.
       </p>
+    </div>
+
+    <!--
+      CORTE E VINCO (atividade 046). A folha impressa entra na máquina e a faca recorta as peças — é
+      o segundo corte do produto. O que o orçamento pergunta é a forma: quantas bocas (facas) e
+      quanta canaleta cada uma leva. Velocidade, setup de faca e pinça saem do cadastro da máquina.
+    -->
+    <div v-else-if="paramKind === 'DIE_CUTTING'" class="mt-3 space-y-4">
+      <div class="flex flex-wrap items-start gap-6">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Quantidade de bocas (facas) <span class="text-rose-500">*</span>
+          </label>
+          <input
+            :value="params.dieCount || ''"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="0"
+            @input="setNumber('dieCount', ($event.target as HTMLInputElement).value)"
+            :class="inputClass"
+          />
+          <p class="mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">
+            Facas consumidas do estoque. Menos bocas que aplicações da folha = a mesma folha passa mais
+            vezes (9 aplicações com 3 bocas = 3 passadas): mais rodagem, menos faca e canaleta.
+          </p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Canaleta por faca ({{ suffix }})
+          </label>
+          <div class="flex items-center gap-2">
+            <input v-model.number="channelLength" type="number" min="0" step="0.1" :class="inputClass" />
+            <button
+              v-if="!channelIsDefault"
+              type="button"
+              class="text-xs font-medium text-indigo-700 hover:underline dark:text-indigo-300"
+              @click="resetChannel"
+            >
+              Usar o perímetro
+            </button>
+          </div>
+          <p class="mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">
+            <template v-if="channelIsDefault && perimeterMm">
+              Perímetro da peça ({{ format(perimeterMm) }}). Ajuste se a faca tiver outro desenho.
+            </template>
+            <template v-else-if="perimeterMm">Perímetro da peça: {{ format(perimeterMm) }}.</template>
+            <template v-else>Informe o tamanho da peça para usar o perímetro como padrão.</template>
+          </p>
+        </div>
+      </div>
+
+      <!-- Faca do cliente: as bocas continuam valendo; a faca dá lugar à taxa de manutenção -->
+      <div>
+        <ToggleSwitch
+          :model-value="params.customerOwnsDie === true"
+          label="O cliente já tem a faca"
+          @update:model-value="(v: boolean) => (step.parameters.customerOwnsDie = v)"
+        />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <template v-if="params.customerOwnsDie">
+            A faca não é cobrada; entra a taxa de manutenção da faca configurada pela empresa. Informe as
+            bocas mesmo assim — elas decidem as passadas e a canaleta.
+          </template>
+          <template v-else>A faca é comprada para o trabalho e cobrada no orçamento.</template>
+        </p>
+      </div>
+
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <ul class="mt-1 space-y-0.5">
+          <li v-for="stage in calculated.timeStages" :key="stage.name">
+            {{ stage.name }}: {{ stage.detail }} =
+            {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }} min
+          </li>
+          <li v-for="usage in supplyUsages" :key="usage.supplyName">
+            {{ usage.supplyName }}: {{ usage.detail }} — {{ brl(usage.cost) }}
+          </li>
+        </ul>
+      </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver o tempo da máquina e o custo da faca e da canaleta.
+      </p>
+    </div>
+
+    <!--
+      PLOTER DE MEIO CORTE (atividade 046). Nada a perguntar: a lâmina percorre o perímetro de cada
+      peça, e o tempo sai dos metros de recorte pela velocidade da máquina.
+    -->
+    <div v-else-if="paramKind === 'HALF_CUT'" class="mt-3 space-y-3">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        Cobrado pelo recorte: perímetro da peça<template v-if="perimeterMm"> ({{ format(perimeterMm) }})</template>
+        × quantidade final, na velocidade da ploter.
+      </p>
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <ul class="mt-1 space-y-0.5">
+          <li v-for="stage in calculated.timeStages" :key="stage.name">
+            {{ stage.name }}: {{ stage.detail }} =
+            {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }} min
+          </li>
+        </ul>
+      </div>
     </div>
 
     <!-- Impressão: cada etapa tem a sua configuração completa, e os custos se somam -->

@@ -16,6 +16,7 @@ import type {
   FoldingBlockRequest,
   FoldingBlockResponse,
   GuillotineBlock,
+  HalfCutPlotterBlock,
   HolePunchingBlock,
   InkType,
   LaminatingBlock,
@@ -61,6 +62,9 @@ export const PERFORATING_MACHINES_BASE = '/perforating-machines'
 /** Endpoint base da API de grampeadeira. */
 export const STITCHING_MACHINES_BASE = '/stitching-machines'
 
+/** Endpoint base da API da ploter de meio corte (atividade 046). */
+export const HALF_CUT_PLOTTERS_BASE = '/half-cut-plotters'
+
 /** Endpoint base da API de impressora digital. */
 export const DIGITAL_MACHINES_BASE = '/digital-machines'
 
@@ -75,6 +79,7 @@ export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
   PERFORATING: 'Picotadeira',
   STITCHING: 'Grampeadeira',
   DIGITAL: 'Impressora Digital',
+  HALF_CUT_PLOTTER: 'Ploter de Meio Corte',
 }
 
 /** Rótulos PT-BR do modo de cor da impressora digital. */
@@ -304,6 +309,32 @@ export function validateHolePunching(block: HolePunchingBlock): Record<string, s
   for (const k of keys) {
     if (!isNumberAtLeast(block[k], 0)) errors[k] = 'Valor mínimo: 0.'
   }
+  return errors
+}
+
+// ---------- Bloco ploter de meio corte (HALF_CUT_PLOTTER) — atividade 046 ----------
+
+/** Bloco da ploter vazio: velocidade zerada (o formulário exige > 0). */
+export function defaultHalfCutPlotterBlock(): HalfCutPlotterBlock {
+  return { fileSetupMinutes: 0, cuttingSpeedMmPerSecond: 0, feedTimeSecondsPerLoad: 0 }
+}
+
+/** Normaliza o bloco da ploter vindo da API, garantindo todos os campos. */
+export function hydrateHalfCutPlotterBlock(block: HalfCutPlotterBlock | null): HalfCutPlotterBlock {
+  if (!block) return defaultHalfCutPlotterBlock()
+  return {
+    fileSetupMinutes: block.fileSetupMinutes ?? 0,
+    cuttingSpeedMmPerSecond: block.cuttingSpeedMmPerSecond ?? 0,
+    feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
+  }
+}
+
+/** Valida o bloco da ploter: velocidade > 0, tempos ≥ 0. */
+export function validateHalfCutPlotter(block: HalfCutPlotterBlock): Record<string, string> {
+  const errors: Record<string, string> = {}
+  if (!isNumberAtLeast(block.fileSetupMinutes, 0)) errors['fileSetupMinutes'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.feedTimeSecondsPerLoad, 0)) errors['feedTimeSecondsPerLoad'] = 'Valor mínimo: 0.'
+  if (!isNumberAtLeast(block.cuttingSpeedMmPerSecond, 1)) errors['cuttingSpeedMmPerSecond'] = 'Informe a velocidade da lâmina.'
   return errors
 }
 

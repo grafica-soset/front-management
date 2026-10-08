@@ -139,6 +139,17 @@ export interface StepParameters {
   perforatedSheetCount?: number | null
   /** GRAMPO: quantos grampos o talão leva. Decide descidas, movimentos laterais e arame. */
   stapleCount?: number
+
+  // ---- Corte e vinco (atividade 046) ----
+  /** Quantidade de BOCAS (FACAS) da forma: o consumo da faca e o multiplicador da canaleta. */
+  dieCount?: number
+  /**
+   * Canaleta POR FACA, em MILÍMETROS (canônico; a tela digita na unidade da empresa). Nula = o
+   * perímetro da peça, que é o padrão — o orçamentista ajusta para mais ou para menos.
+   */
+  channelLengthMm?: number | null
+  /** A faca é do cliente: não cobra a faca, cobra a taxa de manutenção da empresa. Bocas continuam. */
+  customerOwnsDie?: boolean
   /** Máquina escolhida para a etapa automatizada. Nula = a mais barata que dá conta. */
   machineId?: number | null
 }
