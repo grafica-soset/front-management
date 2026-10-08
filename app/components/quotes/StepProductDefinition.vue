@@ -18,6 +18,7 @@
  * Aqui não se fala em TIRAGEM: no jargão gráfico ela é o total de folhas IMPRESSAS, que só o
  * motor sabe — depende de quantas aplicações cabem no formato de impressão.
  */
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 import { computed, onMounted } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
@@ -463,45 +464,12 @@ const inputClass =
       </div>
 
       <!--
-        NUMERAÇÃO (atividade 036). Mesma anatomia da pergunta das vias iguais, e pelo mesmo motivo:
-        é ela que decide quais impressoras podem fazer o trabalho — só algumas offsets numeram —,
-        então nasce sem resposta em vez de assumir "não".
+        NUMERAÇÃO (atividade 036). Decide quais impressoras podem fazer o trabalho — só algumas
+        offsets numeram. Desde a 046 é um interruptor que nasce DESLIGADO: o trabalho comum não é
+        numerado, e perguntar toda vez só atrasava o orçamento.
       -->
-      <div
-        class="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
-        :class="product.hasNumbering === null ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-500/5' : ''"
-      >
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Tem numeração? <span class="text-rose-500">*</span>
-          </span>
-          <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
-            <button
-              type="button"
-              @click="setHasNumbering(true)"
-              class="px-4 py-1.5 text-sm transition-colors"
-              :class="
-                product.hasNumbering === true
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-              "
-            >
-              Sim
-            </button>
-            <button
-              type="button"
-              @click="setHasNumbering(false)"
-              class="border-l border-slate-300 px-4 py-1.5 text-sm transition-colors dark:border-slate-600"
-              :class="
-                product.hasNumbering === false
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-              "
-            >
-              Não
-            </button>
-          </div>
-        </div>
+      <div class="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+        <ToggleSwitch :model-value="product.hasNumbering === true" label="Tem numeração" @update:model-value="setHasNumbering" />
 
         <div v-if="product.hasNumbering === true" class="mt-4 flex flex-wrap items-end gap-4">
           <div>
@@ -558,7 +526,7 @@ const inputClass =
           Sequência de {{ numberingRange.first }} a {{ numberingRange.last }}<template v-if="numberingRange.overflow">
             — não cabe em {{ product.numberingDigits }} dígito(s): o numerador vira o zero antes do fim.</template>
         </p>
-        <p v-else-if="product.hasNumbering === false" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        <p v-else-if="product.hasNumbering !== true" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Sem numeração, todas as impressoras da atividade continuam disputando o trabalho.
         </p>
       </div>

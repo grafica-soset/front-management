@@ -28,6 +28,7 @@ export type MachineType =
   | 'PERFORATING'
   | 'STITCHING'
   | 'DIGITAL'
+  | 'HALF_CUT_PLOTTER'
 
 /** Tipo de tinta usado na matriz de velocidade/quebra. */
 export type InkType = 'LINE' | 'CMYK' | 'PANTONE'
@@ -432,6 +433,49 @@ export interface HolePunchingMachine {
   hourlyCost: number
   supplyTransportTimeMinutes: number
   holePunching: HolePunchingBlock | null
+}
+
+// ---------- Ploter de Meio Corte (HALF_CUT_PLOTTER) — atividade 046 ----------
+/**
+ * Lâmina única que percorre o perímetro de cada aplicação a velocidade constante: o orçamento cobra
+ * pelos metros lineares de recorte. O formato é a área de alimentação; a altura máxima da pilha é
+ * obrigatória. Sem pinça, sem insumo.
+ */
+export interface HalfCutPlotterBlock {
+  /** Setup do arquivo de corte (min) — 1x por trabalho. */
+  fileSetupMinutes: number
+  /** Velocidade da lâmina em MILÍMETROS lineares por segundo (a tela digita na unidade da empresa). */
+  cuttingSpeedMmPerSecond: number
+  /** Tempo (s) de cada alimentação — uma por altura máxima da pilha. */
+  feedTimeSecondsPerLoad: number
+}
+
+/** Corpo de POST/PUT /half-cut-plotters. */
+export interface HalfCutPlotterMachineRequest {
+  customerId: number
+  machineType: 'HALF_CUT_PLOTTER'
+  name: string
+  active?: boolean
+  formatRange: FormatRangeRequest
+  paperFeeder: PaperFeeder
+  hourlyCost: string
+  supplyTransportTimeMinutes: number
+  halfCutPlotter: HalfCutPlotterBlock
+}
+
+/** Ploter de meio corte devolvida por GET/{id}, POST e PUT. */
+export interface HalfCutPlotterMachine {
+  id: number
+  customerId: number
+  machineType: MachineType
+  category: MachineCategory
+  name: string
+  active: boolean
+  formatRange: FormatRangeResponse
+  paperFeeder: PaperFeeder | null
+  hourlyCost: number
+  supplyTransportTimeMinutes: number
+  halfCutPlotter: (HalfCutPlotterBlock & { cuttingSpeedPerSecond?: FormattedDimension }) | null
 }
 
 // ---------- Grampeadeira (STITCHING) ----------

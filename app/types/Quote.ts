@@ -78,6 +78,10 @@ export interface QuoteStepRequest {
     perforatedSheetCount?: number | null
     /** Grampo (atividade 035): quantos grampos o talão leva. */
     stapleCount?: number
+    /** Corte e vinco (atividade 046): quantidade de bocas (facas). 0 = o motor assume uma por aplicação. */
+    dieCount?: number
+    /** Corte e vinco (atividade 046): canaleta POR FACA, em mm. Nula = o perímetro da peça. */
+    channelLengthMm?: number | null
     /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
     machineId?: number | null
   }
@@ -323,8 +327,10 @@ export interface StepCostingResponse {
   timeStages: MachineTimeStageResponse[]
   /** Máquinas avaliadas para a etapa (atividade 035): a escolhida e as recusadas, com o motivo. */
   machineOptions?: FinishingMachineOptionResponse[]
-  /** Insumo consumido pela etapa — hoje o arame do grampo. */
+  /** Insumo consumido pela etapa — o arame do grampo; com mais de um, o primeiro de `supplyUsages`. */
   supplyUsage?: StepSupplyUsageResponse | null
+  /** Todos os insumos da etapa: a faca e a canaleta do corte e vinco (atividade 046). */
+  supplyUsages?: StepSupplyUsageResponse[]
 }
 
 /**

@@ -21,7 +21,7 @@ import type { SupplyKeyValue } from '@/types/Supply'
  * Vem do TIPO da atividade — e, no acabamento automatizado, da MÁQUINA por trás dela (atividade
  * 035): a picotadeira pergunta quantos picotes e em quantas vias; a grampeadeira, quantos grampos.
  */
-export type ParamKind = 'NONE' | 'MINUTES' | 'PRINTING' | 'PERFORATION' | 'STAPLES'
+export type ParamKind = 'NONE' | 'MINUTES' | 'PRINTING' | 'PERFORATION' | 'STAPLES' | 'DIE_CUTTING' | 'HALF_CUT'
 
 const paperTypes = ref<PaperType[]>([])
 const activities = ref<ActivityKeyValue[]>([])
@@ -96,6 +96,9 @@ export function useQuoteCatalogs() {
       const tipos = (activity.machineIds ?? []).map((id) => findMachine(id)?.machineType)
       if (tipos.includes('STITCHING')) return 'STAPLES'
       if (tipos.includes('PERFORATING')) return 'PERFORATION'
+      // Corte e vinco e ploter de meio corte (atividade 046).
+      if (tipos.includes('DIE_CUTTING')) return 'DIE_CUTTING'
+      if (tipos.includes('HALF_CUT_PLOTTER')) return 'HALF_CUT'
     }
     return 'NONE'
   }

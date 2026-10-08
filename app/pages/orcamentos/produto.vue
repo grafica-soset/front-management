@@ -92,9 +92,7 @@ const calcBlockers = computed(() => {
   if (viasOuLaminas >= 2 && p.identicalArtwork === null) {
     list.push(`Informar se as ${p.structure === 'BLOCK' ? 'vias' : 'lâminas'} são iguais`)
   }
-  // Numeração (atividade 036): pela mesma razão. Só algumas offsets numeram, e assumir "não" no
-  // silêncio escolheria uma impressora que não faz o trabalho.
-  if (p.hasNumbering === null) list.push('Informar se o produto tem numeração')
+  // Numeração: desde a atividade 046 é um interruptor que nasce desligado — não há o que informar.
   // Capa (atividade 040): impressa paga chapa, acerto e tinta; sem impressão, só papel. Pela mesma
   // razão, nenhum dos dois pode ser assumido no silêncio.
   if (p.hasCovers) {
@@ -118,13 +116,16 @@ const calcBlockers = computed(() => {
     }
   })
 
-  // Com impressão, o produto precisa de dois cortes: um antes, para a folha entrar na máquina, e
-  // o refile depois. É a ordem na lista que diz qual é qual.
+  // Os dois cortes (antes da impressão e depois dela — refile ou corte e vinco) NÃO travam mais o
+  // cálculo (atividade 046): o motor calcula e avisa o que falta, no resumo.
   const impressoes = printingSteps(p)
-  const cortes = p.steps.filter((s) => catalogs.findActivity(s.activityId)?.type === 'CUTTING')
-  if (impressoes.length > 0 && cortes.length < 2) {
-    list.push('Adicionar duas etapas de corte: uma antes da impressão e o refile depois')
-  }
+
+  // Corte e vinco (atividade 046): a quantidade de bocas (facas) é o consumo da faca — tem que ser
+  // perguntada, não assumida.
+  const semBocas = p.steps.some(
+    (s) => catalogs.paramKindOf(catalogs.findActivity(s.activityId)) === 'DIE_CUTTING' && !(s.parameters.dieCount! > 0),
+  )
+  if (semBocas) list.push('Informar a quantidade de bocas (facas) do corte e vinco')
 
   impressoes.forEach((step, index) => {
     const ordinal = impressoes.length > 1 ? ` (${index + 1}ª impressão)` : ''

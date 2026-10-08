@@ -131,7 +131,8 @@ export function emptyProduct(): QuoteProduct {
     identicalCovers: false,
     // Numeração (atividade 036): sem resposta até o usuário dizer. Os defaults abaixo só entram
     // em cena depois do "sim".
-    hasNumbering: null,
+    // Numeração desligada por padrão (atividade 046): o trabalho comum não é numerado.
+    hasNumbering: false,
     numberingUnits: 1,
     numberingStart: 1,
     numberingDigits: 6,
@@ -860,6 +861,9 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             perforationCount: step.parameters.perforationCount ?? 1,
             perforatedSheetCount: step.parameters.perforatedSheetCount ?? null,
             stapleCount: step.parameters.stapleCount ?? 0,
+            // Corte e vinco (atividade 046): bocas e canaleta por faca (nula = o perímetro da peça).
+            dieCount: step.parameters.dieCount ?? 0,
+            channelLengthMm: step.parameters.channelLengthMm ?? null,
             machineId: step.parameters.machineId ?? null,
           },
         }
