@@ -38,6 +38,8 @@ export interface QuoteSheetRequest {
    * é o 32x22). É preferência, não filtro — o motor continua devolvendo os outros em `alternatives`.
    */
   printFormatNumber?: number | null
+  /** O nome do formato escolhido: desempata dois formatos de mesmo número (atividade 047). */
+  printFormatName?: string | null
   /** Só na capa: frente ou verso (atividade 040). Nulo = pelo número (1 frente, 2 verso). */
   coverPosition?: CoverPosition | null
 }
@@ -241,21 +243,31 @@ export interface SheetPlanResponse {
   printWidthMm: number
   printHeightMm: number
   printFormatNumber: number
+  /** A peça, pelo tamanho pedido ("9.9x21") — atividade 047. */
   finalFormatName: string
-  /** Numerador do critério de escolha: 36 ÷ 9 = 4 aplicações por folha. */
+  /** Quantas peças a folha inteira rende: aplicações × partes do formato de impressão. */
   finalFormatNumber: number
+  /** A peça na orientação da montagem. */
   finalWidthMm: number
   finalHeightMm: number
+  /** Aplicações da peça no formato de impressão — pela geometria, com a pinça (atividade 047). */
   applicationsPerSheet: number
+  /** Grade de peças: colunas na largura × linhas na altura do formato de impressão. */
+  layoutColumns?: number
+  layoutRows?: number
+  /** Pinça descontada da impressora da 1ª impressão. */
+  gripMm?: number
+  /** A montagem por extenso: "3 × 2 = 6 aplicação(ões) — peça 99×210 mm no 320×440 mm, pinça...". */
+  layoutDetail?: string
   /** Preço da folha inteira: folhas inteiras × preço = custo do papel. */
   paperPricePerSheet: number
-  /** Descidas de faca de cada corte, do cadastro de formatos. */
+  /** Primeiro corte: descidas do cadastro de formatos. */
   preCutDescents: number
-  /** Descidas cadastradas do formato final, contadas da folha INTEIRA — o numerador do refile. */
+  /** Descidas que separam as peças da grade: (colunas − 1) + (linhas − 1). */
   finalFormatDescents: number
   /** Refile por folha impressa: separar as aplicações + aparar até a peça. */
   refileDescents: number
-  /** A parte do refile que é aparo do formato final até o tamanho pedido (atividade 044). */
+  /** A parte do refile que é aparo: 2 descidas por sentido em que sobra papel. */
   trimDescents: number
   printSheetsNet: number
   wasteSheets: number
@@ -289,6 +301,8 @@ export interface SelectionEntryResponse {
   printWidthMm: number | null
   printHeightMm: number | null
   applicationsPerSheet: number | null
+  /** A montagem da peça no formato, por extenso (atividade 047). */
+  layoutDetail?: string | null
   machineId: number | null
   machineName: string | null
   printSheetsNet: number | null

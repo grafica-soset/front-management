@@ -60,7 +60,7 @@ const print = () => window.print()
     <!-- Barra de ações: some na impressão -->
     <div class="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-3 px-4 print:hidden">
       <NuxtLink
-        :to="proposal ? { path: '/orcamentos/editar', query: { id: proposal.quoteId } } : '/orcamentos'"
+        :to="proposal ? `/orcamentos/${proposal.quoteId}` : '/orcamentos'"
         class="text-sm text-slate-600 hover:text-slate-900"
       >
         ← Voltar ao orçamento

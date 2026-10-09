@@ -22,6 +22,10 @@ const props = defineProps<{
   unitLabel: string
   canSave: boolean
   saveLabel: string
+  /** O cálculo é de uma configuração anterior (atividade 047): os números ficam, marcados como velhos. */
+  stale?: boolean
+  /** Detalhar (atividade 047): o produto é só leitura — sem botão de salvar. */
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'save'): void }>()
@@ -63,6 +67,14 @@ const lines = computed(() => {
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Resumo</h2>
       </div>
 
+      <div
+        v-if="stale"
+        class="border-b border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+        role="alert"
+      >
+        <strong>Cálculo desatualizado.</strong> Os parâmetros mudaram — calcule de novo.
+      </div>
+
       <div v-if="blockers.length" class="px-5 py-4" :class="hasNumbers ? 'border-b border-slate-200 dark:border-slate-700' : ''">
         <p class="text-sm text-slate-500 dark:text-slate-400">
           {{ hasNumbers ? 'Para salvar, falta:' : 'Para calcular, falta:' }}
@@ -76,7 +88,7 @@ const lines = computed(() => {
       </div>
 
       <template v-if="hasNumbers">
-        <dl class="divide-y divide-slate-100 dark:divide-slate-700/60">
+        <dl :class="{ 'opacity-50': stale }" class="divide-y divide-slate-100 dark:divide-slate-700/60">
           <div v-for="line in lines" :key="line.label" class="flex items-baseline justify-between gap-3 px-5 py-2.5">
             <dt class="min-w-0">
               <span class="text-sm text-slate-700 dark:text-slate-200">{{ line.label }}</span>
@@ -121,7 +133,7 @@ const lines = computed(() => {
         </dl>
       </template>
 
-      <div class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+      <div v-if="!readOnly" class="border-t border-slate-200 px-5 py-4 dark:border-slate-700">
         <button
           type="button"
           :disabled="!canSave"

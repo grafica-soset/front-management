@@ -10,8 +10,10 @@
  * cálculo saem de um lugar só. `compact` é para o botão que fica ao lado de um subtítulo, onde o
  * tamanho cheio pesaria mais que o próprio título.
  */
+import { computed, inject } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { CALC_BLOCKERS_KEY, QUOTE_READONLY_KEY } from '@/utils/quoteCalc'
 
 const props = withDefaults(
   defineProps<{
@@ -32,7 +34,17 @@ const props = withDefaults(
 const store = useQuoteDraftStore()
 const catalogs = useQuoteCatalogs()
 
+// Atividade 047: o cálculo é só no botão. Sem o que o motor precisa, o botão diz o que falta.
+const blockers = inject(CALC_BLOCKERS_KEY, null)
+const blocked = computed(() => (blockers?.value.length ?? 0) > 0)
+// O texto de ajuda sai aqui, e não no template: lá o ref injetado viria desembrulhado.
+const blockedTitle = computed(() => (blocked.value ? `Para calcular, falta: ${blockers!.value.join('; ')}` : undefined))
+// Detalhar (orçamento aprovado ou rejeitado): não há o que calcular — o botão some.
+const injectedReadOnly = inject(QUOTE_READONLY_KEY, null)
+const hidden = computed(() => injectedReadOnly?.value === true)
+
 const run = async () => {
+  if (blocked.value) return
   if (props.refresh) await catalogs.load(true)
   await store.calculateDraft()
 }
@@ -40,8 +52,10 @@ const run = async () => {
 
 <template>
   <button
+    v-if="!hidden"
     type="button"
-    :disabled="store.calculating"
+    :disabled="store.calculating || blocked"
+    :title="blockedTitle"
     @click="run()"
     class="flex items-center gap-1.5 rounded-lg bg-indigo-600 font-medium text-white shadow-md shadow-indigo-500/20 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
     :class="compact ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'"

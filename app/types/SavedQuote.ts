@@ -27,10 +27,11 @@ export interface SaveQuoteProductRequest {
   productTemplateId: number | null
   taxes: ProductTaxes
   pricing: PricingTerms
-  /** O produto já salvo que este é: com a mesma configuração, o custo gravado é mantido (atividade 044). */
-  id: number | null
-  /** O usuário pediu o recálculo deste produto. */
-  recalculate: boolean
+  /**
+   * O cálculo do produto — a resposta de POST /quotes/calculate que o usuário viu (atividade 047).
+   * O servidor grava como veio e tira dele o custo; sem ele, o produto não salva.
+   */
+  costing: ProductCostingResponse | null
   /** Unitário assumido (3 casas). Nulo = vale o calculado. */
   unitPriceOverride: number | null
 }
