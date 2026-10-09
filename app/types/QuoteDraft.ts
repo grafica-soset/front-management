@@ -53,6 +53,11 @@ export interface QuoteSheet {
    */
   printFormatNumber: number | null
   /**
+   * O NOME do formato escolhido (atividade 047): a mesma folha tem formatos de mesmo número — o 22x64 e
+   * o 32x44 do 64x88 são os dois F4. Ausente em rascunho antigo: vale só o número.
+   */
+  printFormatName?: string | null
+  /**
    * Papel escolhido pelo usuário (atividade 044) — vai junto com o formato, porque o número do
    * formato é da folha inteira: o F9 do 66x96 não é o F9 do 64x88. Nulo = o motor escolhe.
    */
@@ -259,12 +264,8 @@ export interface QuoteProduct {
   pricing: PricingTerms
 
   // ---- Orçamento salvo (atividade 044) ----
-  /** Id do produto já gravado: com ele e a mesma configuração, o servidor mantém o custo gravado. */
+  /** Id do produto já gravado (muda a cada gravação). */
   savedId?: number | null
-  /** Custo gravado — o que vale enquanto ninguém pede recálculo (orçamento anterior à 044 não tem o cálculo inteiro). */
-  savedTotalCost?: number | null
-  /** O usuário pediu o recálculo, ou editou o produto no assistente: o servidor calcula de novo ao salvar. */
-  recalculate?: boolean
   /** Unitário assumido pelo orçamentista (3 casas). Nulo = vale o calculado. */
   unitPriceOverride?: number | null
   /** Escolhido pelo cliente na aprovação. */

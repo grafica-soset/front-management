@@ -272,6 +272,7 @@ describe('orçamento com preço', () => {
     store.draft!.taxes = { ...emptyTaxes(), iss: { percent: 5, composesPrice: true } }
     store.draft!.quantity = 200
     store.draftCost = custo(520)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
     store.agencyCommissionPercent = 10
 
@@ -288,6 +289,7 @@ describe('orçamento com preço', () => {
     store.draft!.quantity = 103000
     // Custo que, sem percentuais, dá 29.112,47 de preço: 0,28264 por folha.
     store.draftCost = custo(29112.47)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
     const uid = store.products[0]!.uid
 
@@ -299,6 +301,7 @@ describe('orçamento com preço', () => {
     store.startNew()
     store.draft!.quantity = 103000
     store.draftCost = custo(29112.47)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
     const uid = store.products[0]!.uid
 
@@ -310,18 +313,20 @@ describe('orçamento com preço', () => {
     expect(store.productUnitPrices[uid]!.unit).toBe(0.283)
   })
 
-  it('sem custo em algum produto o total não aparece — zero pareceria preço', () => {
+  it('produto sem cálculo não entra no orçamento (atividade 047)', () => {
     const store = useQuoteDraftStore()
     store.startNew()
-    store.commit()
-    expect(store.productsTotal).toBeNull()
+    expect(store.commit()).toBe(false)
+    expect(store.products).toHaveLength(0)
   })
 
-  it('o corpo do salvar leva a configuração do motor e o rascunho, sem custo', () => {
+  it('o corpo do salvar leva a configuração do motor, o rascunho e o cálculo (atividade 047)', () => {
     const store = useQuoteDraftStore()
     store.startNew()
     store.draft!.name = 'Folder A4'
     store.draft!.typeName = '  Institucional '
+    store.draftCost = custo(812.4)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
     store.clientId = 318
     store.notes = '  '
@@ -334,6 +339,7 @@ describe('orçamento com preço', () => {
     expect(body.products[0]!.editorState.name).toBe('Folder A4')
     expect(body.products[0]!.typeName).toBe('Institucional')
     expect(body.products[0]).not.toHaveProperty('totalCost')
+    expect(body.products[0]!.costing?.totalCost).toBe(812.4)
   })
 
   it('reabre um orçamento salvo, inclusive um gravado antes dos impostos existirem', () => {
@@ -409,12 +415,14 @@ describe('condições de fornecimento e alteração pendente (atividade 038)', (
   it('orçamento novo com produto é alteração pendente', () => {
     const store = useQuoteDraftStore()
     store.startNew()
+    store.draftCost = { totalCost: 10 } as unknown as ProductCostingResponse
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
     expect(store.dirty).toBe(true)
   })
 })
 
-describe('orçamento salvo não recalcula sozinho (atividade 044)', () => {
+describe('orçamento salvo trabalhado só com o JSON (atividades 044 e 047)', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
   const savedProduct = (overrides: Record<string, unknown> = {}) => ({
@@ -439,62 +447,65 @@ describe('orçamento salvo não recalcula sozinho (atividade 044)', () => {
       conditions: null, totalizeProposal: true, products,
     }) as unknown as SavedQuote
 
-  it('abre com o custo GRAVADO, sem nada pendente', () => {
+  it('abre com o cálculo GRAVADO, sem nada pendente e sem ir ao motor', () => {
     const store = useQuoteDraftStore()
     store.loadSaved(saved([savedProduct()]))
     const uid = store.products[0]!.uid
 
-    expect(store.productCosts[uid]).toBe(15720.73)
-    expect(store.costs[uid]?.totalCost).toBe(15720.7326)
+    expect(store.productCosts[uid]).toBe(15720.7326)
     expect(store.totalizeProposal).toBe(true)
     expect(store.dirty).toBe(false)
     const body = store.toSaveRequest().products[0]!
-    expect(body.id).toBe(31)
-    expect(body.recalculate).toBe(false)
+    expect(body.costing?.totalCost).toBe(15720.7326)
+    expect(body).not.toHaveProperty('recalculate')
   })
 
-  it('orçamento anterior à 044 (sem o cálculo gravado) vale pelo custo gravado', () => {
+  it('orçamento anterior à 044 (sem o cálculo gravado) fica sem custo até calcular', () => {
     const store = useQuoteDraftStore()
     store.loadSaved(saved([savedProduct({ costing: null })]))
     const uid = store.products[0]!.uid
 
     expect(store.costs[uid]).toBeUndefined()
-    expect(store.productCosts[uid]).toBe(15720.73)
+    expect(store.productCosts[uid]).toBeUndefined()
+    expect(store.productsTotal).toBeNull()
   })
 
-  it('abrir o produto no assistente e voltar sem mexer não pede recálculo', () => {
+  it('abrir o produto no assistente: o cálculo gravado vale, e voltar sem mexer não muda nada', () => {
     const store = useQuoteDraftStore()
     store.loadSaved(saved([savedProduct()]))
     const uid = store.products[0]!.uid
 
     store.edit(uid)
-    store.commit()
+    expect(store.draftStale).toBe(false)
+    expect(store.commit()).toBe(true)
 
-    expect(store.products[0]!.recalculate).toBe(false)
+    expect(store.costs[uid]?.totalCost).toBe(15720.7326)
     expect(store.dirty).toBe(false)
   })
 
-  it('mexer no produto no assistente pede o recálculo ao salvar', () => {
+  it('mexer no produto deixa o cálculo desatualizado, e o produto não salva até calcular', () => {
     const store = useQuoteDraftStore()
     store.loadSaved(saved([savedProduct()]))
     const uid = store.products[0]!.uid
 
     store.edit(uid)
     store.draft!.quantity = 120000
-    store.commit()
 
-    expect(store.products[0]!.recalculate).toBe(true)
-    expect(store.toSaveRequest().products[0]!.recalculate).toBe(true)
+    expect(store.draftStale).toBe(true)
+    expect(store.commit()).toBe(false)
+    // Desfazer a mexida devolve o cálculo: ele é da configuração, não do relógio.
+    store.draft!.quantity = 103000
+    expect(store.draftStale).toBe(false)
   })
 
-  it('a cópia de um produto salvo é produto novo', () => {
+  it('a cópia de um produto leva o cálculo junto', () => {
     const store = useQuoteDraftStore()
     store.loadSaved(saved([savedProduct()]))
     store.duplicate(store.products[0]!.uid)
 
     const body = store.toSaveRequest().products[1]!
-    expect(body.id).toBeNull()
-    expect(body.recalculate).toBe(true)
+    expect(body.costing?.totalCost).toBe(15720.7326)
+    expect(store.products[1]!.savedId).toBeNull()
   })
 
   it('no aprovado, o total é o dos produtos que o cliente escolheu', () => {
@@ -503,7 +514,10 @@ describe('orçamento salvo não recalcula sozinho (atividade 044)', () => {
       saved(
         [
           savedProduct({ id: 31, approved: false }),
-          savedProduct({ id: 32, approved: true, totalCost: 10000, editorState: { name: 'Opção 2', quantity: 50000 } }),
+          savedProduct({
+            id: 32, approved: true, totalCost: 10000, costing: { totalCost: 10000 },
+            editorState: { name: 'Opção 2', quantity: 50000 },
+          }),
         ],
         'APPROVED',
       ),
@@ -512,7 +526,7 @@ describe('orçamento salvo não recalcula sozinho (atividade 044)', () => {
     // Opção 2: 10.000 ÷ 50.000 = 0,200 → 10.000,00.
     expect(store.approvedTotal).toBe(10000)
     expect(store.grandTotal).toBe(10000)
-    // Opção 1: 15.720,73 ÷ 103.000 = 0,15263 → 0,153 → 15.759,00; as duas somam 25.759,00.
+    // Opção 1: 15.720,7326 ÷ 103.000 = 0,15263 → 0,153 → 15.759,00; as duas somam 25.759,00.
     expect(store.productsTotal).toBe(25759)
   })
 })

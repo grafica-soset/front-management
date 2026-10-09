@@ -5,6 +5,13 @@
  * 037 o orçamento também é SALVO (cliente, comissão de agência, número e status) — mas o rascunho
  * continua morando aqui enquanto o usuário edita; a API só entra no "Salvar orçamento".
  *
+ * Atividade 047 — o orçamento trabalha SÓ COM O JSON. Cada produto é a configuração (o rascunho da
+ * tela) mais o CÁLCULO que o motor devolveu quando o usuário clicou em Calcular. Abrir um orçamento
+ * traz os dois prontos, e nada vai ao motor por conta própria: nem ao abrir, nem ao mexer. O cálculo
+ * só acontece no botão (do passo 3 em diante); mexeu depois dele, o cálculo fica DESATUALIZADO — a
+ * tela avisa, e o produto não salva até o usuário calcular de novo. O servidor grava o cálculo como
+ * veio, sem recalcular.
+ *
  * A responsabilidade mais delicada daqui é manter as FOLHAS em sincronia com a estrutura: mexer em
  * lâmina/jogos/vias/capas reconstrói a lista PRESERVANDO o que já estava configurado nas folhas
  * que continuam existindo — inclusive dentro de cada etapa de impressão.
@@ -234,9 +241,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     draft: null as QuoteProduct | null,
     /** uid do produto em edição; null quando o rascunho é novo. */
     editingUid: null as string | null,
-    /** Custo calculado de cada produto salvo, vindo do motor. */
+    /**
+     * O CÁLCULO de cada produto do orçamento (atividade 047): o JSON de POST /quotes/calculate que o
+     * usuário viu ao calcular. É ele que o orçamento mostra e grava — o servidor não recalcula.
+     */
     costs: {} as Record<string, ProductCostingResponse>,
-    /** Custo do produto em edição, recalculado a cada mexida. */
+    /** O cálculo do produto em edição — só muda quando o usuário clica em Calcular. */
     draftCost: null as ProductCostingResponse | null,
     /** Recusa do motor: o cadastro não sustenta o cálculo. */
     calcError: null as string | null,
@@ -244,12 +254,11 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Mexeram no produto enquanto o cálculo corria: a resposta que chegar já é velha. */
     calcRerun: false,
     /**
-     * O produto aberto no assistente, como ele estava ao abrir (o corpo do cálculo). Se ele voltar
-     * igual e sem cálculo novo, mantém o custo GRAVADO — abrir para olhar não recalcula (atividade 044).
+     * A configuração (o corpo do cálculo) a que [draftCost] corresponde. Diferente da configuração
+     * atual = o usuário mexeu depois de calcular, e o cálculo está desatualizado (atividade 047).
+     * Ao abrir um produto do orçamento, é a configuração dele: o cálculo gravado vale para ela.
      */
-    draftBaseline: null as string | null,
-    /** O assistente calculou o produto aberto: salvá-lo é pedir o recálculo. */
-    draftRecalculated: false,
+    draftCalcSignature: null as string | null,
 
     // ---- O orçamento em si (atividade 037) ----
     /** Nulo enquanto o orçamento nunca foi salvo. */
@@ -284,15 +293,11 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
   }),
 
   getters: {
-    /**
-     * Custo que vale para cada produto (atividade 044): o GRAVADO, enquanto ninguém pediu recálculo
-     * — é o que foi passado ao cliente —; o do motor, para produto novo ou recalculado.
-     */
+    /** Custo de cada produto: o do cálculo que ele carrega (atividade 047). */
     productCosts(state): Record<string, number> {
       const costs: Record<string, number> = {}
       for (const product of state.products) {
-        const frozen = !product.recalculate && product.savedTotalCost != null
-        const cost = frozen ? product.savedTotalCost : state.costs[product.uid]?.totalCost
+        const cost = state.costs[product.uid]?.totalCost
         if (cost != null) costs[product.uid] = cost
       }
       return costs
@@ -365,6 +370,16 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       return state.quoteStatus != null && state.quoteStatus !== 'PENDING_APPROVAL'
     },
 
+    /**
+     * O cálculo do produto em edição está DESATUALIZADO (atividade 047): não há cálculo, ou o usuário
+     * mexeu na configuração depois de calcular. Em runtime o `this` tem as actions (ver `dirty`).
+     */
+    draftStale(): boolean {
+      if (!this.draft || !this.draftCost || this.draftCalcSignature == null) return true
+      const store = this as unknown as { toPayload(p: QuoteProduct): unknown }
+      return this.draftCalcSignature !== JSON.stringify(store.toPayload(this.draft))
+    },
+
     /** Há alteração que ainda não foi salva? */
     dirty(): boolean {
       if (this.savedSnapshot == null) return this.products.length > 0 || this.clientId != null
@@ -379,14 +394,17 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     startNew() {
       this.draft = emptyProduct()
       this.editingUid = null
+      this.draftCost = null
+      this.draftCalcSignature = null
+      this.calcError = null
     },
 
     /**
-     * Abre um produto salvo no assistente (cópia: cancelar não pode sujar a lista).
+     * Abre um produto do orçamento no assistente (cópia: cancelar não pode sujar a lista).
      *
-     * O custo calculado volta junto. Sem ele a tela reabre sem resultado nenhum, e o passo de
-     * parâmetros perde as opções de impressora — que saem do cálculo, não do cadastro —, deixando
-     * a máquina já escolhida sem card para exibir. O recálculo confirma tudo em seguida.
+     * O CÁLCULO volta junto, e vale para a configuração como ela está (atividade 047): é o JSON do
+     * produto. Abrir não calcula — o passo de parâmetros mostra as opções de impressora e de formato
+     * que o cálculo gravado traz, e só um clique em Calcular pede outro.
      */
     edit(productUid: string) {
       const found = this.products.find((p) => p.uid === productUid)
@@ -394,50 +412,48 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.draft = JSON.parse(JSON.stringify(found)) as QuoteProduct
       this.editingUid = productUid
       this.draftCost = this.costs[productUid] ?? null
-      this.draftBaseline = JSON.stringify(this.toPayload(found))
-      this.draftRecalculated = false
+      this.draftCalcSignature = this.draftCost ? JSON.stringify(this.toPayload(this.draft)) : null
+      this.calcError = null
     },
 
     discard() {
       this.draft = null
       this.editingUid = null
-      this.draftBaseline = null
-      this.draftRecalculated = false
+      this.draftCost = null
+      this.draftCalcSignature = null
+      this.calcError = null
     },
 
-    /** Salva o rascunho na lista do orçamento (novo ou substituindo o que estava em edição). */
-    commit() {
-      if (!this.draft) return
+    /**
+     * Salva o rascunho na lista do orçamento (novo ou substituindo o que estava em edição), com o
+     * cálculo dele. Cálculo desatualizado não entra: a tela trava o botão, e aqui a regra se repete.
+     */
+    commit(): boolean {
+      if (!this.draft || !this.draftCost || this.draftStale) return false
       const product = JSON.parse(JSON.stringify(this.draft)) as QuoteProduct
-      // Produto que voltou do assistente MEXIDO ou CALCULADO de novo: o usuário pediu outro cálculo,
-      // e o servidor o refaz ao salvar. Aberto só para olhar, fica com o custo gravado (atividade 044).
-      const changed = this.draftBaseline !== JSON.stringify(this.toPayload(product))
-      product.recalculate = !!product.recalculate || changed || this.draftRecalculated
       const index = this.products.findIndex((p) => p.uid === this.editingUid)
       if (index >= 0) this.products.splice(index, 1, product)
       else this.products.push(product)
-      if (this.draftCost && (product.recalculate || !this.costs[product.uid])) this.costs[product.uid] = this.draftCost
+      this.costs[product.uid] = JSON.parse(JSON.stringify(this.draftCost)) as ProductCostingResponse
       this.draft = null
       this.editingUid = null
       this.draftCost = null
-      this.draftBaseline = null
-      this.draftRecalculated = false
+      this.draftCalcSignature = null
+      return true
     },
 
+    /** Copia o produto COM o cálculo: a configuração é a mesma, então o cálculo também é. */
     duplicate(productUid: string) {
       const found = this.products.find((p) => p.uid === productUid)
       if (!found) return
       const copy = JSON.parse(JSON.stringify(found)) as QuoteProduct
       copy.uid = uid('produto')
       copy.name = `${found.name} (cópia)`
-      // A cópia é um produto NOVO: o servidor a calcula ao salvar, e a tela também — o custo gravado
-      // do original é de outro momento.
       copy.savedId = null
-      copy.savedTotalCost = null
-      copy.recalculate = true
       copy.approved = false
       this.products.push(copy)
-      void this.recalculateProducts([copy.uid])
+      const costing = this.costs[productUid]
+      if (costing) this.costs[copy.uid] = { ...JSON.parse(JSON.stringify(costing)), name: copy.name }
     },
 
     remove(productUid: string) {
@@ -462,6 +478,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.draft = null
       this.editingUid = null
       this.draftCost = null
+      this.draftCalcSignature = null
+      this.calcError = null
       this.quoteId = null
       this.quoteNumber = null
       this.quoteStatus = null
@@ -514,8 +532,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
 
     /**
      * Carrega um orçamento salvo para edição. Cada produto volta pelo `editorState` — o rascunho
-     * como o usuário o deixou — com o CÁLCULO GRAVADO (atividade 044). Nada é recalculado ao abrir:
-     * o orçamento salvo é o que foi passado ao cliente, e só muda quando o usuário pede.
+     * como o usuário o deixou — com o CÁLCULO GRAVADO. Daí em diante o orçamento é trabalhado na tela,
+     * "offline" (atividade 047): nada vai ao motor até o usuário calcular um produto no assistente.
      */
     loadSaved(saved: SavedQuote) {
       this.clearQuote()
@@ -543,48 +561,19 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     },
 
     /**
-     * Acerta os produtos da tela com o que o servidor gravou: o id (muda a cada gravação), o custo
-     * gravado, o cálculo gravado, o preço assumido e a aprovação. Depois disso o orçamento está
-     * "salvo" — nada pendente de recálculo.
+     * Acerta os produtos da tela com o que o servidor gravou: o id (muda a cada gravação), o cálculo
+     * gravado, o preço assumido e a aprovação. Depois disso o orçamento está "salvo".
      */
     syncSaved(saved: SavedQuote) {
       ;(saved.products ?? []).forEach((sp, index) => {
         const product = this.products[index]
         if (!product) return
         product.savedId = sp.id
-        product.savedTotalCost = Number(sp.totalCost)
-        product.recalculate = false
         product.unitPriceOverride = sp.unitPriceOverride == null ? null : Number(sp.unitPriceOverride)
         product.approved = !!sp.approved
         if (sp.costing) this.costs[product.uid] = sp.costing
       })
       this.savedSnapshot = JSON.stringify(this.toSaveRequest())
-    },
-
-    /**
-     * Recalcula produtos com o catálogo de AGORA — só a pedido do usuário (botão "Recalcular") ou
-     * para produto novo. Os recalculados vão marcados para o servidor refazer a conta ao salvar.
-     */
-    async recalculateProducts(uids: string[]) {
-      const targets = this.products.filter((p) => uids.includes(p.uid))
-      if (targets.length === 0) return
-      this.calcError = null
-      try {
-        const result = await useQuotes().calculate({ products: targets.map((p) => this.toPayload(p)) })
-        targets.forEach((p, index) => {
-          const cost = result.products[index]
-          if (!cost) return
-          this.costs[p.uid] = cost
-          p.recalculate = true
-        })
-      } catch (err) {
-        this.calcError = extractApiError(err, 'Não foi possível recalcular o orçamento.')
-      }
-    },
-
-    /** "Recalcular orçamento": todos os produtos, numa chamada só. */
-    async recalculateAll() {
-      await this.recalculateProducts(this.products.map((p) => p.uid))
     },
 
     /**
@@ -597,7 +586,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       product.unitPriceOverride = value != null && Number.isFinite(value) && value > 0 ? Math.round(value * 1000) / 1000 : null
     },
 
-    /** O corpo de `POST/PUT /quotes`. O custo não vai: o servidor recalcula. */
+    /** O corpo de `POST/PUT /quotes`: cada produto com a configuração E o cálculo (atividade 047). */
     toSaveRequest(): Omit<SaveQuoteRequest, 'customerId'> {
       return {
         clientId: this.clientId ?? 0,
@@ -618,9 +607,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           productTemplateId: p.productTemplateId,
           taxes: p.taxes,
           pricing: p.pricing,
-          // Atividade 044: o servidor só recalcula o que é novo, mexido ou pedido.
-          id: p.savedId ?? null,
-          recalculate: !!p.recalculate,
+          // O cálculo que o usuário viu: o servidor o grava como veio, sem recalcular.
+          costing: this.costs[p.uid] ?? null,
           unitPriceOverride: p.unitPriceOverride ?? null,
         })),
       }
@@ -931,6 +919,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           // capa não viaja — o motor a ignoraria e devolveria um aviso sobre algo que a tela não
           // mostra mais.
           printFormatNumber: followsFirstVia(product, sheet) ? null : sheet.printFormatNumber,
+          printFormatName: followsFirstVia(product, sheet) || sheet.printFormatNumber == null ? null : (sheet.printFormatName ?? null),
           // O papel vai junto com o formato (atividade 044): o número do formato é da folha inteira.
           paperId: followsFirstVia(product, sheet) ? null : (sheet.paperId ?? null),
         })),
@@ -939,12 +928,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     },
 
     /**
-     * Recalcula o produto em edição no motor. Quem exibe o erro é a tela.
+     * Calcula o produto em edição no motor — só a pedido (botão Calcular, atividade 047). Quem exibe
+     * o erro é a tela.
      *
      * UM cálculo por vez, e só a resposta mais nova vale. O cálculo chegou a levar 13 s em
-     * produção; com um disparo a cada mexida, as chamadas se empilhavam no servidor e uma resposta
-     * velha podia chegar por último e mostrar o preço de uma configuração que já não existia.
-     * Mexeu durante o cálculo: a resposta em curso é descartada e roda uma nova, com o estado atual.
+     * produção: um segundo clique durante o cálculo não empilha outra chamada, e se a configuração
+     * mudou no meio, a resposta em curso é descartada e roda uma nova, com o estado atual.
      */
     async calculateDraft() {
       if (!this.draft) return
@@ -960,11 +949,13 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           if (!product) break
           this.calcError = null
           try {
-            const result = await useQuotes().calculate({ products: [this.toPayload(product)] })
+            const payload = this.toPayload(product)
+            const signature = JSON.stringify(payload)
+            const result = await useQuotes().calculate({ products: [payload] })
             // Outro produto no assistente ou nova mexida: esta resposta não é mais a da tela.
             if (!this.calcRerun && this.draft === product) {
               this.draftCost = result.products[0] ?? null
-              this.draftRecalculated = true
+              this.draftCalcSignature = this.draftCost ? signature : null
             }
           } catch (err) {
             if (!this.calcRerun && this.draft === product) {
@@ -1001,10 +992,17 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * Formato de impressão da FOLHA — não da etapa: uma folha é cortada uma vez, então a escolha
      * vale para todas as impressões que passarem por ela.
      */
-    setPrintFormat(sheetUid: string, formatNumber: number | null, paperId: number | null = null) {
+    setPrintFormat(
+      sheetUid: string,
+      formatNumber: number | null,
+      paperId: number | null = null,
+      formatName: string | null = null,
+    ) {
       const sheet = this.draft?.sheets.find((s) => s.uid === sheetUid)
       if (!sheet) return
       sheet.printFormatNumber = formatNumber
+      // O nome desempata dois formatos de mesmo número na folha (atividade 047).
+      sheet.printFormatName = formatNumber == null ? null : formatName
       // O papel acompanha o formato (atividade 044): "s756696 no F9" é um par — o F9 de outra folha
       // inteira é outro formato. "Voltar à escolha do sistema" limpa os dois.
       sheet.paperId = formatNumber == null ? null : paperId

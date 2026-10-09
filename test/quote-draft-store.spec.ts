@@ -21,6 +21,7 @@ describe('store do rascunho de orçamento', () => {
     store.startNew()
     const uid = store.draft!.uid
     store.draftCost = custo(120)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
 
     store.commit()
 
@@ -33,6 +34,7 @@ describe('store do rascunho de orçamento', () => {
     store.startNew()
     const uid = store.draft!.uid
     store.draftCost = custo(120)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
 
     store.edit(uid)
@@ -45,6 +47,7 @@ describe('store do rascunho de orçamento', () => {
     store.startNew()
     const comCusto = store.draft!.uid
     store.draftCost = custo(120)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
 
     store.startNew()
@@ -199,6 +202,7 @@ describe('store do rascunho de orçamento', () => {
     store.startNew()
     const uid = store.draft!.uid
     store.draftCost = custo(120)
+    store.draftCalcSignature = JSON.stringify(store.toPayload(store.draft!))
     store.commit()
 
     store.remove(uid)

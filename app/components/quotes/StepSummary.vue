@@ -218,7 +218,23 @@ const printingTables = computed(() => {
 </script>
 
 <template>
+  <div
+    v-if="!cost"
+    class="rounded-xl border border-rose-300 bg-rose-50 px-5 py-4 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+    role="alert"
+  >
+    <strong>Produto ainda não calculado.</strong> Volte ao passo 3 e clique em Calcular.
+  </div>
   <div v-if="cost" id="resumo-impressao" class="space-y-4">
+    <!-- Atividade 047: o cálculo é só no botão — mexeu depois dele, o resumo é de outra configuração. -->
+    <div
+      v-if="store.draftStale && !store.readOnly"
+      class="rounded-xl border border-rose-300 bg-rose-50 px-5 py-4 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+      role="alert"
+    >
+      <strong>Os parâmetros foram alterados e é necessário refazer o cálculo.</strong> Este resumo é do
+      cálculo anterior; clique em Calcular para atualizá-lo. O produto só salva com o cálculo em dia.
+    </div>
     <!-- Cabeçalho do produto -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -241,7 +257,7 @@ const printingTables = computed(() => {
           quem arruma a espessura da grampeadeira em outra tela volta para cá e vê o cálculo velho,
           sem nada para mexer que dispare um novo.
         -->
-        <CalculateButton refresh label="Atualizar cálculo" />
+        <CalculateButton refresh :label="store.draftStale ? 'Calcular' : 'Atualizar cálculo'" />
       </div>
       <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div>
@@ -253,10 +269,11 @@ const printingTables = computed(() => {
         <div>
           <dt class="text-xs text-slate-500 dark:text-slate-400">Formato entregue</dt>
           <dd class="text-sm font-medium text-slate-900 dark:text-white">
-            <template v-if="cost.sheets[0]">
-              {{ formatLabel(cost.finalFormatName, cost.sheets[0].chosen.finalFormatNumber) }}
-            </template>
-            <template v-else>{{ cost.finalFormatName }}</template>
+            {{ format(cost.widthMm) }} × {{ format(cost.heightMm) }}
+            <span v-if="cost.sheets[0]" class="block text-xs font-normal text-slate-500 dark:text-slate-400">
+              {{ cost.sheets[0].chosen.applicationsPerSheet }} por folha no
+              {{ formatLabel(cost.sheets[0].chosen.printFormatName, cost.sheets[0].chosen.printFormatNumber) }}
+            </span>
           </dd>
         </div>
         <div>
@@ -702,46 +719,47 @@ const printingTables = computed(() => {
               <template v-if="entry.machineName">
                 <span v-if="entry.paperCode || entry.printFormatName" class="text-slate-400"> · </span>{{ entry.machineName }}
               </template>
-              <span v-if="entry.applicationsPerSheet" class="text-xs text-slate-500 dark:text-slate-400">
+              <span v-if="entry.applicationsPerSheet && !entry.layoutDetail" class="text-xs text-slate-500 dark:text-slate-400">
                 · {{ entry.applicationsPerSheet }} aplicação(ões)
               </span>
             </p>
+            <p v-if="entry.layoutDetail" class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ entry.layoutDetail }}</p>
             <p class="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{{ entry.reason }}</p>
           </li>
         </ul>
       </details>
     </section>
 
-    <!-- Cortes: as descidas vêm do cadastro de formatos -->
+    <!-- Cortes: o primeiro do cadastro de formatos, o refile da montagem (atividade 047) -->
     <section v-if="cost.sheets.length" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Cortes</h3>
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
         {{ cost.sheets[0]!.chosen.wholeFormatName }} →
         {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }}:
         <strong>{{ cost.sheets[0]!.chosen.preCutDescents }} descidas</strong> antes de imprimir.
-        Depois, {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }} →
-        {{ formatLabel(cost.finalFormatName, cost.sheets[0]!.chosen.finalFormatNumber) }} em
-        {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicação(ões) e aparo até
+        Depois, {{ cost.sheets[0]!.chosen.applicationsPerSheet }} aplicação(ões) até
         {{ format(cost.widthMm) }} × {{ format(cost.heightMm) }}:
         <strong>{{ cost.sheets[0]!.chosen.refileDescents }} descidas</strong> no refile.
       </p>
-      <p v-if="cost.sheets[0]!.chosen.applicationsPerSheet > 1" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Separar as aplicações: o cadastro conta as descidas a partir da folha inteira — o
-        {{ formatLabel(cost.finalFormatName, cost.sheets[0]!.chosen.finalFormatNumber) }} custa
-        {{ cost.sheets[0]!.chosen.finalFormatDescents }} delas. Na mesa do refile entra o
-        {{ formatLabel(cost.sheets[0]!.chosen.printFormatName, cost.sheets[0]!.chosen.printFormatNumber) }},
-        que é 1/{{ cost.sheets[0]!.chosen.printFormatNumber }} da folha:
-        {{ cost.sheets[0]!.chosen.finalFormatDescents }} ÷ {{ cost.sheets[0]!.chosen.printFormatNumber }} =
-        {{ cost.sheets[0]!.chosen.refileDescents - (cost.sheets[0]!.chosen.trimDescents ?? 0) }}
-        (a fração conta inteira porque não se desce meia faca).
+      <p v-if="cost.sheets[0]!.chosen.layoutDetail" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Montagem: {{ cost.sheets[0]!.chosen.layoutDetail }}.
       </p>
       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        <template v-if="(cost.sheets[0]!.chosen.trimDescents ?? 0) > 0">
-          Aparar o formato final ({{ format(cost.sheets[0]!.chosen.finalWidthMm) }} ×
-          {{ format(cost.sheets[0]!.chosen.finalHeightMm) }}) até a peça: 2 descidas em cada sentido em que
-          sobra papel = <strong>{{ cost.sheets[0]!.chosen.trimDescents }} descidas</strong>.
+        <!-- Cálculo anterior à 047 (sem montagem gravada): o número do formato final era outro, então a
+             separação sai da diferença refile − aparo, sem a fórmula da grade. -->
+        <template v-if="cost.sheets[0]!.chosen.layoutDetail">
+          Separar a grade: (colunas − 1) + (linhas − 1) =
+          <strong>{{ cost.sheets[0]!.chosen.finalFormatDescents }} descidas</strong>.
         </template>
-        <template v-else>A peça tem o tamanho exato do formato final: não há aparo.</template>
+        <template v-else>
+          Separar as aplicações:
+          <strong>{{ cost.sheets[0]!.chosen.refileDescents - (cost.sheets[0]!.chosen.trimDescents ?? 0) }} descidas</strong>.
+        </template>
+        <template v-if="(cost.sheets[0]!.chosen.trimDescents ?? 0) > 0">
+          Aparar: 2 descidas em cada sentido em que sobra papel =
+          <strong>{{ cost.sheets[0]!.chosen.trimDescents }} descidas</strong>.
+        </template>
+        <template v-else>A grade ocupa a folha inteira: não há aparo.</template>
       </p>
 
       <div v-if="cuttingSteps.length" class="mt-4 grid gap-4 lg:grid-cols-2">

@@ -6,14 +6,29 @@
  * configuração dura minutos e o usuário vai e volta entre passos. Um modal com quatro passos
  * empurraria tudo isso para dentro de uma caixa com rolagem própria.
  *
- * Layout: passo a passo no topo, um passo por vez no corpo e o trilho de preço fixo à direita —
- * o preço acompanha a configuração, em vez de ser uma revelação no fim.
+ * Layout: passo a passo no topo, um passo por vez no corpo e o trilho de preço fixo à direita.
  *
- * Catálogos e cálculo são os reais: o preço vem do motor a cada mexida (com debounce).
+ * A URL diz onde o usuário está (atividade 047): `/orcamentos/6/produto/1` é o produto 1 do
+ * orçamento 6, `/orcamentos/novo/produto/novo` um produto novo num orçamento ainda não salvo. O
+ * breadcrumb leva de volta ao orçamento.
+ *
+ * O CÁLCULO É SÓ NO BOTÃO (atividade 047). Abrir o produto não calcula — ele vem com o cálculo
+ * gravado — e mexer também não. Do passo 3 em diante há o botão Calcular; mexeu depois de calcular, o
+ * cálculo fica desatualizado, o resumo avisa em vermelho e o produto não salva até calcular de novo.
+ *
+ * DETALHAR (atividade 047): no orçamento aprovado — imutável — ou rejeitado, o produto abre nas mesmas
+ * abas, na mesma ordem de campos, só leitura: inclusive impostos e resumo. Sem Calcular, sem Salvar.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref } from 'vue'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { useQuotes } from '@/composables/useQuotes'
+import { useToast } from '@/composables/useToast'
+import { extractApiError } from '@/utils/apiError'
+import { CALC_BLOCKERS_KEY, QUOTE_READONLY_KEY } from '@/utils/quoteCalc'
+import { parseProductSegment, parseQuoteSegment, productPath, quotePath } from '@/utils/quoteRoutes'
+import Breadcrumb from '@/components/ui/Breadcrumb.vue'
+import CalculateButton from '@/components/quotes/CalculateButton.vue'
 import QuoteStepper from '@/components/quotes/QuoteStepper.vue'
 import QuotePriceRail from '@/components/quotes/QuotePriceRail.vue'
 import StepProductDefinition from '@/components/quotes/StepProductDefinition.vue'
@@ -36,9 +51,11 @@ import {
 
 definePageMeta({ middleware: 'auth' })
 
+const route = useRoute()
 const router = useRouter()
 const store = useQuoteDraftStore()
 const catalogs = useQuoteCatalogs()
+const toast = useToast()
 
 const STEPS = [
   { key: 'produto', label: 'Formato e papéis' },
@@ -51,25 +68,72 @@ const STEPS = [
 
 const current = ref(0)
 
+/** Abrindo: carrega o orçamento da URL, se a store não está com ele, e abre o produto. */
+const opening = ref(true)
+
+/**
+ * Põe no assistente o produto da URL. Volta do orçamento com o rascunho já aberto (o "Editar" da
+ * lista ou um modelo do catálogo) não reabre nada — só um recarregar da página, ou um link direto,
+ * precisa montar o rascunho de novo.
+ */
+const openFromRoute = async () => {
+  const quoteId = parseQuoteSegment(route.params.id)
+  if (quoteId != null && store.quoteId !== quoteId) {
+    try {
+      store.loadSaved(await useQuotes().getById(quoteId))
+    } catch (err) {
+      toast.error(extractApiError(err, 'Não foi possível abrir o orçamento.'))
+      await router.replace('/orcamentos')
+      return
+    }
+  } else if (quoteId == null && store.quoteId != null) {
+    // "novo" na URL, mas a store está num orçamento salvo: a URL certa é a dele.
+    const n = parseProductSegment(route.params.n)
+    await router.replace(productPath(store.quoteId, n ?? 'novo'))
+  }
+
+  const position = parseProductSegment(route.params.n)
+  if (position == null) {
+    // Orçamento só leitura não ganha produto novo.
+    if (store.readOnly) {
+      await router.replace(quotePath(store.quoteId))
+      return
+    }
+    if (!store.draft || store.editingUid != null) store.startNew()
+    return
+  }
+  const target = store.products[position - 1]
+  if (!target) {
+    toast.error(`O orçamento não tem o produto ${position}.`)
+    await router.replace(quotePath(store.quoteId))
+    return
+  }
+  if (!store.draft || store.editingUid !== target.uid) store.edit(target.uid)
+}
+
 onMounted(async () => {
-  if (!store.draft) store.startNew()
   // RECARREGA os catálogos, não aproveita o que já estava em memória: máquinas, insumos e
   // atividades são editados em OUTRA tela, e o assistente fica aberto por muito tempo. Quem acabou
   // de arrumar as chapas da impressora volta para cá e precisa ver a lista nova — com o cache da
   // sessão, o orçamento seguia oferecendo as chapas de antes da edição. São cinco listas curtas.
-  await catalogs.load(true)
-
-  // Abrir um produto salvo não mexe em nada, então o watch de recálculo não dispara — e sem
-  // cálculo o passo de parâmetros fica sem opções de impressora. O gatilho é aqui, depois dos
-  // catálogos, que são justamente o que `calcBlockers` consulta para saber o tipo das atividades.
-  //
-  // Atividade 044: o produto de um orçamento SALVO abre com o cálculo gravado e não vai ao motor —
-  // olhar não recalcula. Mexer na configuração (ou clicar em Calcular) é que pede outro cálculo.
-  if (calcBlockers.value.length === 0 && !frozenOnOpen.value) scheduleCalc(0)
+  await Promise.all([catalogs.load(true), openFromRoute()])
+  opening.value = false
 })
 
-/** Abriu um produto salvo com o cálculo gravado, sem pedido de recálculo. */
-const frozenOnOpen = computed(() => !!store.draft?.savedId && !store.draft?.recalculate && !!store.draftCost)
+/** A posição do produto no orçamento (1, 2...), ou nula para o produto novo. */
+const position = computed(() => {
+  const index = store.products.findIndex((p) => p.uid === store.editingUid)
+  return index >= 0 ? index + 1 : null
+})
+
+/** Orçamentos › Orçamento nº 6 › Produto 1 — Laminas de Pagamento. */
+const breadcrumb = computed(() => [
+  { name: 'Orçamentos', href: '/orcamentos' },
+  { name: store.quoteNumber ? `Orçamento nº ${store.quoteNumber}` : 'Novo orçamento', href: quotePath(store.quoteId) },
+  {
+    name: `${position.value ? `Produto ${position.value}` : 'Novo produto'}${product.value?.name ? ` — ${product.value.name}` : ''}`,
+  },
+])
 
 const product = computed(() => store.draft)
 
@@ -164,38 +228,31 @@ const blockers = computed(() => {
   return list
 })
 
+// O botão Calcular, onde quer que esteja, só calcula quando o motor tem o que precisa.
+provide(CALC_BLOCKERS_KEY, calcBlockers)
+
+/** Detalhar: orçamento aprovado (imutável) ou rejeitado — tudo só leitura (atividade 047). */
+const readOnly = computed(() => store.readOnly)
+provide(QUOTE_READONLY_KEY, readOnly)
+
+/** O cálculo não corresponde à configuração (ou não existe): o resumo avisa e o salvar trava. */
+const stale = computed(() => store.draftStale)
+
 /** Percentuais que o servidor recusaria (atividade 037) — seguram o salvar, não os parâmetros. */
 const priceBlockers = computed(() => (product.value ? pricingIssues(product.value.pricing, product.value.taxes) : []))
-const allBlockers = computed(() => [...blockers.value, ...priceBlockers.value])
+const allBlockers = computed(() => {
+  const list = [...blockers.value, ...priceBlockers.value]
+  if (calcBlockers.value.length === 0 && stale.value) {
+    list.unshift(store.draftCost ? 'Calcular de novo: os parâmetros mudaram depois do cálculo' : 'Calcular o produto (passo 3)')
+  }
+  return list
+})
 
 /** Preço de venda do produto em edição, para o trilho. */
 const price = computed(() =>
   store.draftCost && product.value
     ? priceFromCost(store.draftCost.totalCost, product.value.pricing, product.value.taxes)
     : null,
-)
-
-/**
- * Recalcula no motor a cada mexida, com debounce — o usuário mexe em cores e dimensões o tempo
- * todo, e uma chamada por tecla digitada não ajudaria ninguém.
- */
-let timer: ReturnType<typeof setTimeout> | null = null
-const scheduleCalc = (delay: number) => {
-  if (timer) clearTimeout(timer)
-  timer = setTimeout(() => store.calculateDraft(), delay)
-}
-
-watch(
-  () => [store.draft, calcBlockers.value.length] as const,
-  () => {
-    if (calcBlockers.value.length > 0) {
-      if (timer) clearTimeout(timer)
-      store.draftCost = null
-      return
-    }
-    scheduleCalc(400)
-  },
-  { deep: true },
 )
 
 /** Cada passo só libera o seguinte quando tem o que ele precisa. */
@@ -210,6 +267,8 @@ const stepValid = computed(() => {
 })
 
 const maxReachable = computed(() => {
+  // Detalhar: todas as abas abertas — não há o que preencher.
+  if (readOnly.value) return STEPS.length - 1
   const valid = stepValid.value
   for (let index = valid.length - 2; index >= 0; index -= 1) {
     if (valid[index]) return index + 1
@@ -217,7 +276,7 @@ const maxReachable = computed(() => {
   return 0
 })
 
-const canAdvance = computed(() => stepValid.value[current.value] === true)
+const canAdvance = computed(() => readOnly.value || stepValid.value[current.value] === true)
 const unitLabel = computed(() => (product.value?.structure === 'BLADE' ? 'peça' : 'bloco'))
 
 const next = () => {
@@ -228,18 +287,21 @@ const back = () => {
 }
 
 const save = () => {
-  store.commit()
-  router.push('/orcamentos/editar')
+  if (readOnly.value) return
+  if (store.commit()) router.push(quotePath(store.quoteId))
 }
 
 const cancel = () => {
   store.discard()
-  router.push('/orcamentos/editar')
+  router.push(quotePath(store.quoteId))
 }
 </script>
 
 <template>
+  <p v-if="opening && !product" class="text-sm text-slate-500 dark:text-slate-400">Abrindo o produto...</p>
   <div v-if="product" class="space-y-6">
+    <Breadcrumb :items="breadcrumb" class="print:hidden" />
+
     <div
       v-if="store.calcError"
       class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200 print:hidden"
@@ -247,20 +309,13 @@ const cancel = () => {
       <strong>Não foi possível calcular.</strong> {{ store.calcError }}
     </div>
 
-    <!-- Atividade 044: o produto salvo mostra o cálculo GRAVADO até o usuário pedir outro. -->
-    <div
-      v-if="product.savedId && !product.recalculate && !store.draftRecalculated && store.draftCost"
-      class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-100 print:hidden"
-    >
-      <strong>Cálculo gravado no orçamento.</strong> É o preço que foi passado ao cliente. Mexer na
-      configuração ou clicar em Calcular refaz a conta com os preços de hoje — e o orçamento só muda
-      quando você salvar.
-    </div>
-
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between print:hidden">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
-          {{ store.editingUid ? 'Editar produto' : 'Novo produto' }}
+          {{ readOnly ? `Detalhar produto ${position}` : position ? `Editar produto ${position}` : 'Novo produto' }}
+          <span class="text-base font-medium text-slate-500 dark:text-slate-400">
+            — {{ store.quoteNumber ? `orçamento nº ${store.quoteNumber}` : 'orçamento ainda não salvo' }}
+          </span>
         </h1>
         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {{ product.name || 'Sem nome ainda' }}
@@ -272,9 +327,19 @@ const cancel = () => {
         @click="cancel"
         class="self-start rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
       >
-        Cancelar
+        {{ readOnly ? 'Voltar ao orçamento' : 'Cancelar' }}
       </button>
     </header>
+
+    <div
+      v-if="readOnly"
+      class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 print:hidden"
+    >
+      <template v-if="store.quoteStatus === 'APPROVED'">
+        <strong>Orçamento aprovado — somente leitura.</strong> É a configuração e o cálculo que o cliente aceitou.
+      </template>
+      <template v-else><strong>Orçamento rejeitado — somente leitura.</strong> Volte-o para pendente para editar.</template>
+    </div>
 
     <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 print:hidden">
       <QuoteStepper :steps="STEPS" :current="current" :max-reachable="maxReachable" @go="current = $event" />
@@ -282,10 +347,83 @@ const cancel = () => {
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] print:block">
       <div class="min-w-0 space-y-6">
+        <!--
+          O cálculo é no botão (atividade 047). No passo 3 a faixa mostra sempre o estado do cálculo; em
+          Impostos e Markup só aparece desatualizada — impostos e markup incidem sobre o cálculo e não
+          pedem outro. O resumo tem o próprio aviso.
+        -->
+        <div
+          v-if="!readOnly && (current === 2 || (current === 3 && stale))"
+          class="flex flex-col gap-3 rounded-xl border px-5 py-3 sm:flex-row sm:items-center sm:justify-between print:hidden"
+          :class="
+            stale
+              ? 'border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/30'
+              : 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'
+          "
+          role="status"
+        >
+          <p class="text-sm" :class="stale ? 'text-rose-800 dark:text-rose-200' : 'text-emerald-800 dark:text-emerald-200'">
+            <template v-if="calcBlockers.length">
+              <strong>Ainda não dá para calcular.</strong> Falta: {{ calcBlockers.join('; ') }}.
+            </template>
+            <template v-else-if="!store.draftCost">
+              <strong>Produto ainda não calculado.</strong> Clique em Calcular para o motor montar as opções de
+              impressora, papel e formato.
+            </template>
+            <template v-else-if="stale">
+              <strong>Os parâmetros foram alterados e é necessário refazer o cálculo.</strong> O preço e as opções
+              abaixo são do cálculo anterior.
+            </template>
+            <template v-else>
+              <strong>Cálculo em dia.</strong> Mexeu em algum parâmetro, calcule de novo.
+            </template>
+          </p>
+          <CalculateButton class="shrink-0 self-start sm:self-auto" />
+        </div>
+
+        <!--
+          Detalhar: o fieldset desabilitado trava todo campo e botão das abas de uma vez — os mesmos
+          componentes, na mesma ordem, sem uma cópia só leitura de cada um. O resumo fica fora: não tem
+          campos, e o "Imprimir resumo" tem que funcionar.
+        -->
+        <fieldset
+          v-if="current < 4"
+          :disabled="readOnly"
+          class="m-0 min-w-0 space-y-6 border-0 p-0"
+          :class="{
+            // Nem todo campo tem estilo de desabilitado: no detalhar, todos ficam com cara de só leitura.
+            '[&_input]:cursor-not-allowed [&_input]:bg-slate-100 [&_select]:cursor-not-allowed [&_select]:bg-slate-100 [&_textarea]:cursor-not-allowed [&_textarea]:bg-slate-100 [&_button]:cursor-not-allowed dark:[&_input]:bg-slate-800 dark:[&_select]:bg-slate-800 dark:[&_textarea]:bg-slate-800':
+              readOnly,
+          }"
+        >
         <StepProductDefinition v-if="current === 0" />
         <StepActivities v-else-if="current === 1" />
-        <StepParameters v-else-if="current === 2" />
+        <template v-else-if="current === 2">
+          <StepParameters />
+          <!-- Quem termina de preencher os parâmetros lá embaixo recalcula sem subir a tela. -->
+          <div
+            v-if="!readOnly"
+            class="flex flex-col gap-3 rounded-xl border px-5 py-3 sm:flex-row sm:items-center sm:justify-between print:hidden"
+            :class="
+              stale
+                ? 'border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/30'
+                : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+            "
+          >
+            <p class="text-sm" :class="stale ? 'text-rose-800 dark:text-rose-200' : 'text-slate-600 dark:text-slate-300'">
+              {{
+                stale
+                  ? store.draftCost
+                    ? 'Os parâmetros foram alterados: recalcule para atualizar o preço e as opções.'
+                    : 'Produto ainda não calculado.'
+                  : 'Cálculo em dia com os parâmetros acima.'
+              }}
+            </p>
+            <CalculateButton :label="store.draftCost ? 'Recalcular' : 'Calcular'" class="shrink-0 self-start sm:self-auto" />
+          </div>
+        </template>
         <StepTaxesMarkup v-else-if="current === 3" />
+        </fieldset>
         <StepSummary v-else />
 
         <div class="flex items-center justify-between gap-3 print:hidden">
@@ -311,12 +449,14 @@ const cancel = () => {
 
       <QuotePriceRail
         class="print:hidden"
+        :stale="!readOnly && stale && !!store.draftCost"
+        :read-only="readOnly"
         :cost="store.draftCost"
         :price="price"
-        :blockers="allBlockers"
+        :blockers="readOnly ? [] : allBlockers"
         :sheets-per-unit="sheetsPerUnit(product)"
         :unit-label="unitLabel"
-        :can-save="allBlockers.length === 0 && !!store.draftCost"
+        :can-save="allBlockers.length === 0 && !!store.draftCost && !stale"
         :save-label="store.editingUid ? 'Salvar alterações' : 'Salvar produto'"
         @save="save"
       />
