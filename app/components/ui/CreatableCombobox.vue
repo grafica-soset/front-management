@@ -8,6 +8,10 @@
  *
  * O componente não fala com a API: emite `create` com o texto e quem o usa cadastra e devolve a
  * opção nova em `options`, já selecionada via `modelValue`.
+ *
+ * Atividade 048: digitar um nome novo e SAIR do campo também cadastra — antes o texto era
+ * descartado em silêncio e o Salvar pedia o Modelo que a pessoa acabara de digitar. O texto ainda
+ * não cadastrado sai em `pending`, para quem salva o formulário cadastrar antes de enviar.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -31,6 +35,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', id: number | null, label: string): void
   (e: 'create', text: string): void
+  /** Texto digitado que ainda não é uma opção ('' quando não há nada pendente). */
+  (e: 'pending', text: string): void
 }>()
 
 const text = ref('')
@@ -53,6 +59,13 @@ const filtered = computed(() => {
 
 const exactMatch = computed(() => props.options.find((o) => normalized(o.value) === normalized(text.value)))
 const canCreate = computed(() => !!text.value.trim() && !exactMatch.value)
+
+// O pai precisa saber do nome digitado e ainda não cadastrado: um Salvar clicado direto, sem sair
+// do campo, chega antes do blur.
+watch(
+  () => (canCreate.value && normalized(text.value) !== normalized(selectedLabel.value) ? text.value.trim() : ''),
+  (pending) => emit('pending', pending),
+)
 
 const choose = (option: Option) => {
   emit('update:modelValue', option.id, option.value)
@@ -78,10 +91,12 @@ const clear = () => {
 }
 
 // Espera o clique numa opção acontecer antes de fechar a lista.
+// Nome novo digitado e o campo deixado: cadastra, em vez de jogar o texto fora.
 const onBlur = () => {
   window.setTimeout(() => {
     open.value = false
     if (exactMatch.value && exactMatch.value.id !== props.modelValue) choose(exactMatch.value)
+    else if (canCreate.value && normalized(text.value) !== normalized(selectedLabel.value)) create()
     else text.value = selectedLabel.value
   }, 150)
 }

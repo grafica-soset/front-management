@@ -17,6 +17,7 @@ function validBlock(): FoldingBlockRequest {
     crossPockets: 4,
     pocketSetupMinutes: 6,
     perPocketSpeedReducerPercent: '5',
+    sideGuideSetupMinutes: 4,
     paperFeedSetupMinutes: 3,
     feedTimeSecondsPerLoad: 45,
     feedLoadIncrementMm: 40,
@@ -49,6 +50,11 @@ describe('Cadastro DOBRADEIRA — catálogo', () => {
     expect(validateFolding(validBlock())).toEqual({})
   })
 
+  it('rejeita setup de esquadro lateral negativo (atividade 048)', () => {
+    const block = { ...validBlock(), sideGuideSetupMinutes: -1 }
+    expect(validateFolding(block)['sideGuideSetupMinutes']).toBeTruthy()
+  })
+
   it('exige ao menos uma bolsa', () => {
     const block = { ...validBlock(), parallelPockets: 0, crossPockets: 0 }
     expect(validateFolding(block)['parallelPockets']).toBeTruthy()
@@ -76,6 +82,7 @@ describe('Cadastro DOBRADEIRA — catálogo', () => {
       crossPockets: 4,
       pocketSetupMinutes: 6,
       perPocketSpeedReducerPercent: 5,
+      sideGuideSetupMinutes: 4,
       paperFeedSetupMinutes: 3,
       feedTimeSecondsPerLoad: 45,
       feedLoadIncrementMm: 40,
@@ -104,6 +111,8 @@ describe('Cadastro DOBRADEIRA — catálogo', () => {
     expect(hydrated.minFormat.widthMm).toBe(150)
     expect(hydrated.maxFormat.lengthMm).toBe(660)
     expect(hydrated.perPocketSpeedReducerPercent).toBe('5')
+    // Setup de esquadro lateral (atividade 048).
+    expect(hydrated.sideGuideSetupMinutes).toBe(4)
     expect(hydrated.setupWasteSheets).toBe(50)
   })
 })

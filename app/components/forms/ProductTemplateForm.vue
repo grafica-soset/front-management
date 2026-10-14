@@ -66,6 +66,11 @@ const form = reactive({
   active: props.initial?.active ?? true,
 })
 
+// Nome de Modelo digitado e ainda não cadastrado (atividade 048). O Salvar clicado direto do campo
+// chega antes de o combobox cadastrar: aí o formulário pede o cadastro e salva quando ele voltar.
+const pendingModelName = ref('')
+const submitAfterCreate = ref(false)
+
 // O pai cadastrou o Modelo digitado: deixa escolhido.
 watch(
   () => props.createdModel,
@@ -73,8 +78,13 @@ watch(
     if (!created) return
     form.productModelId = created.id
     form.productModelName = created.value
+    if (submitAfterCreate.value) {
+      submitAfterCreate.value = false
+      handleSubmit()
+    }
   },
 )
+
 
 const artworkCount = computed(() => (form.structure === 'BLADE' ? form.blades : form.vias))
 
@@ -130,6 +140,11 @@ const activityType = (id: number) => {
 const error = ref<string | null>(null)
 
 const handleSubmit = () => {
+  if (!form.productModelId && pendingModelName.value) {
+    submitAfterCreate.value = true
+    if (!props.creatingModel) emit('create-model', pendingModelName.value)
+    return
+  }
   const problems: string[] = []
   if (!form.productModelId) problems.push('Escolha o Modelo.')
   if (!form.typeName.trim()) problems.push('Informe o Tipo.')
@@ -183,6 +198,7 @@ const labelClass = 'mb-1.5 block text-sm font-medium text-slate-700 dark:text-sl
         @update:product-model-name="form.productModelName = $event"
         @update:type-name="form.typeName = $event"
         @create-model="emit('create-model', $event)"
+        @pending-model="pendingModelName = $event"
       />
     </section>
 

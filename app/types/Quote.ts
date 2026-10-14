@@ -86,6 +86,9 @@ export interface QuoteStepRequest {
     channelLengthMm?: number | null
     /** Corte e vinco (atividade 046): faca do cliente — cobra a taxa de manutenção no lugar da faca. */
     customerOwnsDie?: boolean
+    /** Dobra (atividade 048): dobras paralelas e cruzadas — uma bolsa por dobra. */
+    parallelFolds?: number
+    crossFolds?: number
     /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
     machineId?: number | null
   }

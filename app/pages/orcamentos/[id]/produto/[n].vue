@@ -191,6 +191,14 @@ const calcBlockers = computed(() => {
   )
   if (semBocas) list.push('Informar a quantidade de bocas (facas) do corte e vinco')
 
+  // Dobra (atividade 048): sem dobras não há bolsa nem tempo de dobradeira.
+  const semDobras = p.steps.some(
+    (s) =>
+      catalogs.paramKindOf(catalogs.findActivity(s.activityId)) === 'FOLDING' &&
+      !((s.parameters.parallelFolds ?? 0) + (s.parameters.crossFolds ?? 0) > 0),
+  )
+  if (semDobras) list.push('Informar as dobras da dobradeira')
+
   impressoes.forEach((step, index) => {
     const ordinal = impressoes.length > 1 ? ` (${index + 1}ª impressão)` : ''
     const printed = p.sheets.filter((sheet) => isSheetPrinted(sheet, setupFor(step, sheet)))

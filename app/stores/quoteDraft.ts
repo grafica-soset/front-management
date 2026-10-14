@@ -853,6 +853,9 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             dieCount: step.parameters.dieCount ?? 0,
             channelLengthMm: step.parameters.channelLengthMm ?? null,
             customerOwnsDie: step.parameters.customerOwnsDie ?? false,
+            // Dobra (atividade 048): dobras paralelas e cruzadas.
+            parallelFolds: step.parameters.parallelFolds ?? 0,
+            crossFolds: step.parameters.crossFolds ?? 0,
             machineId: step.parameters.machineId ?? null,
           },
         }

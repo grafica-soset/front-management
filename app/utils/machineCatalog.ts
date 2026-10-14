@@ -441,6 +441,7 @@ export function defaultFoldingBlock(): FoldingBlockRequest {
     crossPockets: 4,
     pocketSetupMinutes: 0,
     perPocketSpeedReducerPercent: '0',
+    sideGuideSetupMinutes: 0,
     paperFeedSetupMinutes: 0,
     feedTimeSecondsPerLoad: 0,
     feedLoadIncrementMm: 40,
@@ -470,6 +471,7 @@ export function hydrateFoldingBlock(block: FoldingBlockResponse | null): Folding
     crossPockets: block.crossPockets ?? 0,
     pocketSetupMinutes: block.pocketSetupMinutes ?? 0,
     perPocketSpeedReducerPercent: String(block.perPocketSpeedReducerPercent),
+    sideGuideSetupMinutes: block.sideGuideSetupMinutes ?? 0,
     paperFeedSetupMinutes: block.paperFeedSetupMinutes ?? 0,
     feedTimeSecondsPerLoad: block.feedTimeSecondsPerLoad ?? 0,
     feedLoadIncrementMm: block.feedLoadIncrementMm ?? base.feedLoadIncrementMm,
@@ -497,7 +499,7 @@ export function hydrateFoldingBlock(block: FoldingBlockResponse | null): Folding
 export function validateFolding(block: FoldingBlockRequest): Record<string, string> {
   const errors: Record<string, string> = {}
   const nonNeg: (keyof FoldingBlockRequest)[] = [
-    'parallelPockets', 'crossPockets', 'pocketSetupMinutes', 'paperFeedSetupMinutes',
+    'parallelPockets', 'crossPockets', 'pocketSetupMinutes', 'sideGuideSetupMinutes', 'paperFeedSetupMinutes',
     'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'maxPaperThicknessMicrons',
     'idealWeightMinGsm', 'idealWeightMaxGsm', 'setupWasteSheets', 'outputMovementMinutesPerBundle',
   ]
