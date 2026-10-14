@@ -155,6 +155,11 @@ export interface StepParameters {
   channelLengthMm?: number | null
   /** A faca é do cliente: não cobra a faca, cobra a taxa de manutenção da empresa. Bocas continuam. */
   customerOwnsDie?: boolean
+
+  // ---- Dobra (atividade 048) ----
+  /** Dobras PARALELAS e CRUZADAS: uma bolsa da dobradeira por dobra, até as bolsas da máquina. */
+  parallelFolds?: number
+  crossFolds?: number
   /** Máquina escolhida para a etapa automatizada. Nula = a mais barata que dá conta. */
   machineId?: number | null
 }

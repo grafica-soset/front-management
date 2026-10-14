@@ -49,7 +49,7 @@ const fmtErr = (which: 'minFormat' | 'maxFormat', field: 'widthMm' | 'lengthMm')
     <!-- Bolsas -->
     <fieldset class="rounded-lg border border-slate-200 p-4 min-w-0 dark:border-slate-700">
       <legend class="px-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Bolsas (dobras)</legend>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Bolsas paralelas</label>
           <input v-model.number="block.parallelPockets" type="number" min="0" step="1" :class="inputClass(errors.parallelPockets)" />
@@ -77,6 +77,15 @@ const fmtErr = (which: 'minFormat' | 'maxFormat', field: 'widthMm' | 'lengthMm')
           </div>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Reduz a velocidade por bolsa.</p>
           <p v-if="errors.perPocketSpeedReducerPercent" class="mt-1 text-xs text-rose-600">{{ errors.perPocketSpeedReducerPercent }}</p>
+        </div>
+        <div>
+          <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup de esquadro lateral</label>
+          <div class="relative">
+            <input v-model.number="block.sideGuideSetupMinutes" type="number" min="0" step="1" :class="inputClass(errors.sideGuideSetupMinutes)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Uma vez por trabalho.</p>
+          <p v-if="errors.sideGuideSetupMinutes" class="mt-1 text-xs text-rose-600">{{ errors.sideGuideSetupMinutes }}</p>
         </div>
       </div>
     </fieldset>

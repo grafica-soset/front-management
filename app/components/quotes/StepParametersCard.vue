@@ -37,7 +37,7 @@ const paramKind = computed(() => catalogs.paramKindOf(activity.value))
 const params = computed(() => props.step.parameters)
 
 const setNumber = (
-  key: 'laborMinutes' | 'numberingUnits' | 'perforationCount' | 'stapleCount' | 'dieCount',
+  key: 'laborMinutes' | 'numberingUnits' | 'perforationCount' | 'stapleCount' | 'dieCount' | 'parallelFolds' | 'crossFolds',
   value: string
 ) => {
   const parsed = Number(value.replace(',', '.'))
@@ -78,6 +78,32 @@ const costing = computed(() =>
 )
 /** Só vale mostrar o tempo quando o cálculo achou máquina — zero aqui é ruído, não informação. */
 const calculated = computed(() => (costing.value?.machineName ? costing.value : null))
+
+// ---- Dobra (atividade 048) ----------------------------------------------------------------
+
+/**
+ * O teto das dobras: as bolsas da MAIOR dobradeira da atividade. Cada dobra passa por uma bolsa, e
+ * a máquina só tem tantas de cada tipo; quem decide qual delas faz o trabalho é o motor.
+ */
+const foldingMachines = computed(() =>
+  catalogs.machinesOfActivity(activity.value).filter((m) => m.machineType === 'FOLDING'),
+)
+const maxParallelFolds = computed(() => Math.max(0, ...foldingMachines.value.map((m) => m.parallelPockets ?? 0)))
+const maxCrossFolds = computed(() => Math.max(0, ...foldingMachines.value.map((m) => m.crossPockets ?? 0)))
+
+const setFolds = (key: 'parallelFolds' | 'crossFolds', value: string, max: number) => {
+  setNumber(key, value)
+  const atual = Math.floor(props.step.parameters[key] ?? 0)
+  props.step.parameters[key] = max > 0 ? Math.min(atual, max) : atual
+}
+
+/** "Tem dobra cruzada?" — desligar zera as cruzadas. */
+const hasCrossFold = computed<boolean>({
+  get: () => (props.step.parameters.crossFolds ?? 0) > 0,
+  set: (value) => {
+    props.step.parameters.crossFolds = value ? Math.max(1, props.step.parameters.crossFolds ?? 0) : 0
+  },
+})
 
 // ---- Corte e vinco (atividade 046) --------------------------------------------------------
 
@@ -358,6 +384,74 @@ const inputClass =
       </div>
       <p v-else class="text-xs text-slate-500 dark:text-slate-400">
         Use <strong>Calcular</strong> para ver o tempo da máquina e o custo da faca e da canaleta.
+      </p>
+    </div>
+
+    <!--
+      DOBRA (atividade 048). Cada dobra passa por uma bolsa da dobradeira, e cada bolsa usada reduz a
+      velocidade e tem o seu setup. O orçamento pergunta as dobras; o resto (esquadro lateral,
+      gramatura e formato ideais, maço de saída) sai do cadastro da máquina.
+    -->
+    <div v-else-if="paramKind === 'FOLDING'" class="mt-3 space-y-4">
+      <div class="flex flex-wrap items-start gap-6">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Dobras paralelas <span class="text-rose-500">*</span>
+          </label>
+          <input
+            :value="params.parallelFolds || ''"
+            type="number"
+            min="0"
+            :max="maxParallelFolds || undefined"
+            step="1"
+            placeholder="0"
+            @input="setFolds('parallelFolds', ($event.target as HTMLInputElement).value, maxParallelFolds)"
+            :class="inputClass"
+          />
+          <p v-if="maxParallelFolds" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Até {{ maxParallelFolds }} — as bolsas paralelas da maior dobradeira.
+          </p>
+        </div>
+        <div>
+          <ToggleSwitch v-model="hasCrossFold" label="Tem dobra cruzada" :disabled="maxCrossFolds === 0" />
+          <div v-if="hasCrossFold" class="mt-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Dobras cruzadas</label>
+            <input
+              :value="params.crossFolds || ''"
+              type="number"
+              min="1"
+              :max="maxCrossFolds || undefined"
+              step="1"
+              @input="setFolds('crossFolds', ($event.target as HTMLInputElement).value, maxCrossFolds)"
+              :class="inputClass"
+            />
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <template v-if="maxCrossFolds === 0">Nenhuma dobradeira desta atividade tem bolsa cruzada.</template>
+            <template v-else>Até {{ maxCrossFolds }} — as bolsas cruzadas da maior dobradeira.</template>
+          </p>
+        </div>
+      </div>
+
+      <div
+        v-if="calculated"
+        class="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+      >
+        <p class="font-medium text-slate-800 dark:text-slate-100">
+          {{ calculated.machineName }} —
+          {{ calculated.totalMinutes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} min
+          ({{ brl(calculated.totalCost) }})
+        </p>
+        <ul class="mt-1 space-y-0.5">
+          <li v-for="stage in calculated.timeStages" :key="stage.name">
+            {{ stage.name }}: {{ stage.detail }} =
+            {{ stage.minutes.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) }} min
+          </li>
+        </ul>
+      </div>
+      <p v-else class="text-xs text-slate-500 dark:text-slate-400">
+        Use <strong>Calcular</strong> para ver o tempo da dobradeira — a escolha da máquina e as recusadas
+        ficam no resumo.
       </p>
     </div>
 

@@ -31,6 +31,8 @@ const emit = defineEmits<{
   (e: 'update:productModelName', name: string): void
   (e: 'update:typeName', name: string): void
   (e: 'create-model', name: string): void
+  /** Nome de Modelo digitado e ainda não cadastrado (atividade 048). */
+  (e: 'pending-model', name: string): void
 }>()
 
 const activeModels = computed(() => props.models.filter((m) => m.active || m.id === props.productModelId))
@@ -65,6 +67,7 @@ const inputClass =
         placeholder="Ex.: Blocos, Talões, Calendários"
         @update:model-value="onModel"
         @create="emit('create-model', $event)"
+        @pending="emit('pending-model', $event)"
       />
     </div>
     <div>

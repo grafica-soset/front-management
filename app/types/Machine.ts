@@ -635,6 +635,8 @@ export interface FoldingBlockRequest {
   pocketSetupMinutes: number
   /** Redutor (%) de velocidade por bolsa usada. */
   perPocketSpeedReducerPercent: string
+  /** Setup de esquadro lateral (min) — uma vez por trabalho (atividade 048). */
+  sideGuideSetupMinutes: number
   paperFeedSetupMinutes: number
   feedTimeSecondsPerLoad: number
   feedLoadIncrementMm: number
@@ -669,6 +671,7 @@ export interface FoldingBlockResponse {
   crossPockets: number
   pocketSetupMinutes: number
   perPocketSpeedReducerPercent: number
+  sideGuideSetupMinutes: number
   paperFeedSetupMinutes: number
   feedTimeSecondsPerLoad: number
   feedLoadIncrementMm: number
@@ -1026,4 +1029,10 @@ export interface MachineKeyValue {
    * A tela usa o maior teto do parque para orientar o campo "quantos numeradores".
    */
   maxNumberingUnits?: number | null
+  /**
+   * BOLSAS da dobradeira (atividade 048) — nulas nas outras máquinas. Teto dos campos de dobras
+   * paralelas e cruzadas do orçamento.
+   */
+  parallelPockets?: number | null
+  crossPockets?: number | null
 }
