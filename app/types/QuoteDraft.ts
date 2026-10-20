@@ -275,6 +275,12 @@ export interface QuoteProduct {
   unitPriceOverride?: number | null
   /** Escolhido pelo cliente na aprovação. */
   approved?: boolean
+
+  // ---- Proposta (atividade 049) ----
+  /** Observação do produto, impressa na proposta abaixo da descrição. */
+  notes: string
+  /** Prazo de entrega do produto — vale na proposta NÃO totalizada (vazio = o prazo geral). */
+  deliveryTerms: string
 }
 
 /** Linha do detalhamento de custo exibido no trilho e no resumo. */

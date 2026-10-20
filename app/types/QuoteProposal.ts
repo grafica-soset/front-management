@@ -43,6 +43,13 @@ export interface ProposalItem {
   unitPrice: number
   /** Escolhido pelo cliente (orçamento aprovado). */
   approved: boolean
+  /** Observação do produto (atividade 049). */
+  notes: string | null
+  /**
+   * Prazo de entrega do produto — só na proposta NÃO totalizada (o do produto ou, sem ele, o geral).
+   * Na totalizada vem nulo e vale o das condições (atividade 049).
+   */
+  deliveryTerms: string | null
 }
 
 export interface QuoteProposal {

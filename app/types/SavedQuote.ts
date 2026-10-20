@@ -34,6 +34,10 @@ export interface SaveQuoteProductRequest {
   costing: ProductCostingResponse | null
   /** Unitário assumido (3 casas). Nulo = vale o calculado. */
   unitPriceOverride: number | null
+  /** Observação do produto, impressa na proposta (atividade 049). */
+  notes: string | null
+  /** Prazo de entrega do produto: vale na proposta não totalizada (atividade 049). */
+  deliveryTerms: string | null
 }
 
 export interface SaveQuoteRequest {
@@ -78,6 +82,9 @@ export interface SavedQuoteProduct {
   totalPrice: number
   /** Escolhido pelo cliente na aprovação. */
   approved: boolean
+  /** Observação e prazo de entrega do produto (atividade 049). */
+  notes: string | null
+  deliveryTerms: string | null
   /** O cálculo gravado ao salvar; nulo em orçamento anterior à 044. */
   costing: ProductCostingResponse | null
 }

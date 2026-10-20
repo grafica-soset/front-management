@@ -159,6 +159,19 @@ const canSelectForApproval = computed(
 // ---- Condições de fornecimento: opções da empresa (atividade 038, Orçamento > Configurações) ----
 const termOptions = ref<QuoteTermOptionKeyValue[]>([])
 const termPickerKind = ref<QuoteTermKind | null>(null)
+// Prazo de entrega de UM produto (atividade 049): o popup é o mesmo, o destino é o produto.
+const termPickerProductUid = ref<string | null>(null)
+const termPickerProduct = computed(() => store.products.find((p) => p.uid === termPickerProductUid.value) ?? null)
+
+const openProductDeliveryPicker = (productUid: string) => {
+  termPickerProductUid.value = productUid
+  termPickerKind.value = 'DELIVERY_TERMS'
+}
+
+const closeTermPicker = () => {
+  termPickerKind.value = null
+  termPickerProductUid.value = null
+}
 
 /** Carrega as opções dos popups e, no orçamento novo, preenche as condições com as padrões. */
 const loadTermOptions = async () => {
@@ -173,8 +186,9 @@ const loadTermOptions = async () => {
 
 const pickTermOption = (text: string) => {
   if (!termPickerKind.value) return
-  store.conditions[quoteTermKindInfo(termPickerKind.value).field] = text
-  termPickerKind.value = null
+  if (termPickerProduct.value) termPickerProduct.value.deliveryTerms = text
+  else store.conditions[quoteTermKindInfo(termPickerKind.value).field] = text
+  closeTermPicker()
 }
 
 const openNew = () => {
@@ -414,6 +428,9 @@ const inputClass =
             </button>
           </div>
         </div>
+        <p v-if="!store.totalizeProposal" class="-mt-2 text-xs text-slate-500 sm:col-span-2 dark:text-slate-400">
+          Proposta não totalizada: cada produto sai com o seu prazo de entrega; o produto sem prazo usa o geral.
+        </p>
         <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Observações</label>
           <textarea v-model="store.notes" rows="2" maxlength="2000" :disabled="store.readOnly" :class="inputClass" />
@@ -452,9 +469,8 @@ const inputClass =
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
+            <template v-for="(p, index) in store.products" :key="p.uid">
             <tr
-              v-for="(p, index) in store.products"
-              :key="p.uid"
               class="align-top hover:bg-slate-50/80 dark:hover:bg-slate-700/30"
               :class="{ 'opacity-60': store.quoteStatus === 'APPROVED' && store.products.some((x) => x.approved) && !p.approved }"
             >
@@ -541,6 +557,52 @@ const inputClass =
                 </div>
               </td>
             </tr>
+            <!-- Proposta do produto (atividade 049): observação e prazo de entrega. -->
+            <tr class="!border-t-0">
+              <td :colspan="canSelectForApproval ? 10 : 9" class="px-5 pb-4 pt-0">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label :for="`product-notes-${p.uid}`" class="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Observação na proposta</label>
+                    <textarea
+                      :id="`product-notes-${p.uid}`"
+                      v-model="p.notes"
+                      rows="1"
+                      maxlength="1000"
+                      placeholder="Ex.: Arte com sangria de 3 mm em cada lado"
+                      :disabled="store.readOnly"
+                      :class="inputClass"
+                    />
+                  </div>
+                  <div>
+                    <label :for="`product-delivery-${p.uid}`" class="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Prazo de entrega</label>
+                    <div v-if="!store.totalizeProposal" class="flex gap-2">
+                      <input
+                        :id="`product-delivery-${p.uid}`"
+                        v-model="p.deliveryTerms"
+                        type="text"
+                        maxlength="500"
+                        :placeholder="store.conditions.deliveryTerms ? `Vazio usa o geral: ${store.conditions.deliveryTerms}` : 'Ex.: 3 dias úteis após aprovação da arte'"
+                        :disabled="store.readOnly"
+                        :class="inputClass"
+                      />
+                      <button
+                        v-if="!store.readOnly"
+                        type="button"
+                        class="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        title="Escolher entre as opções de prazo de entrega"
+                        @click="openProductDeliveryPicker(p.uid)"
+                      >
+                        Opções
+                      </button>
+                    </div>
+                    <p v-else class="py-2 text-xs text-slate-500 dark:text-slate-400">
+                      Proposta totalizada: vale o prazo de entrega geral, das condições de fornecimento.
+                    </p>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -662,9 +724,9 @@ const inputClass =
       :is-open="!!termPickerKind"
       :title="termPickerKind ? quoteTermKindInfo(termPickerKind).label : ''"
       :options="termPickerKind ? optionsOfKind(termOptions, termPickerKind) : []"
-      :current="termPickerKind ? store.conditions[quoteTermKindInfo(termPickerKind).field] : null"
+      :current="termPickerProduct ? termPickerProduct.deliveryTerms : termPickerKind ? store.conditions[quoteTermKindInfo(termPickerKind).field] : null"
       @pick="pickTermOption"
-      @close="termPickerKind = null"
+      @close="closeTermPicker"
     />
 
     <TemplatePickerModal

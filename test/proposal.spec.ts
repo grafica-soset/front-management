@@ -21,9 +21,9 @@ describe('proposta', () => {
   it('o mesmo produto em outra quantidade vira "Idem acima"', () => {
     const description = "Blocos ''Controle de Vendas Pequeno'', 50 x 2 vias."
     const items = itemsForPrint([
-      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4, approved: false },
-      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5, approved: false },
-      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18, approved: false },
+      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4, approved: false, notes: null, deliveryTerms: null },
+      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5, approved: false, notes: null, deliveryTerms: null },
+      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18, approved: false, notes: null, deliveryTerms: null },
     ])
     expect(items.map((i) => i.printedDescription)).toEqual([description, 'Idem acima ...', "''Folder''."])
   })
