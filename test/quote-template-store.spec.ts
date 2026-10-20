@@ -531,3 +531,52 @@ describe('orçamento salvo trabalhado só com o JSON (atividades 044 e 047)', ()
   })
 })
 
+describe('observação e prazo de entrega por produto (atividade 049)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  const saved = {
+    id: 2, number: 2, clientId: 4, status: 'PENDING_APPROVAL', agencyCommissionPercent: 0, notes: null,
+    conditions: { proposalValidity: null, deliveryTerms: '7 dias úteis após aprovação da arte', paymentTerms: null, bankDetails: null },
+    totalizeProposal: false,
+    products: [
+      {
+        id: 51, productModelId: null, productModelName: null, typeName: null, productTemplateId: null,
+        // O rascunho guardado é anterior ao campo: o que o servidor gravou é que vale.
+        editorState: { name: 'Panfleto Divulgação', quantity: 2000, widthMm: 148, heightMm: 210, notes: 'antiga' },
+        taxes: emptyTaxes(), pricing: emptyPricing(), totalCost: 300, unitPriceOverride: null, approved: false,
+        notes: 'Arte com sangria de 3 mm em cada lado.', deliveryTerms: '3 dias úteis após aprovação da arte',
+        costing: { totalCost: 300 },
+      },
+    ],
+  } as unknown as SavedQuote
+
+  it('abre com o que foi gravado e volta igual, sem alteração pendente', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved)
+
+    expect(store.products[0]!.notes).toBe('Arte com sangria de 3 mm em cada lado.')
+    expect(store.dirty).toBe(false)
+    const body = store.toSaveRequest().products[0]!
+    expect(body.notes).toBe('Arte com sangria de 3 mm em cada lado.')
+    expect(body.deliveryTerms).toBe('3 dias úteis após aprovação da arte')
+  })
+
+  it('mexer na observação é alteração pendente sem desatualizar o cálculo; em branco vai como nulo', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved(saved)
+    store.products[0]!.deliveryTerms = '   '
+    store.products[0]!.notes = ''
+
+    expect(store.dirty).toBe(true)
+    const body = store.toSaveRequest().products[0]!
+    expect(body.deliveryTerms).toBeNull()
+    expect(body.notes).toBeNull()
+    // A observação não é configuração: o cálculo gravado continua valendo.
+    expect(body.costing?.totalCost).toBe(300)
+  })
+
+  it('produto novo nasce sem observação e sem prazo', () => {
+    expect(withProductDefaults({}).notes).toBe('')
+    expect(withProductDefaults({}).deliveryTerms).toBe('')
+  })
+})

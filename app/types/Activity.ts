@@ -58,6 +58,11 @@ export interface Activity {
    * "incluindo arte final". Nulo = o nome da atividade. Não existe na impressão (atividade 040).
    */
   descriptionText: string | null
+  /**
+   * A etapa aparece na descrição do produto da proposta (atividade 049). Desligada (ex.: Primeiro
+   * Corte), some da proposta — o custo continua no orçamento. A impressão aparece sempre.
+   */
+  showInProposal: boolean
   active: boolean
 }
 
@@ -110,6 +115,8 @@ export interface CreateActivityRequest {
   supplies?: ActivitySupply[]
   /** Texto na descrição do produto. Nulo/vazio = o nome. O PUT sem ele apaga o texto. */
   descriptionText?: string | null
+  /** A etapa aparece na proposta (atividade 049). Padrão: true; nunca false na impressão. */
+  showInProposal?: boolean
 }
 
 export interface UpdateActivityRequest extends CreateActivityRequest {

@@ -127,10 +127,13 @@ const print = () => window.print()
         <div v-for="item in items" :key="item.position" class="break-inside-avoid">
           <p>Quantidade: {{ item.quantity.toLocaleString('pt-BR') }}</p>
           <p>Descrição: {{ item.printedDescription }}</p>
+          <p v-if="item.notes?.trim()" class="whitespace-pre-line">Obs.: {{ item.notes }}</p>
           <p>
             Valor R$: {{ proposalMoney(item.totalPrice) }}
             <span class="ml-4">Valor Unitário R$: {{ proposalUnitMoney(item.unitPrice) }}</span>
           </p>
+          <!-- Sem totalizar, cada produto tem o seu prazo; totalizada, vale o das condições (atividade 049). -->
+          <p v-if="item.deliveryTerms?.trim()">Prazo de entrega: {{ item.deliveryTerms }}</p>
         </div>
       </section>
 

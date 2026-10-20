@@ -147,6 +147,8 @@ export function emptyProduct(): QuoteProduct {
     steps: [],
     taxes: emptyTaxes(),
     pricing: emptyPricing(),
+    notes: '',
+    deliveryTerms: '',
   }
 }
 
@@ -171,6 +173,8 @@ export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduc
     typeName: product.typeName ?? '',
     taxes: normalizeTaxes(product.taxes),
     pricing: normalizePricing(product.pricing),
+    notes: product.notes ?? '',
+    deliveryTerms: product.deliveryTerms ?? '',
   } as QuoteProduct
 }
 
@@ -555,6 +559,9 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           productTemplateId: p.productTemplateId,
           taxes: p.taxes,
           pricing: p.pricing,
+          // O gravado manda (atividade 049): o editorState é só o rascunho da tela.
+          notes: p.notes ?? '',
+          deliveryTerms: p.deliveryTerms ?? '',
         }),
       )
       this.syncSaved(saved)
@@ -610,6 +617,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           // O cálculo que o usuário viu: o servidor o grava como veio, sem recalcular.
           costing: this.costs[p.uid] ?? null,
           unitPriceOverride: p.unitPriceOverride ?? null,
+          notes: blankToNull(p.notes),
+          deliveryTerms: blankToNull(p.deliveryTerms),
         })),
       }
     },
