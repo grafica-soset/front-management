@@ -109,6 +109,19 @@ const hasCrossFold = computed<boolean>({
 
 const { suffix, fromMillimeters, toMillimeters, format } = useUnitConverter()
 
+// ---- Formato fechado da dobra (atividade 050) ----------------------------------------------
+
+/** Uma medida do formato fechado na unidade da empresa; guardada em mm. Vazio = não informado. */
+const closedDimension = (key: 'closedWidthMm' | 'closedHeightMm') =>
+  computed<number | null>({
+    get: () => fromMillimeters(props.step.parameters[key] ?? null),
+    set: (value) => {
+      props.step.parameters[key] = value == null || !Number.isFinite(value) || value <= 0 ? null : toMillimeters(value)
+    },
+  })
+const closedWidth = closedDimension('closedWidthMm')
+const closedHeight = closedDimension('closedHeightMm')
+
 /** Perímetro da peça (mm): a canaleta padrão de cada faca — 15×20 dá 70. */
 const perimeterMm = computed(() => {
   const w = product.value.widthMm ?? 0
@@ -429,6 +442,21 @@ const inputClass =
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
             <template v-if="maxCrossFolds === 0">Nenhuma dobradeira desta atividade tem bolsa cruzada.</template>
             <template v-else>Até {{ maxCrossFolds }} — as bolsas cruzadas da maior dobradeira.</template>
+          </p>
+        </div>
+        <!-- O formato do produto é o ABERTO; aqui vai a peça dobrada (atividade 050). -->
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Formato fechado ({{ suffix }}) <span class="text-rose-500">*</span>
+          </label>
+          <div class="flex items-center gap-2">
+            <input v-model.number="closedWidth" type="number" min="0" step="any" placeholder="Largura" :class="inputClass" />
+            <span class="text-slate-400">×</span>
+            <input v-model.number="closedHeight" type="number" min="0" step="any" placeholder="Altura" :class="inputClass" />
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            A peça depois de dobrada. O aberto é o formato do produto
+            ({{ format(product.widthMm) }} × {{ format(product.heightMm) }}).
           </p>
         </div>
       </div>

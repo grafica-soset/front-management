@@ -33,7 +33,7 @@ function validBlock(): FoldingBlockRequest {
     belowMinFormatReducerPercent: '10',
     aboveMaxFormatReducerPercent: '20',
     setupWasteSheets: 50,
-    outputMovementMinutesPerBundle: 10,
+    outputMovementSecondsPerBundle: 10,
     outputBundleSheets: 100,
   }
 }
@@ -104,7 +104,7 @@ describe('Cadastro DOBRADEIRA — catálogo', () => {
       belowMinFormatReducerPercent: 10,
       aboveMaxFormatReducerPercent: 20,
       setupWasteSheets: 50,
-      outputMovementMinutesPerBundle: 10,
+      outputMovementSecondsPerBundle: 10,
       outputBundleSheets: 100,
     }
     const hydrated = hydrateFoldingBlock(fromApi)

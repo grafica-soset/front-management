@@ -160,6 +160,12 @@ export interface StepParameters {
   /** Dobras PARALELAS e CRUZADAS: uma bolsa da dobradeira por dobra, até as bolsas da máquina. */
   parallelFolds?: number
   crossFolds?: number
+  /**
+   * FORMATO FECHADO (atividade 050), em mm: a peça depois de dobrada. O formato do produto é o
+   * aberto; a proposta escreve os dois.
+   */
+  closedWidthMm?: number | null
+  closedHeightMm?: number | null
   /** Máquina escolhida para a etapa automatizada. Nula = a mais barata que dá conta. */
   machineId?: number | null
 }

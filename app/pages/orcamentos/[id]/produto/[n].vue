@@ -199,6 +199,14 @@ const calcBlockers = computed(() => {
   )
   if (semDobras) list.push('Informar as dobras da dobradeira')
 
+  // Dobra (atividade 050): o formato do produto é o aberto; a dobra pede o fechado.
+  const semFechado = p.steps.some(
+    (s) =>
+      catalogs.paramKindOf(catalogs.findActivity(s.activityId)) === 'FOLDING' &&
+      !(s.parameters.closedWidthMm! > 0 && s.parameters.closedHeightMm! > 0),
+  )
+  if (semFechado) list.push('Informar o formato fechado da dobra')
+
   impressoes.forEach((step, index) => {
     const ordinal = impressoes.length > 1 ? ` (${index + 1}ª impressão)` : ''
     const printed = p.sheets.filter((sheet) => isSheetPrinted(sheet, setupFor(step, sheet)))

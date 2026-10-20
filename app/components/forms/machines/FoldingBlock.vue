@@ -5,7 +5,8 @@
  * A dobradeira dobra o papel por BOLSAS (paralelas e cruzadas); cada dobra usa uma bolsa. A
  * velocidade parte da máxima e é reduzida por bolsa usada, gramatura e formato fora do ideal,
  * limitada à mínima. Tem alimentador, espessura máxima do papel, quebra de acerto e
- * movimentação de saída por maço. No orçamento informam-se as dobras paralelas e cruzadas.
+ * movimentação de saída por maço (em segundos). No orçamento informam-se as dobras paralelas e
+ * cruzadas e o formato fechado.
  */
 import { computed } from 'vue'
 import type { FoldingBlockRequest } from '@/types/Machine'
@@ -266,11 +267,11 @@ const fmtErr = (which: 'minFormat' | 'maxFormat', field: 'widthMm' | 'lengthMm')
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Movimentação de saída</label>
           <div class="relative">
-            <input v-model.number="block.outputMovementMinutesPerBundle" type="number" min="0" step="1" :class="inputClass(errors.outputMovementMinutesPerBundle)" />
-            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
+            <input v-model.number="block.outputMovementSecondsPerBundle" type="number" min="0" step="1" :class="inputClass(errors.outputMovementSecondsPerBundle)" />
+            <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">seg</span>
           </div>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Da máquina até o balcão, por maço.</p>
-          <p v-if="errors.outputMovementMinutesPerBundle" class="mt-1 text-xs text-rose-600">{{ errors.outputMovementMinutesPerBundle }}</p>
+          <p v-if="errors.outputMovementSecondsPerBundle" class="mt-1 text-xs text-rose-600">{{ errors.outputMovementSecondsPerBundle }}</p>
         </div>
         <div>
           <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Maço de saída</label>

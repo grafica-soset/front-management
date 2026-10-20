@@ -457,7 +457,7 @@ export function defaultFoldingBlock(): FoldingBlockRequest {
     belowMinFormatReducerPercent: '0',
     aboveMaxFormatReducerPercent: '0',
     setupWasteSheets: 0,
-    outputMovementMinutesPerBundle: 0,
+    outputMovementSecondsPerBundle: 0,
     outputBundleSheets: 100,
   }
 }
@@ -487,7 +487,7 @@ export function hydrateFoldingBlock(block: FoldingBlockResponse | null): Folding
     belowMinFormatReducerPercent: String(block.belowMinFormatReducerPercent),
     aboveMaxFormatReducerPercent: String(block.aboveMaxFormatReducerPercent),
     setupWasteSheets: block.setupWasteSheets ?? 0,
-    outputMovementMinutesPerBundle: block.outputMovementMinutesPerBundle ?? 0,
+    outputMovementSecondsPerBundle: block.outputMovementSecondsPerBundle ?? 0,
     outputBundleSheets: block.outputBundleSheets ?? base.outputBundleSheets,
   }
 }
@@ -501,7 +501,7 @@ export function validateFolding(block: FoldingBlockRequest): Record<string, stri
   const nonNeg: (keyof FoldingBlockRequest)[] = [
     'parallelPockets', 'crossPockets', 'pocketSetupMinutes', 'sideGuideSetupMinutes', 'paperFeedSetupMinutes',
     'feedTimeSecondsPerLoad', 'feedLoadIncrementMm', 'maxPaperThicknessMicrons',
-    'idealWeightMinGsm', 'idealWeightMaxGsm', 'setupWasteSheets', 'outputMovementMinutesPerBundle',
+    'idealWeightMinGsm', 'idealWeightMaxGsm', 'setupWasteSheets', 'outputMovementSecondsPerBundle',
   ]
   for (const k of nonNeg) {
     if (!isNumberAtLeast(block[k] as number, 0)) errors[k] = 'Valor mínimo: 0.'

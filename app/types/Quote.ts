@@ -89,6 +89,9 @@ export interface QuoteStepRequest {
     /** Dobra (atividade 048): dobras paralelas e cruzadas — uma bolsa por dobra. */
     parallelFolds?: number
     crossFolds?: number
+    /** Dobra (atividade 050): formato FECHADO da peça dobrada, em mm. O formato do produto é o aberto. */
+    closedWidthMm?: number | null
+    closedHeightMm?: number | null
     /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
     machineId?: number | null
   }

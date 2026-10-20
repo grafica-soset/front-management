@@ -37,6 +37,7 @@ import {
   sheetsForSheet,
 } from '@/utils/quoteModel'
 import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
+import { isProcessOnlySelection, presetInkIds } from '@/utils/inkTypes'
 import type { DuplexMode, SheetCostingResponse } from '@/types/Quote'
 
 const props = defineProps<{
@@ -286,16 +287,26 @@ const machineWithoutPlates = computed(() => {
 })
 
 
-/** As cores são o interruptor: zero nas duas faces tira a folha desta impressão. */
+/**
+ * As cores são o interruptor: zero nas duas faces tira a folha desta impressão.
+ *
+ * PRÉ-SELEÇÃO (atividade 050): 1 cor já marca o preto e 4 cores a seleção CMYK — é o caso comum. Só
+ * enquanto a face não tem cor especial escolhida: quem marcou um Pantone à mão não o perde por mudar
+ * a quantidade.
+ */
 const setColors = (sheet: QuoteSheet, face: 'front' | 'back', value: number) => {
   const colors = Math.max(0, Math.min(8, Math.floor(value || 0)))
   const current = setup(sheet)
+  const inks = inksFor(sheet)
+  const selected = face === 'front' ? current.frontInkIds : current.backInkIds
+  const preset = isProcessOnlySelection(selected, inks) ? presetInkIds(colors, inks) : []
+  const next = preset.length > 0 ? preset : selected.slice(0, colors)
   if (face === 'front') {
     current.frontColors = colors
-    current.frontInkIds = current.frontInkIds.slice(0, colors)
+    current.frontInkIds = next
   } else {
     current.backColors = colors
-    current.backInkIds = current.backInkIds.slice(0, colors)
+    current.backInkIds = next
   }
   store.pruneInks()
 }

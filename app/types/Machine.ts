@@ -654,8 +654,8 @@ export interface FoldingBlockRequest {
   aboveMaxFormatReducerPercent: string
   /** Quebra de acerto fixa (folhas). */
   setupWasteSheets: number
-  /** Movimentação de saída (min) por maço. */
-  outputMovementMinutesPerBundle: number
+  /** Movimentação de saída (segundos) por maço — era em minutos até a atividade 050. */
+  outputMovementSecondsPerBundle: number
   outputBundleSheets: number
 }
 
@@ -687,7 +687,7 @@ export interface FoldingBlockResponse {
   belowMinFormatReducerPercent: number
   aboveMaxFormatReducerPercent: number
   setupWasteSheets: number
-  outputMovementMinutesPerBundle: number
+  outputMovementSecondsPerBundle: number
   outputBundleSheets: number
 }
 
