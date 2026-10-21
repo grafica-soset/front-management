@@ -132,7 +132,7 @@ const print = () => window.print()
             Valor R$: {{ proposalMoney(item.totalPrice) }}
             <span class="ml-4">Valor Unitário R$: {{ proposalUnitMoney(item.unitPrice) }}</span>
           </p>
-          <!-- Sem totalizar, cada produto tem o seu prazo; totalizada, vale o das condições (atividade 049). -->
+          <!-- O prazo do produto, quando tem; o geral sai nas condições — os dois são impressos. -->
           <p v-if="item.deliveryTerms?.trim()">Prazo de entrega: {{ item.deliveryTerms }}</p>
         </div>
       </section>
