@@ -412,6 +412,15 @@ export interface PackagingCostingResponse {
   laborCost: number
   /** Altura da pilha de UM pacote (mm) — atividade 045. Ausente em orçamentos salvos antes dela. */
   packageHeightMm?: number
+  /**
+   * A peça como vai para o pacote (mm): o formato FECHADO quando há dobra, senão o aberto. O peso
+   * continua pelo `widthMm`/`heightMm`. Ausentes em orçamentos salvos antes do campo.
+   */
+  packedWidthMm?: number
+  packedHeightMm?: number
+  /** Camadas de papel de cada peça no pacote: área aberta ÷ fechada (folder em 3 = 3). */
+  layersPerPiece?: number
+  folded?: boolean
   wrappingPaperName: string | null
   wrappingSheetWidthMm?: number
   wrappingSheetHeightMm?: number

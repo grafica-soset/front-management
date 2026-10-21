@@ -115,11 +115,16 @@ const kg = (value: number) => `${value.toLocaleString('pt-BR', { maximumFraction
 
 const pct = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
 
-/** O pacote como bloco: "21 × 29,7 × 3,9 cm" — a peça e a altura da pilha de um pacote. */
+/**
+ * O pacote como bloco: "21 × 29,7 × 3,9 cm" — a peça e a altura da pilha de um pacote. Peça dobrada
+ * vai FECHADA para o pacote (`packedWidthMm`); orçamentos salvos antes disso não têm o campo.
+ */
 const packageBlock = computed(() => {
   const p = packaging.value
   if (!p) return ''
-  return `${format(p.widthMm, { withSuffix: false })} × ${format(p.heightMm, { withSuffix: false })} × ${format(p.packageHeightMm ?? 0)}`
+  const width = p.packedWidthMm || p.widthMm
+  const height = p.packedHeightMm || p.heightMm
+  return `${format(width, { withSuffix: false })} × ${format(height, { withSuffix: false })} × ${format(p.packageHeightMm ?? 0)}`
 })
 
 /** O pedaço de embrulho de um pacote: "49,8 × 37,5 cm". */
@@ -978,7 +983,8 @@ const printingTables = computed(() => {
       >
         <p class="text-slate-500 dark:text-slate-400">
           Pacote: <strong class="text-slate-700 dark:text-slate-200">{{ packageBlock }}</strong>
-          — {{ packaging.piecesPerPackage.toLocaleString('pt-BR') }} folha(s) de pilha.
+          — {{ packaging.piecesPerPackage.toLocaleString('pt-BR') }} folha(s) de pilha<template v-if="packaging.folded">,
+            dobradas (formato fechado), {{ packaging.layersPerPiece }} camada(s) de papel cada</template>.
           Pedaço de embrulho, sem emenda (dá a volta e fecha as pontas):
           <strong class="text-slate-700 dark:text-slate-200">{{ wrapBlank }}</strong>
         </p>
