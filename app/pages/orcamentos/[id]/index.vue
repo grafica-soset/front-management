@@ -428,9 +428,6 @@ const inputClass =
             </button>
           </div>
         </div>
-        <p v-if="!store.totalizeProposal" class="-mt-2 text-xs text-slate-500 sm:col-span-2 dark:text-slate-400">
-          Proposta não totalizada: cada produto sai com o seu prazo de entrega; o produto sem prazo usa o geral.
-        </p>
         <div class="sm:col-span-2">
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Observações</label>
           <textarea v-model="store.notes" rows="2" maxlength="2000" :disabled="store.readOnly" :class="inputClass" />
@@ -575,13 +572,13 @@ const inputClass =
                   </div>
                   <div>
                     <label :for="`product-delivery-${p.uid}`" class="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Prazo de entrega</label>
-                    <div v-if="!store.totalizeProposal" class="flex gap-2">
+                    <div class="flex gap-2">
                       <input
                         :id="`product-delivery-${p.uid}`"
                         v-model="p.deliveryTerms"
                         type="text"
                         maxlength="500"
-                        :placeholder="store.conditions.deliveryTerms ? `Vazio usa o geral: ${store.conditions.deliveryTerms}` : 'Ex.: 3 dias úteis após aprovação da arte'"
+                        placeholder="Ex.: 3 dias úteis após aprovação da arte"
                         :disabled="store.readOnly"
                         :class="inputClass"
                       />
@@ -595,9 +592,6 @@ const inputClass =
                         Opções
                       </button>
                     </div>
-                    <p v-else class="py-2 text-xs text-slate-500 dark:text-slate-400">
-                      Proposta totalizada: vale o prazo de entrega geral, das condições de fornecimento.
-                    </p>
                   </div>
                 </div>
               </td>

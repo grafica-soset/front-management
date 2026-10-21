@@ -46,8 +46,8 @@ export interface ProposalItem {
   /** Observação do produto (atividade 049). */
   notes: string | null
   /**
-   * Prazo de entrega do produto — só na proposta NÃO totalizada (o do produto ou, sem ele, o geral).
-   * Na totalizada vem nulo e vale o das condições (atividade 049).
+   * Prazo de entrega do produto (atividade 049), quando preenchido. Não herda o geral: o geral vem
+   * nas condições, e a proposta imprime os dois.
    */
   deliveryTerms: string | null
 }
