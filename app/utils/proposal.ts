@@ -70,3 +70,82 @@ export function logoUrlIssue(value: string | null | undefined): string | null {
     return 'Informe um endereço http:// ou https://.'
   }
 }
+
+// ---- Cabeçalho da proposta configurado pela gráfica ----
+
+/** Um pedaço de linha do cabeçalho, com o estilo que os marcadores pediram. */
+export interface HeaderSegment {
+  text: string
+  bold: boolean
+  italic: boolean
+}
+
+/** No máximo — as mesmas regras do servidor. */
+export const PROPOSAL_HEADER_MAX_LINES = 12
+export const PROPOSAL_HEADER_MAX_LENGTH = 1000
+
+const HEADER_MARKER = /(\*\*\*[^*]+?\*\*\*|\*\*[^*]+?\*\*|\*[^*]+?\*)/g
+
+/**
+ * "CNPJ ***49.204.274/0001-91***" → [CNPJ ] [49.204.274/0001-91 em negrito itálico].
+ * `**negrito**`, `*itálico*`, `***os dois***`. Asterisco sem par fica como texto.
+ */
+export function headerSegments(line: string): HeaderSegment[] {
+  const segments: HeaderSegment[] = []
+  for (const part of line.split(HEADER_MARKER)) {
+    if (!part) continue
+    const stars = part.length > 2 && part.startsWith('*') && part.endsWith('*')
+      ? Math.min(part.match(/^\*+/)![0].length, part.match(/\*+$/)![0].length, 3)
+      : 0
+    if (stars === 0) {
+      segments.push({ text: part, bold: false, italic: false })
+      continue
+    }
+    segments.push({ text: part.slice(stars, -stars), bold: stars >= 2, italic: stars !== 2 })
+  }
+  return segments
+}
+
+/** As linhas do texto do cabeçalho; as em branco do meio ficam (são o espaçamento da gráfica). */
+export function headerLines(text: string | null | undefined): HeaderSegment[][] {
+  const lines = (text ?? '').replace(/\r\n?/g, '\n').split('\n').map((line) => line.trimEnd())
+  while (lines.length && !lines[0]!.trim()) lines.shift()
+  while (lines.length && !lines[lines.length - 1]!.trim()) lines.pop()
+  return lines.map(headerSegments)
+}
+
+/** O que há de errado com o texto do cabeçalho — as mesmas regras do servidor. Vazio é válido. */
+export function proposalHeaderIssue(text: string | null | undefined): string | null {
+  const lines = headerLines(text)
+  if (lines.length > PROPOSAL_HEADER_MAX_LINES) return `No máximo ${PROPOSAL_HEADER_MAX_LINES} linhas.`
+  const normalized = (text ?? '').replace(/\r\n?/g, '\n').split('\n').map((l) => l.trimEnd()).join('\n').trim()
+  if (normalized.length > PROPOSAL_HEADER_MAX_LENGTH) return `No máximo ${PROPOSAL_HEADER_MAX_LENGTH} caracteres.`
+  return null
+}
+
+/** Os dados do cadastro que servem de ponto de partida para o texto do cabeçalho. */
+export interface HeaderCompanyData {
+  name: string
+  corporateName: string | null
+  document: string
+  email: string | null
+  phone: string | null
+  address?: ProposalAddress | null
+}
+
+/**
+ * O cabeçalho montado do cadastro, já no formato do texto: é o que a proposta imprime quando a
+ * gráfica não escreveu o dela, e o ponto de partida do "Preencher com o cadastro".
+ */
+export function defaultProposalHeader(
+  company: HeaderCompanyData,
+  format: { document: (v: string) => string; phone: (v: string) => string },
+): string {
+  return [
+    `**${company.corporateName || company.name}**`,
+    ...addressLines(company.address),
+    company.phone ? `Fone: ${format.phone(company.phone)}` : '',
+    company.email ? `E-mail: ${company.email}` : '',
+    `CNPJ ***${format.document(company.document)}***`,
+  ].filter((line) => line.trim()).join('\n')
+}

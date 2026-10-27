@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { addressLines, itemsForPrint, logoUrlIssue, proposalMoney, proposalPlaceAndDate, proposalUnitMoney } from '@/utils/proposal'
+import {
+  addressLines, defaultProposalHeader, headerLines, headerSegments, itemsForPrint, logoUrlIssue, proposalHeaderIssue,
+  proposalMoney, proposalPlaceAndDate, proposalUnitMoney,
+} from '@/utils/proposal'
 
 /** Apresentação da proposta de fornecimento (atividade 038), no jeito que a gráfica já escreve. */
 describe('proposta', () => {
@@ -43,5 +46,45 @@ describe('proposta', () => {
     expect(logoUrlIssue('https://cdn.soset.com.br/logo.png')).toBeNull()
     expect(logoUrlIssue('javascript:alert(1)')).not.toBeNull()
     expect(logoUrlIssue('logo.png')).not.toBeNull()
+  })
+
+  it('cabeçalho com negrito e itálico, como a Soset escreve o dela', () => {
+    expect(headerSegments('CNPJ ***49.204.274/0001-91***')).toEqual([
+      { text: 'CNPJ ', bold: false, italic: false },
+      { text: '49.204.274/0001-91', bold: true, italic: true },
+    ])
+    expect(headerSegments('**gráfica soset**')).toEqual([{ text: 'gráfica soset', bold: true, italic: false }])
+    expect(headerSegments('*itálico* e 2 * 3')).toEqual([
+      { text: 'itálico', bold: false, italic: true },
+      { text: ' e 2 * 3', bold: false, italic: false },
+    ])
+  })
+
+  it('linha em branco do meio fica; as das pontas saem', () => {
+    const lines = headerLines('\r\n**gráfica soset**\r\n**indústria e comércio ltda.**\r\n\r\nRua Tte. Cel. Zacarias, 88\n\n')
+    expect(lines).toHaveLength(4)
+    expect(lines[2]).toEqual([])
+    expect(lines[3]).toEqual([{ text: 'Rua Tte. Cel. Zacarias, 88', bold: false, italic: false }])
+  })
+
+  it('no máximo 12 linhas no cabeçalho', () => {
+    expect(proposalHeaderIssue('')).toBeNull()
+    expect(proposalHeaderIssue(Array.from({ length: 12 }, (_, i) => `linha ${i}`).join('\n'))).toBeNull()
+    expect(proposalHeaderIssue(Array.from({ length: 13 }, (_, i) => `linha ${i}`).join('\n'))).not.toBeNull()
+  })
+
+  it('cabeçalho montado do cadastro no formato do texto', () => {
+    const text = defaultProposalHeader(
+      {
+        name: 'Gráfica Soset', corporateName: 'Gráfica Soset Indústria e Comércio Ltda.', document: '49204274000191',
+        email: 'soset@soset.com.br', phone: '1338411142',
+        address: { street: 'Rua Tte. Cel. Zacarias', number: '88', complement: null, neighborhood: null, city: 'Iguape', state: 'SP', postalCode: null },
+      },
+      { document: () => '49.204.274/0001-91', phone: () => '(13) 3841-1142' },
+    )
+    expect(text).toBe(
+      '**Gráfica Soset Indústria e Comércio Ltda.**\nRua Tte. Cel. Zacarias, 88\nIguape - SP\n' +
+        'Fone: (13) 3841-1142\nE-mail: soset@soset.com.br\nCNPJ ***49.204.274/0001-91***',
+    )
   })
 })

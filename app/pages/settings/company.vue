@@ -11,20 +11,22 @@
  */
 import { computed, ref, watch } from 'vue'
 import MeasurementUnitForm from '@/components/forms/MeasurementUnitForm.vue'
-import CompanyLogoForm from '@/components/forms/CompanyLogoForm.vue'
+import ProposalHeaderForm from '@/components/forms/ProposalHeaderForm.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomers } from '@/composables/useCustomers'
 import { extractApiError } from '@/utils/apiError'
+import { formatBrazilianDocument, formatPhone } from '@/utils/clientFormatting'
+import { defaultProposalHeader } from '@/utils/proposal'
 import type { MeasurementUnit } from '@/types/MeasurementUnit'
 import type { CustomerProperties } from '@/types/CustomerProperties'
-import type { UpdateCustomerSettingsRequest } from '@/types/CustomerSettings'
+import type { UpdateCustomerSettingsRequest, UpdateProposalHeaderRequest } from '@/types/CustomerSettings'
 
 definePageMeta({
   middleware: 'auth',
 })
 
 const auth = useAuthStore()
-const { getCustomerProperties, updateCustomerSettings, updateCustomerLogo } = useCustomers()
+const { getCustomerProperties, updateCustomerSettings, updateProposalHeader } = useCustomers()
 
 const loadingProperties = ref(false)
 const loadingSave = ref(false)
@@ -85,25 +87,33 @@ const handleSubmit = async (payload: UpdateCustomerSettingsRequest) => {
   }
 }
 
-// ---- Logo (atividade 038) ----
-const logoSaving = ref(false)
-const logoError = ref<string | null>(null)
-const logoSaved = ref(false)
+// ---- Cabeçalho da proposta: logo (atividade 038) + texto ----
+const headerSaving = ref(false)
+const headerError = ref<string | null>(null)
+const headerSaved = ref(false)
 
-const handleLogo = async (logoUrl: string | null) => {
+// O cabeçalho montado do cadastro — o endereço não vem nas propriedades e a gráfica completa à mão.
+const defaultHeaderText = computed(() =>
+  properties.value
+    ? defaultProposalHeader(properties.value.person, { document: formatBrazilianDocument, phone: formatPhone })
+    : '',
+)
+
+const handleHeader = async (payload: UpdateProposalHeaderRequest) => {
   const id = activeCompanyId.value
   if (!id || !properties.value) return
-  logoSaving.value = true
-  logoError.value = null
-  logoSaved.value = false
+  headerSaving.value = true
+  headerError.value = null
+  headerSaved.value = false
   try {
-    const settings = await updateCustomerLogo(id, { logoUrl })
+    const settings = await updateProposalHeader(id, payload)
     properties.value.settings.logoUrl = settings.logoUrl ?? null
-    logoSaved.value = true
+    properties.value.settings.proposalHeader = settings.proposalHeader ?? null
+    headerSaved.value = true
   } catch (err) {
-    logoError.value = extractApiError(err, 'Não foi possível salvar a logo.')
+    headerError.value = extractApiError(err, 'Não foi possível salvar o cabeçalho.')
   } finally {
-    logoSaving.value = false
+    headerSaving.value = false
   }
 }
 </script>
@@ -203,21 +213,24 @@ const handleLogo = async (logoUrl: string | null) => {
         />
       </section>
 
-      <!-- Logo (atividade 038) -->
+      <!-- Cabeçalho da proposta: logo (atividade 038) + texto -->
       <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
         <div class="mb-5">
-          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Logo</h2>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Cabeçalho da proposta</h2>
           <p class="text-sm text-slate-500 dark:text-slate-400">
-            Aparece no cabeçalho da proposta impressa.
+            A logo e o texto que abrem a proposta impressa, do jeito que a gráfica escreve o dela.
           </p>
         </div>
-        <CompanyLogoForm
+        <ProposalHeaderForm
           v-if="properties"
-          :initial="properties.settings.logoUrl ?? null"
-          :loading="logoSaving"
-          :server-error="logoError"
-          :saved="logoSaved"
-          @submit="handleLogo"
+          :initial-logo-url="properties.settings.logoUrl ?? null"
+          :initial-header-text="properties.settings.proposalHeader ?? null"
+          :default-header-text="defaultHeaderText"
+          :company-name="properties.person.name"
+          :loading="headerSaving"
+          :server-error="headerError"
+          :saved="headerSaved"
+          @submit="handleHeader"
         />
       </section>
     </template>

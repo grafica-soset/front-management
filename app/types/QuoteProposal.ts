@@ -22,6 +22,8 @@ export interface ProposalCompany {
   phone: string | null
   address: ProposalAddress | null
   logoUrl: string | null
+  /** Texto do cabeçalho configurado pela gráfica (**negrito**, *itálico*). Nulo = montar do cadastro. */
+  headerText: string | null
 }
 
 export interface ProposalRecipient {
