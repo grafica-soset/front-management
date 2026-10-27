@@ -6,6 +6,8 @@ export interface CustomerSettings {
   measurementUnit: MeasurementUnit
   /** URL da logo (atividade 038) — cabeçalho da proposta impressa. */
   logoUrl?: string | null
+  /** Texto do cabeçalho da proposta (linhas, **negrito**, *itálico*). Nulo = montado do cadastro. */
+  proposalHeader?: string | null
   /** Taxa de manutenção da faca de corte e vinco, em R$ (atividade 046) — cobrada quando a faca é do cliente. */
   dieMaintenanceFee?: number
 }
@@ -17,7 +19,11 @@ export interface UpdateCustomerSettingsRequest {
   dieMaintenanceFee?: number
 }
 
-/** Payload de PUT /customers/{customerId}/logo. Nulo remove a logo. */
-export interface UpdateCustomerLogoRequest {
+/**
+ * Payload de PUT /customers/{customerId}/proposal-header. Logo nula remove; texto nulo volta ao
+ * cabeçalho montado do cadastro.
+ */
+export interface UpdateProposalHeaderRequest {
   logoUrl: string | null
+  headerText: string | null
 }

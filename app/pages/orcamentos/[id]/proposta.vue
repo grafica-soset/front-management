@@ -14,7 +14,8 @@ import { computed, ref } from 'vue'
 import { useQuotes } from '@/composables/useQuotes'
 import { extractApiError } from '@/utils/apiError'
 import { formatBrazilianDocument, formatPhone } from '@/utils/clientFormatting'
-import { addressLines, itemsForPrint, proposalMoney, proposalPlaceAndDate, proposalUnitMoney } from '@/utils/proposal'
+import ProposalHeader from '@/components/quotes/ProposalHeader.vue'
+import { defaultProposalHeader, itemsForPrint, proposalMoney, proposalPlaceAndDate, proposalUnitMoney } from '@/utils/proposal'
 import type { QuoteProposal } from '@/types/QuoteProposal'
 
 definePageMeta({ middleware: 'auth', layout: false })
@@ -24,7 +25,6 @@ const quotes = useQuotes()
 
 const proposal = ref<QuoteProposal | null>(null)
 const error = ref<string | null>(null)
-const logoFailed = ref(false)
 
 onMounted(async () => {
   try {
@@ -37,6 +37,14 @@ onMounted(async () => {
 
 const company = computed(() => proposal.value?.company)
 const companyDisplayName = computed(() => company.value?.name ?? '')
+// O texto que a gráfica configurou; sem ele, o montado do cadastro.
+const headerText = computed(() => {
+  const c = company.value
+  if (!c) return ''
+  return c.headerText?.trim()
+    ? c.headerText
+    : defaultProposalHeader(c, { document: formatBrazilianDocument, phone: formatPhone })
+})
 const items = computed(() => (proposal.value ? itemsForPrint(proposal.value.items) : []))
 const conditions = computed(() => {
   const c = proposal.value?.conditions
@@ -81,28 +89,10 @@ const print = () => window.print()
     <!-- A folha -->
     <article
       v-else
-      class="proposal-sheet mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[18mm] py-[15mm] text-[10.5pt] leading-snug text-black shadow-lg print:min-h-0 print:max-w-none print:p-0 print:shadow-none"
+      class="proposal-sheet mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[18mm] py-[15mm] font-[Calibri,Carlito,sans-serif] text-[11pt] leading-snug text-black shadow-lg print:min-h-0 print:max-w-none print:p-0 print:shadow-none"
     >
-      <!-- Cabeçalho: logo à esquerda, dados da gráfica à direita -->
-      <header class="flex items-start justify-between gap-6">
-        <div class="flex min-h-[22mm] max-w-[60%] items-center">
-          <img
-            v-if="company!.logoUrl && !logoFailed"
-            :src="company!.logoUrl"
-            :alt="companyDisplayName"
-            class="max-h-[26mm] max-w-full object-contain"
-            @error="logoFailed = true"
-          />
-          <span v-else class="text-2xl font-bold">{{ companyDisplayName }}</span>
-        </div>
-        <div class="text-right text-[8.5pt] leading-tight">
-          <p class="font-bold">{{ company!.corporateName || company!.name }}</p>
-          <p v-for="line in addressLines(company!.address)" :key="line" class="mt-0.5">{{ line }}</p>
-          <p v-if="company!.phone" class="mt-0.5">Fone: {{ phone(company!.phone) }}</p>
-          <p v-if="company!.email">E-mail: {{ company!.email }}</p>
-          <p>CNPJ <strong class="italic">{{ formatBrazilianDocument(company!.document) }}</strong></p>
-        </div>
-      </header>
+      <!-- Cabeçalho: logo à esquerda, texto da gráfica à direita (configurações da empresa) -->
+      <ProposalHeader :logo-url="company!.logoUrl" :header-text="headerText" :company-name="companyDisplayName" />
 
       <!-- Destinatário -->
       <section class="mt-8">
