@@ -21,6 +21,8 @@ import { useAuthStore } from '@/stores/auth'
 interface PageOptions {
   status?: QuoteStatus | null
   clientId?: number | null
+  /** Número, referência ou nome do cliente. */
+  search?: string
   page?: number
   size?: number
 }
@@ -42,6 +44,7 @@ export function useQuotes() {
     }
     if (options.status) query.status = options.status
     if (options.clientId) query.clientId = options.clientId
+    if (options.search) query.search = options.search
     return await api<SavedQuotePage>('/quotes/page', { query })
   }
 

@@ -268,8 +268,14 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     /** Nulo enquanto o orçamento nunca foi salvo. */
     quoteId: null as number | null,
     quoteNumber: null as number | null,
+    quoteReference: null as string | null,
     quoteStatus: null as QuoteStatus | null,
     clientId: null as number | null,
+    /** Contato do cliente responsável pela aprovação. Nulo = a proposta usa o principal. */
+    contactId: null as number | null,
+    sellerId: null as number | null,
+    /** O nome do vendedor gravado: o inativo não vem na lista de vendedores. */
+    sellerName: null as string | null,
     /** Comissão de agência: percentual SOBRE o total dos produtos. */
     agencyCommissionPercent: 0,
     notes: '',
@@ -486,8 +492,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.calcError = null
       this.quoteId = null
       this.quoteNumber = null
+      this.quoteReference = null
       this.quoteStatus = null
       this.clientId = null
+      this.contactId = null
+      this.sellerId = null
+      this.sellerName = null
       this.agencyCommissionPercent = 0
       this.notes = ''
       this.conditions = emptyConditions()
@@ -545,6 +555,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.quoteNumber = saved.number
       this.quoteStatus = saved.status
       this.clientId = saved.clientId
+      this.contactId = saved.contactId ?? null
+      this.sellerId = saved.sellerId ?? null
       this.agencyCommissionPercent = Number(saved.agencyCommissionPercent) || 0
       this.notes = saved.notes ?? ''
       this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
@@ -572,6 +584,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
      * gravado, o preço assumido e a aprovação. Depois disso o orçamento está "salvo".
      */
     syncSaved(saved: SavedQuote) {
+      this.quoteReference = saved.reference ?? null
+      this.sellerName = saved.sellerName ?? null
       ;(saved.products ?? []).forEach((sp, index) => {
         const product = this.products[index]
         if (!product) return
@@ -597,6 +611,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     toSaveRequest(): Omit<SaveQuoteRequest, 'customerId'> {
       return {
         clientId: this.clientId ?? 0,
+        contactId: this.contactId,
+        sellerId: this.sellerId,
         agencyCommissionPercent: Number(this.agencyCommissionPercent) || 0,
         notes: this.notes.trim() || null,
         conditions: {
