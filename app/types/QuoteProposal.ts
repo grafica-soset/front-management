@@ -36,6 +36,14 @@ export interface ProposalRecipient {
   mobile: string | null
 }
 
+/** O vendedor do orçamento e como falar com ele. */
+export interface ProposalSeller {
+  name: string
+  email: string | null
+  phone: string | null
+  mobile: string | null
+}
+
 export interface ProposalItem {
   position: number
   quantity: number
@@ -57,6 +65,8 @@ export interface ProposalItem {
 export interface QuoteProposal {
   quoteId: number
   number: number
+  /** Sai em "N/Ref.". */
+  reference: string
   status: QuoteStatus
   issuedAt: string | null
   company: ProposalCompany
@@ -71,4 +81,6 @@ export interface QuoteProposal {
   conditions: SupplyConditions
   notes: string | null
   signedBy: string | null
+  /** Nulo quando o orçamento não tem vendedor. */
+  seller: ProposalSeller | null
 }

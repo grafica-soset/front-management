@@ -43,6 +43,10 @@ export interface SaveQuoteProductRequest {
 export interface SaveQuoteRequest {
   customerId: number
   clientId: number
+  /** Contato do cliente responsável pela aprovação. Nulo = a proposta usa o principal. */
+  contactId: number | null
+  /** Vendedor da empresa, opcional. */
+  sellerId: number | null
   agencyCommissionPercent: number
   notes: string | null
   conditions: SupplyConditions
@@ -93,8 +97,14 @@ export interface SavedQuote {
   id: number
   customerId: number
   number: number
+  /** Identificador de busca: data + iniciais do cliente + número (20260302MDH00001). */
+  reference: string
   clientId: number
   clientName: string | null
+  contactId: number | null
+  sellerId: number | null
+  /** Vem mesmo com o vendedor inativo, que não aparece em `GET /sellers`. */
+  sellerName: string | null
   status: QuoteStatus
   agencyCommissionPercent: number
   notes: string | null
@@ -116,6 +126,7 @@ export interface SavedQuote {
 export interface SavedQuoteRow {
   id: number
   number: number
+  reference: string
   clientId: number
   clientName: string
   status: QuoteStatus

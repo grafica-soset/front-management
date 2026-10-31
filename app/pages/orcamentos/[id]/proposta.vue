@@ -3,9 +3,9 @@
  * PROPOSTA DE FORNECIMENTO (atividade 038) — o orçamento como vai para o cliente.
  *
  * Segue a proposta que a gráfica já envia: cabeçalho com a logo e os dados da gráfica, "À:" o
- * cliente e "A/C:" o contato, cada produto com quantidade, descrição e valores ("Idem acima ..."
- * quando só a quantidade muda), as condições de fornecimento e a assinatura de quem fez o
- * orçamento.
+ * cliente e "A/C:" o contato que aprova, cada produto com quantidade, descrição e valores ("Idem acima ..."
+ * quando só a quantidade muda), as condições de fornecimento, a assinatura de quem fez o
+ * orçamento e o vendedor com os dados dele.
  *
  * Página própria, sem o layout do sistema: é uma folha A4 que o navegador imprime (ou salva em
  * PDF). A barra de cima some na impressão.
@@ -156,7 +156,15 @@ const print = () => window.print()
         <p class="mt-10">{{ proposal.signedBy ?? companyDisplayName }}</p>
       </section>
 
-      <p class="mt-8">N/Ref.: {{ proposal.number }}</p>
+      <!-- Vendedor: com quem o cliente fala sobre a proposta. -->
+      <section v-if="proposal.seller" class="mt-6 break-inside-avoid">
+        <p>Vendedor: {{ proposal.seller.name }}</p>
+        <p v-if="proposal.seller.phone">Fone: {{ phone(proposal.seller.phone) }}</p>
+        <p v-if="proposal.seller.mobile">Cel: {{ phone(proposal.seller.mobile) }}</p>
+        <p v-if="proposal.seller.email">Email: {{ proposal.seller.email }}</p>
+      </section>
+
+      <p class="mt-8">N/Ref.: {{ proposal.reference }}</p>
     </article>
   </div>
 </template>

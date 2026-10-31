@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useQuoteDraftStore } from '@/stores/quoteDraft'
 import type { ProductCostingResponse } from '@/types/Quote'
+import type { SavedQuote } from '@/types/SavedQuote'
 
 /**
  * Rascunho do orçamento: o que o assistente guarda entre uma edição e outra.
@@ -208,5 +209,37 @@ describe('store do rascunho de orçamento', () => {
     store.remove(uid)
 
     expect(store.costs[uid]).toBeUndefined()
+  })
+
+  it('vendedor e contato vão no corpo do salvar, voltam do salvo e somem ao limpar', () => {
+    const store = useQuoteDraftStore()
+    store.loadSaved({
+      id: 6,
+      number: 118,
+      reference: '20260924PC00118',
+      clientId: 318,
+      contactId: 52,
+      sellerId: 9,
+      sellerName: 'Ana Souza',
+      status: 'PENDING_APPROVAL',
+      agencyCommissionPercent: 0,
+      notes: null,
+      conditions: { proposalValidity: null, deliveryTerms: null, paymentTerms: null, bankDetails: null },
+      totalizeProposal: false,
+      products: [],
+    } as unknown as SavedQuote)
+
+    expect(store.quoteReference).toBe('20260924PC00118')
+    expect(store.sellerName).toBe('Ana Souza')
+    expect(store.toSaveRequest()).toMatchObject({ clientId: 318, contactId: 52, sellerId: 9 })
+    expect(store.dirty).toBe(false)
+
+    store.contactId = null
+    expect(store.dirty).toBe(true)
+
+    store.clearQuote()
+    expect(store.toSaveRequest()).toMatchObject({ contactId: null, sellerId: null })
+    expect(store.quoteReference).toBeNull()
+    expect(store.sellerName).toBeNull()
   })
 })

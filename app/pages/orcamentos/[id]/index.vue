@@ -25,16 +25,19 @@ import { useQuoteCatalogs } from '@/composables/useQuoteCatalogs'
 import { useUnitConverter } from '@/composables/useUnitConverter'
 import { useClients } from '@/composables/useClients'
 import { useQuotes } from '@/composables/useQuotes'
+import { useSellers } from '@/composables/useSellers'
 import { useProductCatalog } from '@/composables/useProductCatalog'
 import { useProductTemplates } from '@/composables/useProductTemplates'
 import { useToast } from '@/composables/useToast'
 import { extractApiError } from '@/utils/apiError'
 import { parseQuoteSegment, productPath, quotePath } from '@/utils/quoteRoutes'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
-import type { ClientSearchItem } from '@/types/Client'
+import type { Client, ClientContact, ClientSearchItem } from '@/types/Client'
+import type { SellerListItem } from '@/types/Seller'
 import { useClientSearch } from '@/composables/useClientSearch'
 import ClientSearchCombobox from '@/components/clients/ClientSearchCombobox.vue'
 import QuickClientModal from '@/components/clients/QuickClientModal.vue'
+import QuickContactModal from '@/components/clients/QuickContactModal.vue'
 import type { QuoteStatus } from '@/types/SavedQuote'
 import TemplatePickerModal from '@/components/quotes/TemplatePickerModal.vue'
 import TermOptionPickerModal from '@/components/quotes/TermOptionPickerModal.vue'
@@ -53,14 +56,61 @@ const quotesApi = useQuotes()
 const toast = useToast()
 const productCatalog = useProductCatalog()
 const productTemplates = useProductTemplates()
+const clientsApi = useClients()
+const sellersApi = useSellers()
 
 // Cliente por BUSCA (são muitos): o escolhido fica com nome, e-mail e documento à vista.
 const clientSearch = useClientSearch()
 const selectedClient = ref<ClientSearchItem | null>(null)
 
+// Contato que aprova: os do cliente escolhido. Ao trocar de cliente, já vem o principal.
+const clientContacts = ref<ClientContact[]>([])
+
+const pickPrimaryContact = async (clientId: number) => {
+  try {
+    const { contacts } = await clientsApi.getById(clientId)
+    if (store.clientId !== clientId) return
+    clientContacts.value = contacts
+    store.contactId = contacts.find((c) => c.primary)?.id ?? null
+  } catch {
+    // Sem a lista o orçamento segue sem contato escolhido: a proposta usa o principal.
+    if (store.clientId === clientId) clientContacts.value = []
+  }
+}
+
 const selectClient = (client: ClientSearchItem | null) => {
   selectedClient.value = client
   store.clientId = client?.id ?? null
+  store.contactId = null
+  clientContacts.value = []
+  if (client) pickPrimaryContact(client.id)
+}
+
+// Contato que ainda não existe: cadastro rápido, e ele já fica escolhido.
+const quickContactOpen = ref(false)
+const onContactCreated = (client: Client, contact: ClientContact) => {
+  quickContactOpen.value = false
+  if (store.clientId !== client.id) return
+  clientContacts.value = client.contacts
+  store.contactId = contact.id
+}
+
+const contactLabel = (contact: ClientContact) =>
+  [contact.name, contact.position, contact.primary ? 'principal' : null].filter(Boolean).join(' · ')
+
+// Vendedor: os ativos da empresa. O inativo que já está no orçamento continua como opção.
+const sellers = ref<SellerListItem[]>([])
+const sellerOptions = computed(() => {
+  const id = store.sellerId
+  if (id == null || sellers.value.some((s) => s.id === id)) return sellers.value
+  return [{ id, name: store.sellerName ?? 'Vendedor atual' }, ...sellers.value]
+})
+const loadSellers = async () => {
+  try {
+    sellers.value = await sellersApi.list()
+  } catch {
+    sellers.value = []
+  }
 }
 
 // Cliente que ainda não existe: cadastro rápido sem sair do orçamento, e ele já fica escolhido.
@@ -75,7 +125,9 @@ const loadSelectedClient = async () => {
   const id = store.clientId
   if (!id || selectedClient.value?.id === id) return
   try {
-    const c = await useClients().getById(id)
+    const c = await clientsApi.getById(id)
+    if (store.clientId !== id) return
+    clientContacts.value = c.contacts
     selectedClient.value = {
       id: c.id,
       personType: c.personType,
@@ -122,6 +174,7 @@ const openFromRoute = async () => {
 
 onMounted(async () => {
   catalogs.load()
+  loadSellers()
   await openFromRoute()
   loadTermOptions()
 })
@@ -319,6 +372,9 @@ const inputClass =
             {{ QUOTE_STATUS_LABELS[store.quoteStatus] }}
           </span>
         </div>
+        <p v-if="store.quoteReference" class="mt-1 text-sm font-medium tabular-nums text-slate-600 dark:text-slate-300">
+          Ref. {{ store.quoteReference }}
+        </p>
         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
           O cliente, os produtos com o preço de cada um e a comissão de agência sobre o total.
         </p>
@@ -395,6 +451,33 @@ const inputClass =
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Comissão de agência (%)</label>
           <input v-model.number="store.agencyCommissionPercent" type="number" min="0" max="100" step="0.01" :disabled="store.readOnly" :class="inputClass" />
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Aplicada sobre o total dos produtos.</p>
+        </div>
+        <div class="sm:col-span-2">
+          <div class="mb-1.5 flex items-center justify-between gap-2">
+            <label for="quote-contact" class="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Contato responsável pela aprovação
+            </label>
+            <button
+              v-if="!store.readOnly && store.clientId"
+              type="button"
+              @click="quickContactOpen = true"
+              class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              <svg class="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+              Novo contato
+            </button>
+          </div>
+          <select id="quote-contact" v-model="store.contactId" :disabled="store.readOnly || !store.clientId" :class="inputClass">
+            <option :value="null">{{ store.clientId ? 'Não informado (usa o contato principal)' : 'Escolha o cliente primeiro' }}</option>
+            <option v-for="contact in clientContacts" :key="contact.id" :value="contact.id">{{ contactLabel(contact) }}</option>
+          </select>
+        </div>
+        <div>
+          <label for="quote-seller" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Vendedor</label>
+          <select id="quote-seller" v-model="store.sellerId" :disabled="store.readOnly" :class="inputClass">
+            <option :value="null">Não informado</option>
+            <option v-for="seller in sellerOptions" :key="seller.id" :value="seller.id">{{ seller.name }}</option>
+          </select>
         </div>
       </div>
     </section>
@@ -732,5 +815,6 @@ const inputClass =
     />
 
     <QuickClientModal :is-open="quickClientOpen" @close="quickClientOpen = false" @created="onClientCreated" />
+    <QuickContactModal :is-open="quickContactOpen" :client-id="store.clientId" @close="quickContactOpen = false" @created="onContactCreated" />
   </div>
 </template>

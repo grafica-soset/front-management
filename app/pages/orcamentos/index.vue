@@ -2,7 +2,8 @@
 /**
  * ORÇAMENTOS SALVOS (atividade 037).
  *
- * Grade por número (o mais recente primeiro), com filtro de status. Abrir leva ao editor; aprovar,
+ * Grade por número (o mais recente primeiro), com busca por número, referência ou cliente e filtro
+ * de status. Abrir leva ao editor; aprovar,
  * rejeitar e voltar para pendente acontecem aqui mesmo, sem abrir. O aprovado não se exclui — vai
  * virar nota e ordem de serviço.
  */
@@ -27,30 +28,48 @@ const page = ref(0)
 const totalItems = ref(0)
 const totalPages = ref(0)
 const status = ref<QuoteStatus | ''>('')
+const search = ref('')
 const loading = ref(false)
 const listError = ref<string | null>(null)
 const busyId = ref<number | null>(null)
 
 const hasCompany = computed(() => !!auth.activeCompanyId)
 
+// Digitar dispara várias buscas: só a resposta da última vale.
+let requestVersion = 0
+
 const refresh = async () => {
   if (!hasCompany.value) return
+  const version = ++requestVersion
   loading.value = true
   listError.value = null
   try {
-    const res = await quotes.listPage({ page: page.value, size: PAGE_SIZE, status: status.value || null })
+    const res = await quotes.listPage({
+      page: page.value,
+      size: PAGE_SIZE,
+      status: status.value || null,
+      search: search.value.trim(),
+    })
+    if (version !== requestVersion) return
     items.value = res.items
     totalItems.value = res.totalItems
     totalPages.value = res.totalPages
   } catch (err) {
-    listError.value = extractApiError(err, 'Falha ao carregar os orçamentos.')
+    if (version === requestVersion) listError.value = extractApiError(err, 'Falha ao carregar os orçamentos.')
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 
 onMounted(refresh)
 watch(status, () => { page.value = 0; refresh() })
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(search, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 0; refresh() }, 300)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
 const goToPage = (next: number) => {
   if (next < 0 || next >= totalPages.value) return
@@ -114,12 +133,22 @@ const dateOf = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
     </div>
 
     <template v-else>
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <label class="mr-2 text-sm text-slate-700 dark:text-slate-200" for="status-filter">Status</label>
-        <select id="status-filter" v-model="status" class="rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
-          <option value="">Todos</option>
-          <option v-for="(label, key) in QUOTE_STATUS_LABELS" :key="key" :value="key">{{ label }}</option>
-        </select>
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center dark:border-slate-700 dark:bg-slate-800" role="search">
+        <label for="quote-search" class="sr-only">Buscar orçamento</label>
+        <input
+          id="quote-search"
+          v-model="search"
+          type="search"
+          placeholder="Buscar por número, referência ou cliente"
+          class="block w-full rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white sm:flex-1"
+        />
+        <div class="flex items-center">
+          <label class="mr-2 text-sm text-slate-700 dark:text-slate-200" for="status-filter">Status</label>
+          <select id="status-filter" v-model="status" class="rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+            <option value="">Todos</option>
+            <option v-for="(label, key) in QUOTE_STATUS_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
       </div>
 
       <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -131,6 +160,7 @@ const dateOf = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
             <thead class="bg-slate-50/50 text-xs uppercase text-slate-700 dark:bg-slate-700/50 dark:text-slate-300">
               <tr>
                 <th class="px-5 py-3 font-semibold">Nº</th>
+                <th class="px-5 py-3 font-semibold">Referência</th>
                 <th class="px-5 py-3 font-semibold">Cliente</th>
                 <th class="px-5 py-3 text-right font-semibold">Produtos</th>
                 <th class="px-5 py-3 text-right font-semibold">Total</th>
@@ -142,6 +172,7 @@ const dateOf = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
             <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
               <tr v-for="row in items" :key="row.id" class="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
                 <td class="px-5 py-3 font-semibold tabular-nums text-slate-900 dark:text-white">{{ row.number }}</td>
+                <td class="whitespace-nowrap px-5 py-3 tabular-nums text-slate-600 dark:text-slate-300">{{ row.reference }}</td>
                 <td class="px-5 py-3 text-slate-800 dark:text-slate-100">{{ row.clientName }}</td>
                 <td class="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">{{ row.productCount }}</td>
                 <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-900 dark:text-white">{{ brl(row.total) }}</td>
