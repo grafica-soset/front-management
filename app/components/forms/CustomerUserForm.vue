@@ -10,6 +10,7 @@
  *  - email opcional (validado se informado).
  *  - role: ADMIN ou USER.
  */
+import { imageUrlIssue } from '@/utils/proposal'
 import { reactive, ref } from 'vue'
 import { z } from 'zod'
 import type { CreateCustomerUserRequest, TenantRole } from '@/types/CustomerUser'
@@ -32,6 +33,7 @@ const form = reactive<CreateCustomerUserRequest>({
   username: '',
   password: '',
   role: 'USER',
+  signatureUrl: '',
 })
 
 const showPassword = ref(false)
@@ -59,6 +61,7 @@ const schema = z.object({
     .min(8, 'Senha deve ter ao menos 8 caracteres.')
     .max(200, 'Senha não pode ter mais que 200 caracteres.'),
   role: z.enum(['ADMIN', 'USER']),
+  signatureUrl: z.string().optional().refine((value) => !imageUrlIssue(value), { message: 'Informe um endereço http:// ou https://.' }),
 })
 
 const handleSubmit = () => {
@@ -83,6 +86,7 @@ const handleSubmit = () => {
   }
   if (data.email) payload.email = data.email
   if (data.phone) payload.phone = data.phone
+  if (data.signatureUrl?.trim()) payload.signatureUrl = data.signatureUrl.trim()
   emit('submit', payload)
 }
 </script>
@@ -203,6 +207,22 @@ const handleSubmit = () => {
           <p v-if="errors.password" class="mt-1 text-xs text-rose-600">{{ errors.password }}</p>
         </div>
       </div>
+    </div>
+
+    <!-- Assinatura na proposta -->
+    <div>
+      <label for="user-signature" class="block mb-2 text-sm font-medium text-slate-900 dark:text-white">Assinatura (URL da imagem)</label>
+      <input
+        id="user-signature"
+        v-model="form.signatureUrl"
+        type="url"
+        maxlength="1000"
+        placeholder="https://cdn.suagrafica.com.br/assinaturas/nome.png"
+        class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-600 focus:border-indigo-600 block w-full p-3 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        :class="{ 'border-rose-500 focus:ring-rose-500 focus:border-rose-500': errors.signatureUrl }"
+      />
+      <p v-if="errors.signatureUrl" class="mt-1 text-xs text-rose-600">{{ errors.signatureUrl }}</p>
+      <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">Opcional. Sai na proposta acima do nome de quem fez o orçamento.</p>
     </div>
 
     <!-- Papel na empresa -->

@@ -640,6 +640,19 @@ const inputClass =
             <!-- Proposta do produto (atividade 049): observação e prazo de entrega. -->
             <tr class="!border-t-0">
               <td :colspan="canSelectForApproval ? 10 : 9" class="px-5 pb-4 pt-0">
+                <!-- Item similar ao anterior: sai sem descrição, só quantidade, valores e prazo. -->
+                <label v-if="index > 0" class="mb-2 inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200">
+                  <input
+                    v-model="p.omitDescription"
+                    type="checkbox"
+                    :disabled="store.readOnly"
+                    class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600"
+                  />
+                  <span>
+                    <span class="font-medium">Sem descrição na proposta</span>
+                    — similar ao item anterior: sai só quantidade, valores e prazo de entrega
+                  </span>
+                </label>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label :for="`product-notes-${p.uid}`" class="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Observação na proposta</label>
@@ -648,8 +661,8 @@ const inputClass =
                       v-model="p.notes"
                       rows="1"
                       maxlength="1000"
-                      placeholder="Ex.: Arte com sangria de 3 mm em cada lado"
-                      :disabled="store.readOnly"
+                      :placeholder="index > 0 && p.omitDescription ? 'Não sai: o item está sem descrição' : 'Ex.: Arte com sangria de 3 mm em cada lado'"
+                      :disabled="store.readOnly || (index > 0 && p.omitDescription)"
                       :class="inputClass"
                     />
                   </div>
@@ -700,6 +713,20 @@ const inputClass =
             <span class="font-medium">Totalizar a proposta</span>
             <span class="block text-xs text-slate-500 dark:text-slate-400">
               Soma todos os produtos num total. Deixe desligado quando os produtos são opções (outra quantidade, outro papel).
+            </span>
+          </span>
+        </label>
+        <label class="inline-flex items-start gap-2 text-slate-700 dark:text-slate-200">
+          <input
+            v-model="store.printStamp"
+            type="checkbox"
+            :disabled="store.readOnly"
+            class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600"
+          />
+          <span>
+            <span class="font-medium">Imprimir carimbo</span>
+            <span class="block text-xs text-slate-500 dark:text-slate-400">
+              O carimbo da empresa sai ao lado da assinatura. Cadastre em Configurações da empresa.
             </span>
           </span>
         </label>
@@ -802,6 +829,7 @@ const inputClass =
       :title="termPickerKind ? quoteTermKindInfo(termPickerKind).label : ''"
       :options="termPickerKind ? optionsOfKind(termOptions, termPickerKind) : []"
       :current="termPickerProduct ? termPickerProduct.deliveryTerms : termPickerKind ? store.conditions[quoteTermKindInfo(termPickerKind).field] : null"
+      clearable
       @pick="pickTermOption"
       @close="closeTermPicker"
     />

@@ -7,10 +7,12 @@
  *  - Cadastrar novo usuário (link para /usuarios/new).
  *  - Desativar vínculo (PATCH /customer-users/{linkId}/deactivate).
  *  - Redefinir senha (PUT /customer-users/{linkId}/password) via modal.
+ *  - Assinatura na proposta (PUT /customer-users/{linkId}/signature) via modal.
  */
 import { computed, onMounted, ref } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import ResetPasswordForm from '@/components/forms/ResetPasswordForm.vue'
+import SignatureForm from '@/components/forms/SignatureForm.vue'
 import { useCustomerUsers } from '@/composables/useCustomerUsers'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -27,7 +29,7 @@ definePageMeta({
 
 const auth = useAuthStore()
 const toast = useToast()
-const { listPage, deactivateUser, resetPassword } = useCustomerUsers()
+const { listPage, deactivateUser, resetPassword, updateSignature } = useCustomerUsers()
 
 const PAGE_SIZE = 20
 
@@ -108,6 +110,43 @@ const closePasswordModal = () => {
   if (passwordLoading.value) return
   passwordTarget.value = null
   passwordError.value = null
+}
+
+// Assinatura na proposta (impressa acima do nome de quem criou o orçamento).
+const signatureTarget = ref<CustomerUserPageItem | null>(null)
+const signatureLoading = ref(false)
+const signatureError = ref<string | null>(null)
+
+const openSignatureModal = (item: CustomerUserPageItem) => {
+  signatureError.value = null
+  signatureTarget.value = item
+}
+
+const closeSignatureModal = () => {
+  if (signatureLoading.value) return
+  signatureTarget.value = null
+}
+
+const handleSignature = async (signatureUrl: string | null) => {
+  const target = signatureTarget.value
+  if (!target) return
+  signatureLoading.value = true
+  signatureError.value = null
+  try {
+    const saved = await updateSignature(target.linkId, signatureUrl)
+    if (data.value) {
+      data.value = {
+        ...data.value,
+        items: data.value.items.map((u) => (u.linkId === target.linkId ? { ...u, signatureUrl: saved.signatureUrl ?? null } : u)),
+      }
+    }
+    toast.success(signatureUrl ? `Assinatura de "${target.name}" salva.` : `Assinatura de "${target.name}" removida.`)
+    signatureTarget.value = null
+  } catch (err) {
+    signatureError.value = extractApiError(err, 'Falha ao salvar a assinatura.')
+  } finally {
+    signatureLoading.value = false
+  }
 }
 
 const handleResetPassword = async (payload: ResetCustomerUserPasswordRequest) => {
@@ -207,6 +246,14 @@ const handleResetPassword = async (payload: ResetCustomerUserPasswordRequest) =>
                 <div class="flex items-center justify-end gap-1">
                   <button
                     type="button"
+                    @click="openSignatureModal(user)"
+                    class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700"
+                    :title="user.signatureUrl ? 'Assinatura cadastrada' : 'Sem assinatura'"
+                  >
+                    Assinatura{{ user.signatureUrl ? ' ✓' : '' }}
+                  </button>
+                  <button
+                    type="button"
                     @click="openPasswordModal(user)"
                     class="px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 rounded-md dark:text-indigo-300 dark:hover:bg-slate-700"
                   >
@@ -253,6 +300,23 @@ const handleResetPassword = async (payload: ResetCustomerUserPasswordRequest) =>
         </div>
       </div>
     </div>
+
+    <Modal
+      :is-open="!!signatureTarget"
+      :title="signatureTarget ? `Assinatura — ${signatureTarget.name}` : 'Assinatura'"
+      @close="closeSignatureModal"
+    >
+      <SignatureForm
+        v-if="signatureTarget"
+        :key="signatureTarget.linkId"
+        :initial="signatureTarget.signatureUrl ?? null"
+        :person-name="signatureTarget.name"
+        :loading="signatureLoading"
+        :server-error="signatureError"
+        @submit="handleSignature"
+        @cancel="closeSignatureModal"
+      />
+    </Modal>
 
     <Modal
       :is-open="!!passwordTarget"

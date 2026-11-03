@@ -13,6 +13,8 @@ defineProps<{
   options: QuoteTermOptionKeyValue[]
   /** O texto que está no orçamento agora, para marcar a opção correspondente. */
   current: string | null
+  /** Mostra "Deixar em branco": o campo vazio não sai na proposta. */
+  clearable?: boolean
 }>()
 const emit = defineEmits<{ pick: [text: string]; close: [] }>()
 </script>
@@ -42,5 +44,19 @@ const emit = defineEmits<{ pick: [text: string]; close: [] }>()
         </button>
       </li>
     </ul>
+    <button
+      v-if="clearable"
+      type="button"
+      class="mt-3 flex w-full items-start justify-between gap-3 rounded-lg border border-dashed px-4 py-3 text-left text-sm transition-colors"
+      :class="!current?.trim()
+        ? 'border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-100'
+        : 'border-slate-300 text-slate-600 hover:border-indigo-300 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'"
+      @click="emit('pick', '')"
+    >
+      <span>
+        <span class="font-medium">Deixar em branco</span>
+        <span class="block text-xs text-slate-500 dark:text-slate-400">Não sai na proposta.</span>
+      </span>
+    </button>
   </Modal>
 </template>

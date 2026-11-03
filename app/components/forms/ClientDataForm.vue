@@ -11,6 +11,13 @@ type ClientDataInitial = Partial<Omit<UpdateClientRequest, 'corporateName' | 'em
   phone?: string | null
 }
 
+/** "isento" em qualquer caixa vira "ISENTO" — como o servidor grava. */
+const registration = (value: string) => {
+  const text = value.trim()
+  if (!text) return null
+  return text.toLowerCase() === 'isento' ? 'ISENTO' : text
+}
+
 const props = withDefaults(defineProps<{
   initial?: ClientDataInitial
   loading?: boolean
@@ -29,6 +36,8 @@ const form = reactive({
   document: formatBrazilianDocument(props.initial?.document),
   email: props.initial?.email ?? '',
   phone: formatPhone(props.initial?.phone),
+  stateRegistration: props.initial?.stateRegistration ?? '',
+  municipalRegistration: props.initial?.municipalRegistration ?? '',
 })
 const errors = ref<Record<string, string>>({})
 const isLegal = computed(() => form.personType === 'LEGAL')
@@ -46,6 +55,8 @@ const schema = z.object({
   document: z.string().min(1, 'Informe o documento.'),
   email: z.string().max(255, 'Use no máximo 255 caracteres.').email('E-mail inválido.').optional().or(z.literal('')),
   phone: z.string().max(30, 'Use no máximo 30 caracteres.').optional(),
+  stateRegistration: z.string().trim().max(20, 'Use no máximo 20 caracteres.'),
+  municipalRegistration: z.string().trim().max(20, 'Use no máximo 20 caracteres.'),
 })
 
 function updateDocument(event: Event) {
@@ -76,6 +87,8 @@ function validate(): UpdateClientRequest | null {
     document: digitsOnly(form.document),
     email: form.email.trim() || undefined,
     phone: digitsOnly(form.phone) || undefined,
+    stateRegistration: registration(form.stateRegistration),
+    municipalRegistration: registration(form.municipalRegistration),
   }
 }
 function handleSubmit() {
@@ -120,6 +133,16 @@ defineExpose({ validate })
       <div>
         <label for="client-phone" class="label">Telefone</label>
         <input id="client-phone" :value="form.phone" type="tel" maxlength="30" autocomplete="tel" class="field" @input="updatePhone" />
+      </div>
+      <div>
+        <label for="client-state-registration" class="label">Inscrição estadual</label>
+        <input id="client-state-registration" v-model="form.stateRegistration" type="text" maxlength="20" placeholder="Ex.: 398.114.207.110 ou ISENTO" class="field" :class="{ 'field-error': errors.stateRegistration }" />
+        <p v-if="errors.stateRegistration" class="error">{{ errors.stateRegistration }}</p>
+      </div>
+      <div>
+        <label for="client-municipal-registration" class="label">Inscrição municipal</label>
+        <input id="client-municipal-registration" v-model="form.municipalRegistration" type="text" maxlength="20" placeholder="Ex.: 20.418-7" class="field" :class="{ 'field-error': errors.municipalRegistration }" />
+        <p v-if="errors.municipalRegistration" class="error">{{ errors.municipalRegistration }}</p>
       </div>
       <div class="sm:col-span-2">
         <label for="client-email" class="label">E-mail</label>

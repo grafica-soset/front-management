@@ -8,6 +8,8 @@ export interface CustomerSettings {
   logoUrl?: string | null
   /** Texto do cabeçalho da proposta (linhas, **negrito**, *itálico*). Nulo = montado do cadastro. */
   proposalHeader?: string | null
+  /** URL do carimbo da empresa — sai na proposta ao lado da assinatura quando o orçamento pede. */
+  stampUrl?: string | null
   /** Taxa de manutenção da faca de corte e vinco, em R$ (atividade 046) — cobrada quando a faca é do cliente. */
   dieMaintenanceFee?: number
 }
@@ -26,4 +28,6 @@ export interface UpdateCustomerSettingsRequest {
 export interface UpdateProposalHeaderRequest {
   logoUrl: string | null
   headerText: string | null
+  /** Carimbo da empresa; nulo remove. O corpo é a configuração inteira: omitir também remove. */
+  stampUrl: string | null
 }

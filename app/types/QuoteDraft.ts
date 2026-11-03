@@ -287,6 +287,11 @@ export interface QuoteProduct {
   notes: string
   /** Prazo de entrega do produto — vale na proposta NÃO totalizada (vazio = o prazo geral). */
   deliveryTerms: string
+  /**
+   * Sai na proposta SEM DESCRIÇÃO — só quantidade, valores e prazo: o item similar ao anterior.
+   * Não vale no 1º produto.
+   */
+  omitDescription: boolean
 }
 
 /** Linha do detalhamento de custo exibido no trilho e no resumo. */

@@ -34,6 +34,10 @@ export interface ProposalRecipient {
   email: string | null
   phone: string | null
   mobile: string | null
+  /** Endereço principal do cliente; nulo = cliente sem endereço. */
+  address: ProposalAddress | null
+  stateRegistration: string | null
+  municipalRegistration: string | null
 }
 
 /** O vendedor do orçamento e como falar com ele. */
@@ -60,6 +64,8 @@ export interface ProposalItem {
    * nas condições, e a proposta imprime os dois.
    */
   deliveryTerms: string | null
+  /** Sai sem descrição e sem observação: só quantidade, valores e prazo (similar ao anterior). */
+  omitDescription: boolean
 }
 
 export interface QuoteProposal {
@@ -83,4 +89,8 @@ export interface QuoteProposal {
   signedBy: string | null
   /** Nulo quando o orçamento não tem vendedor. */
   seller: ProposalSeller | null
+  /** Imagem da assinatura de quem criou o orçamento, acima do nome. */
+  signatureUrl: string | null
+  /** Carimbo da empresa, à direita do nome — só com "Imprimir carimbo". */
+  stampUrl: string | null
 }

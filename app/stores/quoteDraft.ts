@@ -149,6 +149,7 @@ export function emptyProduct(): QuoteProduct {
     pricing: emptyPricing(),
     notes: '',
     deliveryTerms: '',
+    omitDescription: false,
   }
 }
 
@@ -175,6 +176,7 @@ export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduc
     pricing: normalizePricing(product.pricing),
     notes: product.notes ?? '',
     deliveryTerms: product.deliveryTerms ?? '',
+    omitDescription: !!product.omitDescription,
   } as QuoteProduct
 }
 
@@ -283,6 +285,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
     conditions: emptyConditions(),
     /** A proposta soma os produtos num total (atividade 044) — sem isso, os produtos são opções. */
     totalizeProposal: false,
+    /** "Imprimir carimbo": o carimbo da empresa sai ao lado da assinatura. */
+    printStamp: false,
     /**
      * Orçamento novo ainda sem as condições PADRÃO da empresa (Orçamento > Configurações). O editor
      * aplica uma vez só: depois disso, o que o usuário apagou fica apagado — inclusive na volta do
@@ -502,6 +506,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.notes = ''
       this.conditions = emptyConditions()
       this.totalizeProposal = false
+      this.printStamp = false
       this.conditionDefaultsPending = true
       this.savedSnapshot = null
       this.createRequestId = null
@@ -561,6 +566,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       this.notes = saved.notes ?? ''
       this.conditions = { ...emptyConditions(), ...(saved.conditions ?? {}) }
       this.totalizeProposal = !!saved.totalizeProposal
+      this.printStamp = !!saved.printStamp
       this.conditionDefaultsPending = false
       this.products = saved.products.map((p) =>
         withProductDefaults({
@@ -574,6 +580,7 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           // O gravado manda (atividade 049): o editorState é só o rascunho da tela.
           notes: p.notes ?? '',
           deliveryTerms: p.deliveryTerms ?? '',
+          omitDescription: !!p.omitDescription,
         }),
       )
       this.syncSaved(saved)
@@ -622,7 +629,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           bankDetails: blankToNull(this.conditions.bankDetails),
         },
         totalizeProposal: this.totalizeProposal,
-        products: this.products.map((p) => ({
+        printStamp: this.printStamp,
+        products: this.products.map((p, index) => ({
           configuration: this.toPayload(p),
           editorState: JSON.parse(JSON.stringify(p)) as QuoteProduct,
           productModelId: p.productModelId,
@@ -635,6 +643,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
           unitPriceOverride: p.unitPriceOverride ?? null,
           notes: blankToNull(p.notes),
           deliveryTerms: blankToNull(p.deliveryTerms),
+          // O 1º produto não tem anterior: sai sempre com a descrição.
+          omitDescription: index > 0 && !!p.omitDescription,
         })),
       }
     },
