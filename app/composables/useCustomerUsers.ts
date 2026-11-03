@@ -62,7 +62,16 @@ export function useCustomerUsers() {
     })
   }
 
+  /** Assinatura do usuário na proposta; nula remove. */
+  async function updateSignature(linkId: number, signatureUrl: string | null): Promise<CustomerUserLinkSummary> {
+    return await api<CustomerUserLinkSummary>(`/customer-users/${linkId}/signature`, {
+      method: 'PUT',
+      body: { signatureUrl },
+    })
+  }
+
   return {
+    updateSignature,
     listKeyValues,
     listPage,
     createUser,

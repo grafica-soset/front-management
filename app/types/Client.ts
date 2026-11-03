@@ -32,6 +32,10 @@ export interface RegisterClientRequest {
   document: string
   email?: string
   phone?: string
+  /** Inscrição estadual ("ISENTO" quando não tem). */
+  stateRegistration?: string | null
+  /** Inscrição municipal. */
+  municipalRegistration?: string | null
   addresses: ClientAddressInput[]
   contacts: ClientContactInput[]
 }
@@ -56,6 +60,10 @@ export interface Client {
   document: string
   email?: string | null
   phone?: string | null
+  stateRegistration?: string | null
+  municipalRegistration?: string | null
+  /** Orçamentos já criados para o cliente: o próximo leva quoteCount + 1 na referência. */
+  quoteCount?: number
   active: boolean
   addresses: ClientAddress[]
   contacts: ClientContact[]

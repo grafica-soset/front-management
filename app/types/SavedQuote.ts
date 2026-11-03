@@ -38,6 +38,8 @@ export interface SaveQuoteProductRequest {
   notes: string | null
   /** Prazo de entrega do produto: vale na proposta não totalizada (atividade 049). */
   deliveryTerms: string | null
+  /** Sai na proposta sem descrição (item similar ao anterior). */
+  omitDescription: boolean
 }
 
 export interface SaveQuoteRequest {
@@ -53,6 +55,8 @@ export interface SaveQuoteRequest {
   products: SaveQuoteProductRequest[]
   /** A proposta soma os produtos num total (atividade 044). */
   totalizeProposal: boolean
+  /** Imprime o carimbo da empresa ao lado da assinatura. */
+  printStamp: boolean
   /** Só na criação: a chave da tentativa de salvar, para repetir não duplicar (ver quoteDraft). */
   requestId?: string
 }
@@ -89,6 +93,7 @@ export interface SavedQuoteProduct {
   /** Observação e prazo de entrega do produto (atividade 049). */
   notes: string | null
   deliveryTerms: string | null
+  omitDescription?: boolean
   /** O cálculo gravado ao salvar; nulo em orçamento anterior à 044. */
   costing: ProductCostingResponse | null
 }
@@ -97,8 +102,10 @@ export interface SavedQuote {
   id: number
   customerId: number
   number: number
-  /** Identificador de busca: data + iniciais do cliente + número (20260302MDH00001). */
+  /** Identificador de busca: data + iniciais do cliente + número do orçamento NO cliente (20260302MDH00004). */
   reference: string
+  /** Número do orçamento no cliente — o da referência. */
+  clientSequence?: number
   clientId: number
   clientName: string | null
   contactId: number | null
@@ -110,6 +117,7 @@ export interface SavedQuote {
   notes: string | null
   conditions: SupplyConditions
   totalizeProposal: boolean
+  printStamp?: boolean
   /** Quem criou — assina a proposta. */
   createdByName: string | null
   totalCost: number

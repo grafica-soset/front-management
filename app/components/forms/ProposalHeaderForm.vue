@@ -6,16 +6,20 @@
  * cabeçalho montado do cadastro não sai como ela escreve o dela. Vazio = o montado do cadastro.
  * A pré-visualização é em tamanho real (as medidas da proposta impressa).
  *
- * Autocontido: emite `submit` com a logo e o texto (nulos para remover / voltar ao cadastro).
+ * O CARIMBO da empresa mora aqui também: é outra imagem da proposta, que sai ao lado da assinatura
+ * quando o orçamento marca "Imprimir carimbo".
+ *
+ * Autocontido: emite `submit` com a logo, o texto e o carimbo (nulos para remover / voltar ao cadastro).
  */
 import { computed, ref, watch } from 'vue'
 import ProposalHeader from '@/components/quotes/ProposalHeader.vue'
-import { logoUrlIssue, proposalHeaderIssue } from '@/utils/proposal'
+import { imageUrlIssue, logoUrlIssue, proposalHeaderIssue } from '@/utils/proposal'
 import type { UpdateProposalHeaderRequest } from '@/types/CustomerSettings'
 
 const props = defineProps<{
   initialLogoUrl: string | null
   initialHeaderText: string | null
+  initialStampUrl?: string | null
   /** O cabeçalho montado do cadastro: o que sai com o texto vazio e o ponto de partida do texto. */
   defaultHeaderText: string
   companyName: string
@@ -28,22 +32,34 @@ const emit = defineEmits<{ (e: 'submit', payload: UpdateProposalHeaderRequest): 
 
 const url = ref(props.initialLogoUrl ?? '')
 const text = ref(props.initialHeaderText ?? '')
+const stamp = ref(props.initialStampUrl ?? '')
+watch(() => props.initialStampUrl, (value) => { stamp.value = value ?? '' })
 watch(() => props.initialLogoUrl, (value) => { url.value = value ?? '' })
 watch(() => props.initialHeaderText, (value) => { text.value = value ?? '' })
 
 const urlIssue = computed(() => logoUrlIssue(url.value))
 const textIssue = computed(() => proposalHeaderIssue(text.value))
+const stampIssue = computed(() => imageUrlIssue(stamp.value))
+const previewStamp = computed(() => (stamp.value.trim() && !stampIssue.value ? stamp.value.trim() : null))
+const stampBroken = ref(false)
+watch(stamp, () => { stampBroken.value = false })
 const previewLogo = computed(() => (url.value.trim() && !urlIssue.value ? url.value.trim() : null))
 const previewText = computed(() => (text.value.trim() ? text.value : props.defaultHeaderText))
 const changed = computed(() =>
-  url.value.trim() !== (props.initialLogoUrl ?? '') || text.value.trim() !== (props.initialHeaderText ?? '').trim(),
+  url.value.trim() !== (props.initialLogoUrl ?? '') ||
+    text.value.trim() !== (props.initialHeaderText ?? '').trim() ||
+    stamp.value.trim() !== (props.initialStampUrl ?? ''),
 )
 
 const fillFromRegistry = () => { text.value = props.defaultHeaderText }
 
 const submit = () => {
-  if (urlIssue.value || textIssue.value) return
-  emit('submit', { logoUrl: url.value.trim() || null, headerText: text.value.trim() ? text.value : null })
+  if (urlIssue.value || textIssue.value || stampIssue.value) return
+  emit('submit', {
+    logoUrl: url.value.trim() || null,
+    headerText: text.value.trim() ? text.value : null,
+    stampUrl: stamp.value.trim() || null,
+  })
 }
 </script>
 
@@ -98,12 +114,34 @@ const submit = () => {
       </div>
     </div>
 
+    <!-- Carimbo: sai à direita do nome de quem assina, nos orçamentos com "Imprimir carimbo". -->
+    <div>
+      <label for="stamp-url" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Endereço (URL) do carimbo</label>
+      <input
+        id="stamp-url"
+        v-model="stamp"
+        type="url"
+        maxlength="1000"
+        placeholder="https://www.suagrafica.com.br/carimbo-cnpj.png"
+        class="block w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+      />
+      <p v-if="stampIssue" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ stampIssue }}</p>
+      <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Imagem do carimbo (de preferência PNG com fundo transparente). Sai à direita do nome de quem assina,
+        na mesma altura da assinatura (1,6 cm), só nos orçamentos marcados com "Imprimir carimbo".
+      </p>
+      <div v-if="previewStamp" class="mt-2 inline-block rounded-lg border border-dashed border-slate-300 bg-white p-3 dark:border-slate-600">
+        <img v-if="!stampBroken" :src="previewStamp" alt="Carimbo" class="h-[16mm] max-w-[45mm] object-contain" @error="stampBroken = true" />
+        <p v-else class="text-xs text-amber-700">Não foi possível carregar a imagem dessa URL.</p>
+      </div>
+    </div>
+
     <p v-if="serverError" class="text-sm text-rose-600 dark:text-rose-400">{{ serverError }}</p>
     <p v-else-if="saved && !changed" class="text-sm text-emerald-700 dark:text-emerald-300">Cabeçalho salvo.</p>
 
     <div class="flex justify-end">
-      <button type="submit" :disabled="loading || !!urlIssue || !!textIssue || !changed" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-        {{ loading ? 'Salvando...' : 'Salvar cabeçalho' }}
+      <button type="submit" :disabled="loading || !!urlIssue || !!textIssue || !!stampIssue || !changed" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+        {{ loading ? 'Salvando...' : 'Salvar cabeçalho e carimbo' }}
       </button>
     </div>
   </form>

@@ -109,6 +109,7 @@ const handleHeader = async (payload: UpdateProposalHeaderRequest) => {
     const settings = await updateProposalHeader(id, payload)
     properties.value.settings.logoUrl = settings.logoUrl ?? null
     properties.value.settings.proposalHeader = settings.proposalHeader ?? null
+    properties.value.settings.stampUrl = settings.stampUrl ?? null
     headerSaved.value = true
   } catch (err) {
     headerError.value = extractApiError(err, 'Não foi possível salvar o cabeçalho.')
@@ -216,15 +217,16 @@ const handleHeader = async (payload: UpdateProposalHeaderRequest) => {
       <!-- Cabeçalho da proposta: logo (atividade 038) + texto -->
       <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 dark:bg-slate-800 dark:border-slate-700">
         <div class="mb-5">
-          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Cabeçalho da proposta</h2>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Cabeçalho e carimbo da proposta</h2>
           <p class="text-sm text-slate-500 dark:text-slate-400">
-            A logo e o texto que abrem a proposta impressa, do jeito que a gráfica escreve o dela.
+            A logo e o texto que abrem a proposta impressa, do jeito que a gráfica escreve o dela, e o carimbo da empresa.
           </p>
         </div>
         <ProposalHeaderForm
           v-if="properties"
           :initial-logo-url="properties.settings.logoUrl ?? null"
           :initial-header-text="properties.settings.proposalHeader ?? null"
+          :initial-stamp-url="properties.settings.stampUrl ?? null"
           :default-header-text="defaultHeaderText"
           :company-name="properties.person.name"
           :loading="headerSaving"

@@ -15,6 +15,8 @@ export interface CustomerUserPageItem {
   email: string | null
   role: TenantRole
   active: boolean
+  /** URL da imagem da assinatura, impressa na proposta acima do nome. */
+  signatureUrl?: string | null
 }
 
 /** Resposta paginada de GET /customer-users/page. */
@@ -45,6 +47,8 @@ export interface CreateCustomerUserRequest {
   username: string
   password: string
   role: TenantRole
+  /** Assinatura na proposta (opcional). */
+  signatureUrl?: string
 }
 
 /** Resposta de POST /customer-users — 201 Created. */
@@ -56,13 +60,14 @@ export interface CreateCustomerUserResponse {
   active: boolean
 }
 
-/** Resposta de PATCH /customer-users/{linkId}/deactivate. */
+/** Resposta de PATCH /customer-users/{linkId}/deactivate e PUT /customer-users/{linkId}/signature. */
 export interface CustomerUserLinkSummary {
   linkId: number
   customerId: number
   personId: number
   role: TenantRole
   active: boolean
+  signatureUrl?: string | null
 }
 
 /** Payload de PUT /customer-users/{linkId}/password. */

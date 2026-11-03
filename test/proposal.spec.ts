@@ -1,14 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addressLines, defaultProposalHeader, headerLines, headerSegments, itemsForPrint, logoUrlIssue, proposalHeaderIssue,
-  proposalMoney, proposalPlaceAndDate, proposalUnitMoney,
+  addressLines, defaultProposalHeader, headerLines, headerSegments, imageUrlIssue, itemsForPrint, logoUrlIssue, longDate,
+  proposalHeaderIssue, proposalMoney, proposalPlaceAndDate, proposalUnitMoney, recipientAddressLine,
 } from '@/utils/proposal'
 
 /** Apresentação da proposta de fornecimento (atividade 038), no jeito que a gráfica já escreve. */
 describe('proposta', () => {
-  it('cidade e data como na proposta da gráfica', () => {
-    expect(proposalPlaceAndDate('Iguape', '2022-02-15T10:00:00-03:00')).toBe('Iguape, 15.02.2022')
-    expect(proposalPlaceAndDate(null, '2026-09-25T10:00:00-03:00')).toBe('25.09.2026')
+  it('cidade e data por extenso', () => {
+    expect(proposalPlaceAndDate('Iguape', '2026-11-02T10:00:00-03:00')).toBe('Iguape, 2 de novembro de 2026')
+    expect(proposalPlaceAndDate(null, '2026-09-25T10:00:00-03:00')).toBe('25 de setembro de 2026')
+  })
+
+  it('a data é a de Brasília, e o dia 1º se escreve com o ordinal', () => {
+    // 01:30 em UTC ainda é 30 de novembro em Brasília.
+    expect(longDate(new Date('2026-12-01T01:30:00Z'))).toBe('30 de novembro de 2026')
+    expect(longDate(new Date('2026-12-01T12:00:00-03:00'))).toBe('1º de dezembro de 2026')
+    expect(longDate(new Date('2027-03-15T09:00:00-03:00'))).toBe('15 de março de 2027')
+  })
+
+  it('o endereço do cliente numa linha, com CEP', () => {
+    expect(
+      recipientAddressLine({
+        street: 'Av. Princesa Isabel', number: '1020', complement: 'Loja 2', neighborhood: 'Centro',
+        city: 'Registro', state: 'SP', postalCode: '11900000',
+      }),
+    ).toBe('Av. Princesa Isabel, 1020 - Loja 2 - Centro - Registro - SP - CEP 11900-000')
+    expect(recipientAddressLine({ street: null, number: null, complement: null, neighborhood: null, city: 'Iguape', state: 'SP', postalCode: null }))
+      .toBe('Iguape - SP')
+    expect(recipientAddressLine(null)).toBe('')
   })
 
   it('valores sem o símbolo, que já está no rótulo', () => {
@@ -24,11 +43,27 @@ describe('proposta', () => {
   it('o mesmo produto em outra quantidade vira "Idem acima"', () => {
     const description = "Blocos ''Controle de Vendas Pequeno'', 50 x 2 vias."
     const items = itemsForPrint([
-      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4, approved: false, notes: null, deliveryTerms: null },
-      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5, approved: false, notes: null, deliveryTerms: null },
-      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18, approved: false, notes: null, deliveryTerms: null },
+      { position: 2, quantity: 20, description, totalPrice: 228, unitPrice: 11.4, approved: false, notes: null, deliveryTerms: null, omitDescription: false },
+      { position: 1, quantity: 10, description, totalPrice: 145, unitPrice: 14.5, approved: false, notes: null, deliveryTerms: null, omitDescription: false },
+      { position: 3, quantity: 5000, description: "''Folder''.", totalPrice: 900, unitPrice: 0.18, approved: false, notes: null, deliveryTerms: null, omitDescription: false },
     ])
     expect(items.map((i) => i.printedDescription)).toEqual([description, 'Idem acima ...', "''Folder''."])
+  })
+
+  it('item marcado como similar ao anterior sai sem descrição — menos o primeiro', () => {
+    const base = { totalPrice: 100, unitPrice: 1, approved: false, notes: 'Obs.', deliveryTerms: null }
+    const items = itemsForPrint([
+      { ...base, position: 1, quantity: 100, description: 'Panfleto A5.', omitDescription: true },
+      { ...base, position: 2, quantity: 200, description: 'Panfleto A5 com verniz.', omitDescription: true },
+      { ...base, position: 3, quantity: 300, description: 'Cartão.', omitDescription: false },
+    ])
+    expect(items.map((i) => i.printedDescription)).toEqual(['Panfleto A5.', null, 'Cartão.'])
+  })
+
+  it('carimbo e assinatura seguem a regra das imagens: só http ou https', () => {
+    expect(imageUrlIssue(null)).toBeNull()
+    expect(imageUrlIssue('https://cdn.soset.com.br/carimbo.png')).toBeNull()
+    expect(imageUrlIssue('file:///c:/carimbo.png')).not.toBeNull()
   })
 
   it('endereço em duas linhas, pulando o que falta', () => {
