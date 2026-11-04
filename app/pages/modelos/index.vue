@@ -180,7 +180,10 @@ const handleDelete = async (t: ProductTemplate) => {
 
       <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div v-if="loading" class="p-6 text-sm text-slate-500 dark:text-slate-400">Carregando modelos...</div>
-        <div v-else-if="listError" class="bg-rose-50 p-6 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">{{ listError }}</div>
+        <div v-else-if="listError" class="flex flex-wrap items-center justify-between gap-3 bg-rose-50 p-6 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+          <span>{{ listError }}</span>
+          <button type="button" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium hover:bg-rose-100 dark:border-rose-700 dark:hover:bg-rose-900/40" @click="refresh">Tentar novamente</button>
+        </div>
         <div v-else-if="items.length === 0" class="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
           Nenhum modelo de produto. Salve um a partir do orçamento ("Salvar como modelo") ou cadastre aqui.
         </div>

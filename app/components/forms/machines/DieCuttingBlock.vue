@@ -116,7 +116,7 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
       <!-- Formato mínimo -->
       <div class="mb-4">
         <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Formato mínimo</p>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura</label>
             <div class="relative">
@@ -142,12 +142,20 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
             <p v-if="formatErr('minFormat', 'sheetsPerHour')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'sheetsPerHour') }}</p>
           </div>
           <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup de faca</label>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300" title="Por boca: 2 bocas levam o dobro">Setup de faca simples</label>
             <div class="relative">
-              <input v-model.number="block.minFormat.dieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('minFormat', 'dieSetupMinutes'), true)" />
-              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
+              <input v-model.number="block.minFormat.simpleDieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('minFormat', 'simpleDieSetupMinutes'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min/boca</span>
             </div>
-            <p v-if="formatErr('minFormat', 'dieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'dieSetupMinutes') }}</p>
+            <p v-if="formatErr('minFormat', 'simpleDieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'simpleDieSetupMinutes') }}</p>
+          </div>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300" title="Por boca: 2 bocas levam o dobro">Setup de faca complexo</label>
+            <div class="relative">
+              <input v-model.number="block.minFormat.complexDieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('minFormat', 'complexDieSetupMinutes'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min/boca</span>
+            </div>
+            <p v-if="formatErr('minFormat', 'complexDieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('minFormat', 'complexDieSetupMinutes') }}</p>
           </div>
         </div>
       </div>
@@ -155,7 +163,7 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
       <!-- Formato máximo -->
       <div>
         <p class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Formato máximo</p>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Largura</label>
             <div class="relative">
@@ -181,12 +189,20 @@ const formatErr = (which: 'minFormat' | 'maxFormat', field: keyof DieCuttingForm
             <p v-if="formatErr('maxFormat', 'sheetsPerHour')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'sheetsPerHour') }}</p>
           </div>
           <div>
-            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300">Setup de faca</label>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300" title="Por boca: 2 bocas levam o dobro">Setup de faca simples</label>
             <div class="relative">
-              <input v-model.number="block.maxFormat.dieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('maxFormat', 'dieSetupMinutes'), true)" />
-              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min</span>
+              <input v-model.number="block.maxFormat.simpleDieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('maxFormat', 'simpleDieSetupMinutes'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min/boca</span>
             </div>
-            <p v-if="formatErr('maxFormat', 'dieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'dieSetupMinutes') }}</p>
+            <p v-if="formatErr('maxFormat', 'simpleDieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'simpleDieSetupMinutes') }}</p>
+          </div>
+          <div>
+            <label class="block mb-2 text-sm text-slate-700 dark:text-slate-300" title="Por boca: 2 bocas levam o dobro">Setup de faca complexo</label>
+            <div class="relative">
+              <input v-model.number="block.maxFormat.complexDieSetupMinutes" type="number" min="0" step="1" :class="inputClass(formatErr('maxFormat', 'complexDieSetupMinutes'), true)" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-500">min/boca</span>
+            </div>
+            <p v-if="formatErr('maxFormat', 'complexDieSetupMinutes')" class="mt-1 text-xs text-rose-600">{{ formatErr('maxFormat', 'complexDieSetupMinutes') }}</p>
           </div>
         </div>
       </div>

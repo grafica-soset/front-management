@@ -751,8 +751,8 @@ export function defaultDieCuttingBlock(): DieCuttingBlockRequest {
   return {
     automatic: false,
     squareSetupMinutes: 0,
-    minFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0, dieSetupMinutes: 0 },
-    maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0, dieSetupMinutes: 0 },
+    minFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0, simpleDieSetupMinutes: 0, complexDieSetupMinutes: 0 },
+    maxFormat: { widthMm: 0, lengthMm: 0, sheetsPerHour: 0, simpleDieSetupMinutes: 0, complexDieSetupMinutes: 0 },
     belowMinSpeedReducerPercent: '0',
     aboveMaxSpeedReducerPercent: '0',
     feed: null,
@@ -770,13 +770,15 @@ export function hydrateDieCuttingBlock(block: DieCuttingBlockResponse | null): D
       widthMm: block.minFormat.width.millimeters,
       lengthMm: block.minFormat.length.millimeters,
       sheetsPerHour: block.minFormat.sheetsPerHour,
-      dieSetupMinutes: block.minFormat.dieSetupMinutes,
+      simpleDieSetupMinutes: block.minFormat.simpleDieSetupMinutes,
+      complexDieSetupMinutes: block.minFormat.complexDieSetupMinutes,
     },
     maxFormat: {
       widthMm: block.maxFormat.width.millimeters,
       lengthMm: block.maxFormat.length.millimeters,
       sheetsPerHour: block.maxFormat.sheetsPerHour,
-      dieSetupMinutes: block.maxFormat.dieSetupMinutes,
+      simpleDieSetupMinutes: block.maxFormat.simpleDieSetupMinutes,
+      complexDieSetupMinutes: block.maxFormat.complexDieSetupMinutes,
     },
     belowMinSpeedReducerPercent: String(block.belowMinSpeedReducerPercent),
     aboveMaxSpeedReducerPercent: String(block.aboveMaxSpeedReducerPercent),
@@ -800,7 +802,8 @@ export function validateDieCutting(block: DieCuttingBlockRequest): Record<string
     if (!isNumberAtLeast(p.widthMm, 1)) errors[`${which}.widthMm`] = 'Informe a largura (≥ 1).'
     if (!isNumberAtLeast(p.lengthMm, 1)) errors[`${which}.lengthMm`] = 'Informe o comprimento (≥ 1).'
     if (!isNumberAtLeast(p.sheetsPerHour, 1)) errors[`${which}.sheetsPerHour`] = 'Informe a velocidade (≥ 1).'
-    if (!isNumberAtLeast(p.dieSetupMinutes, 0)) errors[`${which}.dieSetupMinutes`] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(p.simpleDieSetupMinutes, 0)) errors[`${which}.simpleDieSetupMinutes`] = 'Valor mínimo: 0.'
+    if (!isNumberAtLeast(p.complexDieSetupMinutes, 0)) errors[`${which}.complexDieSetupMinutes`] = 'Valor mínimo: 0.'
   }
 
   if (!isNonNegativeNumber(block.belowMinSpeedReducerPercent)) errors['belowMinSpeedReducerPercent'] = 'Percentual inválido.'

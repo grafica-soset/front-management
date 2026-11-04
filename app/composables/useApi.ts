@@ -20,7 +20,29 @@ import { useAuthStore } from '@/stores/auth'
  * /auth/refresh e as demais aguardam o mesmo resultado, evitando rotacionar o
  * refresh token mais de uma vez (o que invalidaria as outras tentativas).
  */
-let refreshPromise: Promise<boolean> | null = null
+let refreshPromise: Promise<RefreshOutcome> | null = null
+
+/**
+ * TEMPO-LIMITE das chamadas (fix de /modelos, atividade 051). Sem ele, uma requisição que cai numa
+ * instância da API sendo derrubada (Cloud Run reciclando por memória) nunca termina, e a tela fica em
+ * "Carregando..." para sempre. Com ele, a chamada falha, o `$fetch` repete uma vez (GET) e, se ainda
+ * assim falhar, a tela mostra o erro com "Tentar novamente".
+ */
+const REQUEST_TIMEOUT_MS = 30_000
+/** Gravações e o cálculo do orçamento podem demorar mais que uma listagem. */
+const WRITE_TIMEOUT_MS = 120_000
+
+function withTimeout(options: FetchOptions): FetchOptions {
+  if (options.timeout != null) return options
+  const method = (options.method ?? 'GET').toUpperCase()
+  return { ...options, timeout: method === 'GET' ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS }
+}
+
+/**
+ * Resultado da troca do refresh token: `ok`; `invalid` (o servidor RECUSOU o refresh — sessão perdida);
+ * `unavailable` (o servidor não respondeu — a sessão continua valendo, só não deu agora).
+ */
+type RefreshOutcome = 'ok' | 'invalid' | 'unavailable'
 
 /** Endpoints de autenticação não devem disparar refresh/redirect automático. */
 function isAuthEndpoint(request: unknown): boolean {
@@ -31,28 +53,33 @@ function isAuthEndpoint(request: unknown): boolean {
  * Troca o refresh token atual por um novo par e atualiza a sessão.
  * Retorna `true` em caso de sucesso; em falha, limpa a sessão e retorna `false`.
  */
-async function runRefresh(): Promise<boolean> {
+async function runRefresh(): Promise<RefreshOutcome> {
   const auth = useAuthStore()
   const currentRefresh = auth.refreshToken
-  if (!currentRefresh) return false
+  if (!currentRefresh) return 'invalid'
 
   try {
     const response = await $fetch<LoginResponse>('/api/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: { refreshToken: currentRefresh },
+      timeout: REQUEST_TIMEOUT_MS,
     })
     auth.setSession(response)
-    return true
-  } catch (_err) {
+    return 'ok'
+  } catch (err) {
+    const status = (err as { response?: { status?: number } }).response?.status
+    // Sem resposta, ou erro do servidor: a API está fora do ar/reiniciando. Não é motivo para
+    // derrubar a sessão — o refresh token continua válido.
+    if (status === undefined || status >= 500) return 'unavailable'
     // Refresh inválido/expirado/rotacionado → sessão não recuperável.
     auth.clear()
-    return false
+    return 'invalid'
   }
 }
 
 /** Garante uma única chamada de refresh em voo, compartilhada entre chamadas. */
-function ensureRefreshed(): Promise<boolean> {
+function ensureRefreshed(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = runRefresh().finally(() => {
       refreshPromise = null
@@ -105,7 +132,8 @@ export function useApi() {
    * refresh transparente e refaz a requisição uma única vez. Se o refresh
    * falhar (ou não houver refresh token), limpa a sessão e manda ao login.
    */
-  async function api<T>(request: string, options: FetchOptions = {}): Promise<T> {
+  async function api<T>(request: string, rawOptions: FetchOptions = {}): Promise<T> {
+    const options = withTimeout(rawOptions)
     try {
       return await baseFetch<T>(request, options as never)
     } catch (err) {
@@ -120,7 +148,9 @@ export function useApi() {
       }
 
       const refreshed = await ensureRefreshed()
-      if (!refreshed) {
+      // API fora do ar: a tela mostra o erro e o usuário tenta de novo, ainda logado.
+      if (refreshed === 'unavailable') throw err
+      if (refreshed === 'invalid') {
         redirectToLogin()
         throw err
       }

@@ -6,7 +6,7 @@
  * velocidade parte da máxima e é reduzida por bolsa usada, gramatura e formato fora do ideal,
  * limitada à mínima. Tem alimentador, espessura máxima do papel, quebra de acerto e
  * movimentação de saída por maço (em segundos). No orçamento informam-se as dobras paralelas e
- * cruzadas e o formato fechado.
+ * cruzadas.
  */
 import { computed } from 'vue'
 import type { FoldingBlockRequest } from '@/types/Machine'

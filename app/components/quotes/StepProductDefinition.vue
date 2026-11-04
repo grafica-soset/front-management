@@ -75,6 +75,40 @@ const height = computed({
   },
 })
 
+/**
+ * FORMATO FECHADO: a peça como o cliente recebe (dobrada). Fica ao lado do aberto; a dobradeira não
+ * precisa dele, só das dobras. Desligar o "Tem formato fechado" apaga as medidas.
+ */
+const closedWidth = computed({
+  get: () => fromMillimeters(product.value.closedWidthMm) ?? '',
+  set: (value: number | string) => {
+    product.value.closedWidthMm = value === '' || Number(value) <= 0 ? null : toMillimeters(Number(value))
+  },
+})
+const closedHeight = computed({
+  get: () => fromMillimeters(product.value.closedHeightMm) ?? '',
+  set: (value: number | string) => {
+    product.value.closedHeightMm = value === '' || Number(value) <= 0 ? null : toMillimeters(Number(value))
+  },
+})
+const hasClosedFormat = computed({
+  get: () => product.value.hasClosedFormat,
+  set: (value: boolean) => {
+    product.value.hasClosedFormat = value
+    if (!value) {
+      product.value.closedWidthMm = null
+      product.value.closedHeightMm = null
+    }
+  },
+})
+/** Fechado maior que o aberto (em qualquer sentido) é digitação. */
+const closedLargerThanOpen = computed(() => {
+  const p = product.value
+  if (!p.hasClosedFormat || !p.closedWidthMm || !p.closedHeightMm || !p.widthMm || !p.heightMm) return false
+  const fits = (w: number, h: number) => w <= p.widthMm! && h <= p.heightMm!
+  return !fits(p.closedWidthMm, p.closedHeightMm) && !fits(p.closedHeightMm, p.closedWidthMm)
+})
+
 const unitLabel = computed(() => (product.value.structure === 'BLADE' ? 'peça' : 'bloco'))
 
 /** Como se chama, nesta estrutura, a folha que carrega o desenho. */
@@ -223,13 +257,33 @@ const inputClass =
 
         <div>
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Dimensão final ({{ suffix }}) <span class="text-rose-500">*</span>
+            Formato aberto ({{ suffix }}) <span class="text-rose-500">*</span>
           </label>
           <div class="flex items-center gap-2">
             <input v-model="width" type="number" min="0" step="0.1" placeholder="10" :class="inputClass" />
             <span class="text-slate-400">×</span>
             <input v-model="height" type="number" min="0" step="0.1" placeholder="15" :class="inputClass" />
           </div>
+        </div>
+
+        <!-- Formato fechado: só com a caixa marcada (a peça é entregue dobrada). -->
+        <div>
+          <div class="mb-1.5">
+            <ToggleSwitch v-model="hasClosedFormat" :label="`Formato fechado (${suffix})`">
+              <span v-if="hasClosedFormat" class="text-rose-500">*</span>
+            </ToggleSwitch>
+          </div>
+          <div class="flex items-center gap-2">
+            <input v-model="closedWidth" type="number" min="0" step="0.1" placeholder="Largura" :disabled="!hasClosedFormat" :class="[inputClass, 'disabled:opacity-50']" />
+            <span class="text-slate-400">×</span>
+            <input v-model="closedHeight" type="number" min="0" step="0.1" placeholder="Altura" :disabled="!hasClosedFormat" :class="[inputClass, 'disabled:opacity-50']" />
+          </div>
+          <p v-if="closedLargerThanOpen" class="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            O formato fechado é maior que o aberto — confira as medidas.
+          </p>
+          <p v-else class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            A peça como o cliente recebe (dobrada). Sai na proposta e no pacote; desligado, vale o aberto.
+          </p>
         </div>
 
         <div>

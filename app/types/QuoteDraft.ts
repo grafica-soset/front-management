@@ -14,7 +14,7 @@
  * motor (`types/Quote.ts`), que é quem calcula o preço.
  */
 import type { PricingTerms, ProductTaxes } from '@/types/ProductTaxes'
-import type { DuplexMode } from '@/types/Quote'
+import type { DieComplexity, DuplexMode } from '@/types/Quote'
 
 /** O que a folha é dentro do produto. */
 export type SheetKind = 'BLADE' | 'VIA' | 'COVER'
@@ -114,6 +114,14 @@ export interface PrintingSetup {
   separateCovers: boolean
   /** Impressora das capas, quando `separateCovers`. */
   coverMachineId: number | null
+  /**
+   * FORÇAR O FORMATO IGNORANDO A PINÇA (atividade 051), no mesmo escopo da impressora escolhida:
+   * produto, cada folha (`perSheet`) e capas. A pinça é a faixa em que a máquina segura a folha —
+   * sem tinta ali, a peça pode ocupá-la. Ausente em rascunhos antigos = não ignora.
+   */
+  ignoreGrip?: boolean
+  ignoreGripBySheet?: Record<string, boolean>
+  coverIgnoreGrip?: boolean
 }
 
 /** Parâmetros que uma etapa pede quando é ativada no orçamento. */
@@ -155,14 +163,18 @@ export interface StepParameters {
   channelLengthMm?: number | null
   /** A faca é do cliente: não cobra a faca, cobra a taxa de manutenção da empresa. Bocas continuam. */
   customerOwnsDie?: boolean
+  /** Complexidade das bocas (atividade 051): o setup de faca é por boca, simples ou complexo. */
+  dieComplexity?: DieComplexity
+  /** Ignorar a pinça da máquina de corte e vinco na escolha do formato (atividade 051). */
+  ignoreGrip?: boolean
 
   // ---- Dobra (atividade 048) ----
   /** Dobras PARALELAS e CRUZADAS: uma bolsa da dobradeira por dobra, até as bolsas da máquina. */
   parallelFolds?: number
   crossFolds?: number
   /**
-   * FORMATO FECHADO (atividade 050), em mm: a peça depois de dobrada. O formato do produto é o
-   * aberto; a proposta escreve os dois.
+   * LEGADO (atividade 050): o formato fechado ficava na etapa de dobra. Hoje é do produto; ao abrir
+   * um rascunho antigo, `withProductDefaults` o leva para lá.
    */
   closedWidthMm?: number | null
   closedHeightMm?: number | null
@@ -194,9 +206,17 @@ export interface QuoteProduct {
   /** Modelo de produto do catálogo de onde o produto partiu, se partiu de um. */
   productTemplateId: number | null
   name: string
-  /** Formato final da peça, em milímetros (representação canônica do sistema). */
+  /** Formato ABERTO da peça, em milímetros (representação canônica do sistema). */
   widthMm: number | null
   heightMm: number | null
+  /**
+   * "Tem formato fechado?" — a peça é entregue dobrada. Liga os campos do formato fechado, que
+   * vivem aqui, ao lado do aberto (antes ficavam na etapa de dobra, atividade 050).
+   */
+  hasClosedFormat: boolean
+  /** Formato FECHADO, em mm: como o cliente recebe a peça. Vai para a proposta e para o pacote. */
+  closedWidthMm: number | null
+  closedHeightMm: number | null
   /**
    * QUANTIDADE encomendada: peças finais (lâminas) ou blocos a produzir.
    *

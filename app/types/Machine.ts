@@ -183,8 +183,10 @@ export interface DieCuttingFormatPointRequest {
   widthMm: number
   lengthMm: number
   sheetsPerHour: number
-  /** Tempo de setup de faca (min) medido neste formato. */
-  dieSetupMinutes: number
+  /** Setup de faca SIMPLES por boca (min) medido neste formato (atividade 051). */
+  simpleDieSetupMinutes: number
+  /** Setup de faca COMPLEXO por boca (min) medido neste formato (atividade 051). */
+  complexDieSetupMinutes: number
 }
 
 /** Bloco de alimentação de papel — apenas máquina automática. */
@@ -214,7 +216,8 @@ export interface DieCuttingFormatPointResponse {
   width: FormattedDimension
   length: FormattedDimension
   sheetsPerHour: number
-  dieSetupMinutes: number
+  simpleDieSetupMinutes: number
+  complexDieSetupMinutes: number
 }
 
 /** Bloco corte e vinco devolvido pela API. */

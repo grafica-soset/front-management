@@ -82,13 +82,23 @@ const optionsFor = (sheets: QuoteSheet[]) => {
     machineId: number; machineName: string; machineType: 'OFFSET' | 'DIGITAL'
     total: number; waste: number; minutes: number
     sheetLabel: string; applicationsPerSheet: number; wholeSheets: number
+    gripMm?: number; gripInvaded?: boolean
   }>()
   // Com formato escolhido pelo usuário, a comparação de impressoras fica dentro dele — senão a
   // linha da máquina anunciaria um formato diferente do que o cálculo está usando.
-  const pinned = sheets[0]?.printFormatNumber ?? null
-  const pinnedName = sheets[0]?.printFormatName ?? null
-  const pinnedPaper = sheets[0]?.paperId ?? null
-  for (const plan of [costing.chosen, ...costing.alternatives]) {
+  const plans = [costing.chosen, ...costing.alternatives]
+  // O formato fixado pode ter ficado sem plano (ex.: a pinça da máquina de corte e vinco o recusou —
+  // atividade 051). Aí a comparação usa todos os planos: esconder as impressoras tiraria da tela o
+  // card da escolhida, com o X e o "ignorar a pinça" que permitem desfazer.
+  const pinnedMatches = (plan: (typeof plans)[number]) =>
+    (sheets[0]?.printFormatNumber == null || plan.printFormatNumber === sheets[0]?.printFormatNumber) &&
+    (sheets[0]?.printFormatName == null || plan.printFormatName === sheets[0]?.printFormatName) &&
+    (sheets[0]?.paperId == null || plan.paperId === sheets[0]?.paperId)
+  const usePin = plans.some(pinnedMatches)
+  const pinned = usePin ? (sheets[0]?.printFormatNumber ?? null) : null
+  const pinnedName = usePin ? (sheets[0]?.printFormatName ?? null) : null
+  const pinnedPaper = usePin ? (sheets[0]?.paperId ?? null) : null
+  for (const plan of plans) {
     if (pinned !== null && plan.printFormatNumber !== pinned) continue
     if (pinnedName !== null && plan.printFormatName !== pinnedName) continue
     if (pinnedPaper !== null && plan.paperId !== pinnedPaper) continue
@@ -106,6 +116,8 @@ const optionsFor = (sheets: QuoteSheet[]) => {
       sheetLabel: `${plan.paperCode} — ${formatLabel(plan.printFormatName, plan.printFormatNumber)}`,
       applicationsPerSheet: plan.applicationsPerSheet,
       wholeSheets: plan.wholeSheets,
+      gripMm: plan.gripMm ?? 0,
+      gripInvaded: plan.gripInvaded === true,
     })
   }
   return Array.from(best.values()).sort((a, b) => a.total - b.total)
@@ -808,6 +820,8 @@ const toggleSeparateCovers = () => {
             :selected="true"
             clearable
             @clear="store.setMachine(step.uid, 'PRODUCT', null)"
+            :ignore-grip="printing.ignoreGrip === true"
+            @update:ignore-grip="(v: boolean) => store.setIgnoreGrip(step.uid, 'PRODUCT', v)"
           />
         </template>
         <MachineOptionCard
@@ -851,6 +865,8 @@ const toggleSeparateCovers = () => {
                 :selected="true"
                 clearable
                 @clear="store.setMachine(step.uid, sheet.uid, null)"
+                :ignore-grip="printing.ignoreGripBySheet?.[sheet.uid] === true"
+                @update:ignore-grip="(v: boolean) => store.setIgnoreGrip(step.uid, sheet.uid, v)"
               />
             </template>
             <MachineOptionCard
@@ -1006,6 +1022,8 @@ const toggleSeparateCovers = () => {
             :selected="true"
             clearable
             @clear="store.setMachine(step.uid, 'COVERS', null)"
+            :ignore-grip="printing.coverIgnoreGrip === true"
+            @update:ignore-grip="(v: boolean) => store.setIgnoreGrip(step.uid, 'COVERS', v)"
           />
         </template>
         <MachineOptionCard
