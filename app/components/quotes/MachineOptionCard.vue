@@ -11,6 +11,7 @@
  */
 import { computed } from 'vue'
 import { brl } from '@/utils/quoteModel'
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 
 /** Opção de impressora derivada do cálculo do motor (plano escolhido + alternativas). */
 export interface MachineOption {
@@ -25,6 +26,9 @@ export interface MachineOption {
   sheetLabel: string
   applicationsPerSheet: number
   wholeSheets: number
+  /** Pinça da impressora (mm) e se as peças a invadem neste plano (atividade 051). */
+  gripMm?: number
+  gripInvaded?: boolean
 }
 
 const props = defineProps<{
@@ -38,11 +42,17 @@ const props = defineProps<{
    * opções somem da tela — quem precisa trocar volta à lista pelo X.
    */
   clearable?: boolean
+  /**
+   * "Forçar o formato ignorando a pinça" (atividade 051) — só no card da máquina escolhida. Nulo =
+   * a tela não oferece a opção.
+   */
+  ignoreGrip?: boolean | null
 }>()
 
 const emit = defineEmits<{
   (e: 'select'): void
   (e: 'clear'): void
+  (e: 'update:ignoreGrip', value: boolean): void
 }>()
 
 const difference = computed(() => props.option.total - props.bestTotal)
@@ -100,6 +110,14 @@ const difference = computed(() => props.option.total - props.bestTotal)
       </div>
     </div>
 
+    <p
+      v-if="option.gripInvaded"
+      class="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
+    >
+      A área da pinça ({{ option.gripMm }} mm) está sendo invadida: {{ option.applicationsPerSheet }} aplicações só
+      cabem sem a pinça. A arte não pode ter tinta nessa faixa.
+    </p>
+
     <dl class="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
       <div>
         <dt class="text-xs text-slate-500 dark:text-slate-400">Quebra</dt>
@@ -114,5 +132,27 @@ const difference = computed(() => props.option.total - props.bestTotal)
         <dd class="text-sm tabular-nums text-slate-800 dark:text-slate-100">{{ option.wholeSheets.toLocaleString('pt-BR') }}</dd>
       </div>
     </dl>
+
+    <!-- Forçar o formato (atividade 051): a pinça só não tem tinta — o formato ainda tem de caber na máquina. -->
+    <div
+      v-if="clearable && ignoreGrip != null && (option.gripMm ?? 0) > 0"
+      class="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700"
+    >
+      <ToggleSwitch
+        :model-value="ignoreGrip"
+        label="Forçar o formato ignorando a pinça"
+        @update:model-value="(v: boolean) => emit('update:ignoreGrip', v)"
+      />
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <template v-if="ignoreGrip && !option.gripInvaded">
+          Ignorando a pinça de {{ option.gripMm }} mm. Use <strong>Calcular</strong>; se este formato não render
+          mais aplicações sem ela, nada muda.
+        </template>
+        <template v-else-if="!ignoreGrip">
+          A peça pode ocupar a faixa da pinça ({{ option.gripMm }} mm) quando a arte não tem impressão ali.
+          O formato continua tendo de caber na máquina.
+        </template>
+      </p>
+    </div>
   </component>
 </template>

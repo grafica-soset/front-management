@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useQuoteDraftStore } from '@/stores/quoteDraft'
+import { useQuoteDraftStore, withProductDefaults } from '@/stores/quoteDraft'
 import type { ProductCostingResponse } from '@/types/Quote'
 import type { SavedQuote } from '@/types/SavedQuote'
 
@@ -59,6 +59,97 @@ describe('store do rascunho de orçamento', () => {
 
     expect(store.draftCost).toBeNull()
     expect(comCusto).not.toBe(semCusto)
+  })
+
+  // ---- Formato fechado: do produto, ao lado do aberto ----
+
+  it('o formato fechado só viaja com a caixa marcada e as duas medidas', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    const p = store.draft!
+    p.widthMm = 420
+    p.heightMm = 297
+    p.closedWidthMm = 140
+    p.closedHeightMm = 297
+
+    expect(store.toPayload(p)).toMatchObject({ closedWidthMm: null, closedHeightMm: null })
+
+    p.hasClosedFormat = true
+    expect(store.toPayload(p)).toMatchObject({ widthMm: 420, heightMm: 297, closedWidthMm: 140, closedHeightMm: 297 })
+
+    p.closedHeightMm = null
+    expect(store.toPayload(p)).toMatchObject({ closedWidthMm: null, closedHeightMm: null })
+  })
+
+  it('a etapa de dobra não manda mais formato fechado', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.draft!.steps.push({ uid: 'etapa-1', activityId: 30, parameters: { parallelFolds: 2 } })
+
+    expect(store.toPayload(store.draft!).steps[0]!.parameters).not.toHaveProperty('closedWidthMm')
+  })
+
+  // ---- Atividade 051: pinça e corte e vinco ----
+
+  const comImpressao = () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    const draft = store.draft!
+    const sheet = draft.sheets[0]!
+    draft.steps.push({
+      uid: 'imp-1', activityId: 10, parameters: {},
+      printing: {
+        bySheet: { [sheet.uid]: { frontColors: 4, backColors: 0, frontInkIds: [], backInkIds: [] } as never },
+        machineId: null, perSheet: false, machineIdBySheet: {}, separateCovers: false, coverMachineId: null,
+      },
+    })
+    return store
+  }
+
+  it('ignorar a pinça viaja por folha, no escopo da impressora escolhida', () => {
+    const store = comImpressao()
+    const folha = () => store.toPayload(store.draft!).steps[0]!.printing!.sheets[0]!
+
+    // Rascunho antigo, sem o campo: respeita a pinça.
+    expect(folha().ignoreGrip).toBe(false)
+
+    store.setMachine('imp-1', 'PRODUCT', 7)
+    store.setIgnoreGrip('imp-1', 'PRODUCT', true)
+    expect(folha()).toMatchObject({ printingMachineId: 7, ignoreGrip: true })
+
+    // Trocar a impressora volta a respeitar a pinça: a escolha era daquela máquina.
+    store.setMachine('imp-1', 'PRODUCT', 8)
+    expect(folha().ignoreGrip).toBe(false)
+  })
+
+  it('corte e vinco manda a complexidade das bocas (simples por padrão) e a pinça', () => {
+    const store = useQuoteDraftStore()
+    store.startNew()
+    store.draft!.steps.push({ uid: 'cv', activityId: 70, parameters: { dieCount: 2 } })
+    expect(store.toPayload(store.draft!).steps[0]!.parameters).toMatchObject({
+      dieCount: 2, dieComplexity: 'SIMPLE', ignoreGrip: false,
+    })
+
+    store.draft!.steps[0]!.parameters.dieComplexity = 'COMPLEX'
+    store.draft!.steps[0]!.parameters.ignoreGrip = true
+    expect(store.toPayload(store.draft!).steps[0]!.parameters).toMatchObject({ dieComplexity: 'COMPLEX', ignoreGrip: true })
+  })
+
+  it('rascunho antigo, com o fechado na etapa de dobra, abre com ele no produto', () => {
+    const product = withProductDefaults({
+      name: 'Folder',
+      widthMm: 420,
+      heightMm: 297,
+      steps: [{ uid: 'etapa-1', activityId: 30, parameters: { parallelFolds: 2, closedWidthMm: 140, closedHeightMm: 297 } }],
+    })
+
+    expect(product).toMatchObject({ hasClosedFormat: true, closedWidthMm: 140, closedHeightMm: 297 })
+    expect(product.steps[0]!.parameters).toEqual({ parallelFolds: 2 })
+  })
+
+  it('rascunho sem formato fechado abre com a caixa desmarcada', () => {
+    expect(withProductDefaults({ name: 'Cartão', widthMm: 90, heightMm: 50 }))
+      .toMatchObject({ hasClosedFormat: false, closedWidthMm: null, closedHeightMm: null })
   })
 
   // ---- Vias/lâminas iguais: a pergunta que decide quantas chapas o trabalho paga ----

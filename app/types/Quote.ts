@@ -23,6 +23,8 @@ export type CoverPosition = 'FRONT' | 'BACK'
  * tira/retira (frente e verso na mesma chapa, um acerto só) ou frente/verso (chapas e acerto de cada lado).
  */
 export type DuplexMode = 'WORK_AND_TURN' | 'SHEETWISE'
+/** Complexidade das bocas da faca de corte e vinco (atividade 051). */
+export type DieComplexity = 'SIMPLE' | 'COMPLEX'
 export type QuoteInkType = 'LINE' | 'CMYK' | 'PANTONE'
 
 // ─── Requisição ──────────────────────────────────────────────────────────────
@@ -56,6 +58,8 @@ export interface QuotePrintingSheetRequest {
   frontCoveragePercent?: number | null
   backCoveragePercent?: number | null
   printingMachineId?: number | null
+  /** Ignorar a pinça da impressora desta folha (atividade 051). Nulo = segue o do produto. */
+  ignoreGrip?: boolean | null
   /** Tira/retira ou frente/verso (atividade 041). Nulo = tira/retira, quando os lados permitem. */
   duplexMode?: DuplexMode | null
 }
@@ -65,6 +69,8 @@ export interface QuotePrintingRequest {
   machineId?: number | null
   /** Chapa escolhida quando a impressora aceita mais de um tipo. */
   plateSupplyId?: number | null
+  /** Forçar o formato ignorando a pinça da impressora (atividade 051). */
+  ignoreGrip?: boolean
   sheets: QuotePrintingSheetRequest[]
 }
 
@@ -86,10 +92,14 @@ export interface QuoteStepRequest {
     channelLengthMm?: number | null
     /** Corte e vinco (atividade 046): faca do cliente — cobra a taxa de manutenção no lugar da faca. */
     customerOwnsDie?: boolean
+    /** Corte e vinco (atividade 051): complexidade das bocas — setup de faca simples ou complexo, por boca. */
+    dieComplexity?: DieComplexity
+    /** Corte e vinco (atividade 051): ignorar a pinça da máquina na escolha do formato. */
+    ignoreGrip?: boolean
     /** Dobra (atividade 048): dobras paralelas e cruzadas — uma bolsa por dobra. */
     parallelFolds?: number
     crossFolds?: number
-    /** Dobra (atividade 050): formato FECHADO da peça dobrada, em mm. O formato do produto é o aberto. */
+    /** LEGADO (atividade 050): o formato fechado hoje é do produto. Não é mais enviado. */
     closedWidthMm?: number | null
     closedHeightMm?: number | null
     /** Máquina escolhida para a etapa automatizada (nula = a mais barata que dá conta). */
@@ -123,6 +133,9 @@ export interface QuoteProductRequest {
   /** Tamanho pedido pelo cliente: aponta para o menor formato cadastrado que o comporta. */
   widthMm: number
   heightMm: number
+  /** Formato FECHADO (peça dobrada), em mm. Nulo = sem formato fechado. */
+  closedWidthMm?: number | null
+  closedHeightMm?: number | null
   structure: ProductStructure
   sets: number
   /** Vias/lâminas iguais: mesma chapa, mesma montagem e todas na mesma impressora. */
@@ -265,6 +278,8 @@ export interface SheetPlanResponse {
   gripMm?: number
   /** A montagem por extenso: "3 × 2 = 6 aplicação(ões) — peça 99×210 mm no 320×440 mm, pinça...". */
   layoutDetail?: string
+  /** As peças invadem a área da pinça (o orçamentista mandou ignorá-la — atividade 051). */
+  gripInvaded?: boolean
   /** Preço da folha inteira: folhas inteiras × preço = custo do papel. */
   paperPricePerSheet: number
   /** Primeiro corte: descidas do cadastro de formatos. */
@@ -353,6 +368,11 @@ export interface StepCostingResponse {
   supplyUsage?: StepSupplyUsageResponse | null
   /** Todos os insumos da etapa: a faca e a canaleta do corte e vinco (atividade 046). */
   supplyUsages?: StepSupplyUsageResponse[]
+  /**
+   * Corte e vinco (atividade 051): a etapa calculada com cada quantidade de bocas, de 1 até as
+   * aplicações da folha — para comparar a faca de mais bocas com a de menos passadas.
+   */
+  dieCountOptions?: DieCountOption[]
 }
 
 /**
@@ -505,4 +525,16 @@ export interface QuoteNumberingResponse {
 export interface QuoteCostingResponse {
   products: ProductCostingResponse[]
   totalCost: number
+}
+
+/** O corte e vinco calculado com `dieCount` bocas (atividade 051). */
+export interface DieCountOption {
+  dieCount: number
+  /** Quantas vezes a mesma folha passa na máquina (aplicações ÷ bocas). */
+  passes: number
+  minutes: number
+  /** Custo da etapa inteira: máquina + faca + canaleta. */
+  cost: number
+  /** É a quantidade informada no orçamento. */
+  chosen: boolean
 }

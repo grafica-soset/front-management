@@ -44,6 +44,7 @@ import {
   duplexModeFor,
   followsFirstVia,
   isSheetPrinted,
+  ignoreGripForSheet,
   machineForSheet,
   setupFor,
 } from '@/utils/quoteModel'
@@ -104,6 +105,9 @@ function emptyPrintingSetup(product: QuoteProduct): PrintingSetup {
     machineIdBySheet: {},
     separateCovers: false,
     coverMachineId: null,
+    ignoreGrip: false,
+    ignoreGripBySheet: {},
+    coverIgnoreGrip: false,
   }
 }
 
@@ -124,6 +128,9 @@ export function emptyProduct(): QuoteProduct {
     name: '',
     widthMm: null,
     heightMm: null,
+    hasClosedFormat: false,
+    closedWidthMm: null,
+    closedHeightMm: null,
     quantity: null,
     structure: 'BLADE',
     blades: 1,
@@ -154,6 +161,33 @@ export function emptyProduct(): QuoteProduct {
 }
 
 /**
+ * O formato fechado do rascunho: o do produto; num rascunho anterior a este fix, o da última etapa
+ * de dobra que o informou (atividade 050) — ele sobe para o produto.
+ */
+function closedFormatOf(product: Partial<QuoteProduct>): Pick<QuoteProduct, 'hasClosedFormat' | 'closedWidthMm' | 'closedHeightMm'> {
+  if (product.closedWidthMm != null || product.closedHeightMm != null || product.hasClosedFormat != null) {
+    return {
+      hasClosedFormat: !!product.hasClosedFormat,
+      closedWidthMm: product.closedWidthMm ?? null,
+      closedHeightMm: product.closedHeightMm ?? null,
+    }
+  }
+  const legacy = [...(product.steps ?? [])]
+    .reverse()
+    .find((s) => (s.parameters?.closedWidthMm ?? 0) > 0 && (s.parameters?.closedHeightMm ?? 0) > 0)
+  return legacy
+    ? { hasClosedFormat: true, closedWidthMm: legacy.parameters.closedWidthMm!, closedHeightMm: legacy.parameters.closedHeightMm! }
+    : { hasClosedFormat: false, closedWidthMm: null, closedHeightMm: null }
+}
+
+/** A etapa sem o formato fechado antigo: ele agora mora no produto. */
+function withoutLegacyClosedFormat(step: QuoteStep): QuoteStep {
+  if (!step.parameters || !('closedWidthMm' in step.parameters || 'closedHeightMm' in step.parameters)) return step
+  const { closedWidthMm: _w, closedHeightMm: _h, ...parameters } = step.parameters
+  return { ...step, parameters }
+}
+
+/**
  * Completa um rascunho vindo de fora — o `editorState` de um orçamento salvo — com os campos que
  * ele não tinha quando foi gravado. Sem isso, um orçamento salvo antes de um campo existir abriria
  * o assistente com `undefined` onde a tela espera número.
@@ -162,9 +196,12 @@ export function withProductDefaults(product: Partial<QuoteProduct>): QuoteProduc
   const base = emptyProduct()
   // Rascunho anterior à atividade 040 guardava "quantas capas": vira a posição.
   const legacyCoverCount = (product as { coverCount?: number }).coverCount
+  const closed = closedFormatOf(product)
   return {
     ...base,
     ...product,
+    ...closed,
+    steps: (product.steps ?? base.steps).map(withoutLegacyClosedFormat),
     coverSides: product.coverSides ?? coverSidesFromCount(legacyCoverCount),
     coverPrinted: product.coverPrinted ?? inferCoverPrinted(product),
     coverRepeatsArtwork: product.coverRepeatsArtwork ?? false,
@@ -888,12 +925,12 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
             dieCount: step.parameters.dieCount ?? 0,
             channelLengthMm: step.parameters.channelLengthMm ?? null,
             customerOwnsDie: step.parameters.customerOwnsDie ?? false,
+            // Corte e vinco (atividade 051): complexidade das bocas e "ignorar a pinça".
+            dieComplexity: step.parameters.dieComplexity ?? 'SIMPLE',
+            ignoreGrip: step.parameters.ignoreGrip ?? false,
             // Dobra (atividade 048): dobras paralelas e cruzadas.
             parallelFolds: step.parameters.parallelFolds ?? 0,
             crossFolds: step.parameters.crossFolds ?? 0,
-            // Formato fechado da dobra (atividade 050), em mm.
-            closedWidthMm: step.parameters.closedWidthMm ?? null,
-            closedHeightMm: step.parameters.closedHeightMm ?? null,
             machineId: step.parameters.machineId ?? null,
           },
         }
@@ -918,6 +955,8 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
                   frontCoveragePercent: setup.frontCoverage,
                   backCoveragePercent: setup.backCoverage,
                   printingMachineId: machineForSheet(step, sheet),
+                  // A pinça ignorada viaja resolvida por folha, no escopo da impressora (atividade 051).
+                  ignoreGrip: ignoreGripForSheet(step, sheet),
                   duplexMode: duplexModeFor(setup),
                 }
               })
@@ -931,6 +970,10 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
         quantity: product.quantity ?? 0,
         widthMm: product.widthMm ?? 0,
         heightMm: product.heightMm ?? 0,
+        // Formato fechado: só com "Tem formato fechado" ligado e as duas medidas preenchidas.
+        ...(product.hasClosedFormat && (product.closedWidthMm ?? 0) > 0 && (product.closedHeightMm ?? 0) > 0
+          ? { closedWidthMm: product.closedWidthMm, closedHeightMm: product.closedHeightMm }
+          : { closedWidthMm: null, closedHeightMm: null }),
         structure: product.structure,
         sets: product.structure === 'BLOCK' ? product.sets : 1,
         identicalArtwork: product.identicalArtwork === true,
@@ -1055,7 +1098,21 @@ export const useQuoteDraftStore = defineStore('quoteDraft', {
       if (scope === 'PRODUCT') printing.machineId = machineId
       else if (scope === 'COVERS') printing.coverMachineId = machineId
       else printing.machineIdBySheet[scope] = machineId
+      // Trocar (ou limpar) a impressora volta a respeitar a pinça: a escolha era daquela máquina.
+      this.setIgnoreGrip(stepUid, scope, false)
       this.pruneInks()
+    },
+
+    /**
+     * "Forçar o formato ignorando a pinça" (atividade 051), no escopo da impressora escolhida. O
+     * formato continua tendo de caber na máquina; o cálculo avisa quando as peças invadem a pinça.
+     */
+    setIgnoreGrip(stepUid: string, scope: 'PRODUCT' | 'COVERS' | string, value: boolean) {
+      const printing = this.draft?.steps.find((s) => s.uid === stepUid)?.printing
+      if (!printing) return
+      if (scope === 'PRODUCT') printing.ignoreGrip = value
+      else if (scope === 'COVERS') printing.coverIgnoreGrip = value
+      else printing.ignoreGripBySheet = { ...(printing.ignoreGripBySheet ?? {}), [scope]: value }
     },
 
     /**

@@ -109,19 +109,6 @@ const hasCrossFold = computed<boolean>({
 
 const { suffix, fromMillimeters, toMillimeters, format } = useUnitConverter()
 
-// ---- Formato fechado da dobra (atividade 050) ----------------------------------------------
-
-/** Uma medida do formato fechado na unidade da empresa; guardada em mm. Vazio = não informado. */
-const closedDimension = (key: 'closedWidthMm' | 'closedHeightMm') =>
-  computed<number | null>({
-    get: () => fromMillimeters(props.step.parameters[key] ?? null),
-    set: (value) => {
-      props.step.parameters[key] = value == null || !Number.isFinite(value) || value <= 0 ? null : toMillimeters(value)
-    },
-  })
-const closedWidth = closedDimension('closedWidthMm')
-const closedHeight = closedDimension('closedHeightMm')
-
 /** Perímetro da peça (mm): a canaleta padrão de cada faca — 15×20 dá 70. */
 const perimeterMm = computed(() => {
   const w = product.value.widthMm ?? 0
@@ -153,6 +140,19 @@ const supplyUsages = computed(() =>
       ? [calculated.value.supplyUsage]
       : [],
 )
+
+/**
+ * QUANTAS BOCAS COMPENSAM (atividade 051): o último cálculo traz a etapa com cada quantidade de bocas.
+ * Mais bocas = menos passadas, mas mais facas, canaleta e setup (por boca). A mais barata ganha o selo;
+ * clicar numa linha troca as bocas (e pede novo cálculo).
+ */
+const dieOptions = computed(() => calculated.value?.dieCountOptions ?? [])
+const cheapestDieCount = computed(() =>
+  dieOptions.value.length ? dieOptions.value.reduce((a, b) => (b.cost < a.cost ? b : a)).dieCount : null,
+)
+const chooseDieCount = (count: number) => {
+  props.step.parameters.dieCount = count
+}
 
 const inputClass =
   'w-28 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white'
@@ -332,7 +332,21 @@ const inputClass =
           />
           <p class="mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">
             Facas consumidas do estoque. Menos bocas que aplicações da folha = a mesma folha passa mais
-            vezes (9 aplicações com 3 bocas = 3 passadas): mais rodagem, menos faca e canaleta.
+            vezes (9 aplicações com 3 bocas = 3 passadas): mais rodagem, menos faca, canaleta e setup.
+          </p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Complexidade das bocas</label>
+          <select
+            :value="params.dieComplexity ?? 'SIMPLE'"
+            class="rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-900 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            @change="step.parameters.dieComplexity = ($event.target as HTMLSelectElement).value as 'SIMPLE' | 'COMPLEX'"
+          >
+            <option value="SIMPLE">Simples</option>
+            <option value="COMPLEX">Complexa</option>
+          </select>
+          <p class="mt-1 max-w-xs text-xs text-slate-500 dark:text-slate-400">
+            Decide o setup de faca POR BOCA do cadastro da máquina (simples ou complexo).
           </p>
         </div>
         <div>
@@ -375,6 +389,59 @@ const inputClass =
           <template v-else>A faca é comprada para o trabalho e cobrada no orçamento.</template>
         </p>
       </div>
+
+      <!-- Pinça da máquina de corte e vinco: a faca pode ir até a borda (atividade 051) -->
+      <div>
+        <ToggleSwitch
+          :model-value="params.ignoreGrip === true"
+          label="Ignorar a pinça da máquina de corte e vinco"
+          @update:model-value="(v: boolean) => (step.parameters.ignoreGrip = v)"
+        />
+        <p class="mt-1 text-xs" :class="params.ignoreGrip ? 'font-medium text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'">
+          <template v-if="params.ignoreGrip">
+            A pinça deixa de escolher o formato de impressão — as peças podem invadir a área da pinça. O
+            formato continua tendo de caber na máquina.
+          </template>
+          <template v-else>A pinça da máquina escolhe o formato: as peças deixam a borda livre para ela.</template>
+        </p>
+      </div>
+
+      <!-- Comparação de bocas (atividade 051) -->
+      <div v-if="dieOptions.length > 1" class="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+        <p class="bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 dark:bg-slate-700/50 dark:text-slate-200">
+          Quantas bocas compensam? — clique para usar
+        </p>
+        <table class="w-full text-xs">
+          <thead class="text-slate-500 dark:text-slate-400">
+            <tr>
+              <th class="px-4 py-1.5 text-left font-medium">Bocas</th>
+              <th class="px-4 py-1.5 text-right font-medium">Passadas</th>
+              <th class="px-4 py-1.5 text-right font-medium">Tempo</th>
+              <th class="px-4 py-1.5 text-right font-medium">Custo da etapa</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="option in dieOptions"
+              :key="option.dieCount"
+              class="cursor-pointer border-t border-slate-100 hover:bg-indigo-50/60 dark:border-slate-700 dark:hover:bg-slate-700/50"
+              :class="option.chosen ? 'bg-indigo-50 font-semibold text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200' : 'text-slate-700 dark:text-slate-200'"
+              @click="chooseDieCount(option.dieCount)"
+            >
+              <td class="px-4 py-1.5">
+                {{ option.dieCount }}
+                <span v-if="option.dieCount === cheapestDieCount" class="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  Melhor preço
+                </span>
+              </td>
+              <td class="px-4 py-1.5 text-right tabular-nums">{{ option.passes }}</td>
+              <td class="px-4 py-1.5 text-right tabular-nums">{{ Math.round(option.minutes) }} min</td>
+              <td class="px-4 py-1.5 text-right tabular-nums">{{ brl(option.cost) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
 
       <div
         v-if="calculated"
@@ -442,21 +509,6 @@ const inputClass =
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
             <template v-if="maxCrossFolds === 0">Nenhuma dobradeira desta atividade tem bolsa cruzada.</template>
             <template v-else>Até {{ maxCrossFolds }} — as bolsas cruzadas da maior dobradeira.</template>
-          </p>
-        </div>
-        <!-- O formato do produto é o ABERTO; aqui vai a peça dobrada (atividade 050). -->
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Formato fechado ({{ suffix }}) <span class="text-rose-500">*</span>
-          </label>
-          <div class="flex items-center gap-2">
-            <input v-model.number="closedWidth" type="number" min="0" step="any" placeholder="Largura" :class="inputClass" />
-            <span class="text-slate-400">×</span>
-            <input v-model.number="closedHeight" type="number" min="0" step="any" placeholder="Altura" :class="inputClass" />
-          </div>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            A peça depois de dobrada. O aberto é o formato do produto
-            ({{ format(product.widthMm) }} × {{ format(product.heightMm) }}).
           </p>
         </div>
       </div>

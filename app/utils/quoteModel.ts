@@ -257,6 +257,18 @@ export function machineForSheet(step: QuoteStep, sheet: QuoteSheet): number | nu
 }
 
 /**
+ * IGNORAR A PINÇA (atividade 051) desta folha: no mesmo escopo da impressora — capas separadas,
+ * impressora por folha ou a do produto. Rascunho antigo, sem o campo, não ignora.
+ */
+export function ignoreGripForSheet(step: QuoteStep, sheet: QuoteSheet): boolean {
+  const printing = step.printing
+  if (!printing) return false
+  if (sheet.kind === 'COVER' && printing.separateCovers) return printing.coverIgnoreGrip === true
+  if (printing.perSheet) return printing.ignoreGripBySheet?.[sheet.uid] === true
+  return printing.ignoreGrip === true
+}
+
+/**
  * AS CHAPAS QUE A IMPRESSÃO PODE USAR (atividade 034): as chapas da impressora escolhida.
  *
  * Não é "toda chapa do tipo que a máquina aceita" — é a lista que a própria impressora declara no
